@@ -4,7 +4,7 @@
     <div class="bg-slate-800 p-4 rounded-md">
       <h4 class="text-sm font-medium text-gray-300 mb-2">📡 Endpoint Information</h4>
       <div class="text-xs text-gray-400 space-y-1">
-        <p><strong>Endpoint URL:</strong> /api/v1/{workflow_id}/ep</p>
+        <p><strong>Endpoint URL:</strong> {{ endpointUrl }}</p>
         <p><strong>Content-Type:</strong> application/json (recommended)</p>
         <p><strong>Authentication:</strong> None required for execution</p>
       </div>
@@ -36,7 +36,7 @@
         <div>
           <p class="text-sm text-blue-300 font-medium">Example Usage</p>
           <div class="text-xs text-blue-400 mt-1 space-y-1">
-            <p><strong>curl</strong> -X POST /api/v1/{workflow_id}/ep \</p>
+            <p><strong>curl</strong> -X POST {{ endpointUrl }} \</p>
             <p class="ml-4">-H "Content-Type: application/json" \</p>
             <p class="ml-4">-d '{"key": "value"}'</p>
           </div>
@@ -65,6 +65,9 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useWorkflowStore } from '../../stores/workflows'
+
 interface TriggerConfig {
   type: 'trigger'
   methods: string[]
@@ -82,19 +85,9 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const httpMethods = ['GET', 'POST', 'PUT', 'DELETE']
+const workflowStore = useWorkflowStore()
 
-function toggleMethod(method: string) {
-  const methods = [...(props.modelValue.methods || [])]
-  const index = methods.indexOf(method)
-  
-  if (index > -1) {
-    methods.splice(index, 1)
-  } else {
-    methods.push(method)
-  }
-  
-  const updated = { ...props.modelValue, methods }
-  emit('update:modelValue', updated)
-}
+const workflowId = computed(() => workflowStore.currentWorkflow?.id || '{workflow_id}')
+const endpointUrl = computed(() => `/api/v1/${workflowId.value}/ep`)
+
 </script>
