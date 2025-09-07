@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::{
     database::{edges, entities, nodes},
     workflow::{
-        models::{Edge, Node, NodeType},
+        models::{Edge, Node, NodeType, AppType, HttpMethod, RetryConfig},
         validation::WorkflowValidator,
     },
     AppState,
@@ -248,11 +248,11 @@ pub async fn get_workflow(
         .map(|node| {
             let node_type: NodeType = serde_json::from_str(&node.config)
                 .unwrap_or(NodeType::App {
-                    app_type: "Unknown".to_string(),
+                    app_type: AppType::Webhook,
                     url: "".to_string(),
-                    method: "GET".to_string(),
+                    method: HttpMethod::GET,
                     timeout_seconds: 30,
-                    retry_config: None,
+                    retry_config: RetryConfig::default(),
                 });
             NodeResponse {
                 id: node.id,

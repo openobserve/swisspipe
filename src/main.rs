@@ -65,6 +65,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         port
     );
 
+    println!("SwissPipe server listening on http://0.0.0.0:{}", port);
+
     axum::serve(listener, app).await?;
 
     Ok(())
