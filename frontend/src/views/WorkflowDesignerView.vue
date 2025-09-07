@@ -162,6 +162,9 @@ const nodeDataUpdateKey = computed(() => {
 })
 
 onMounted(async () => {
+  // Always clear the canvas state when entering a workflow
+  nodeStore.clearWorkflow()
+  
   if (workflowId) {
     await workflowStore.fetchWorkflow(workflowId)
     if (workflowStore.currentWorkflow) {
@@ -169,6 +172,9 @@ onMounted(async () => {
       // Load workflow nodes and edges
       loadWorkflowData()
     }
+  } else {
+    // For new workflows, still load default starter workflow
+    loadWorkflowData()
   }
   
   // Add keyboard event listener
@@ -183,6 +189,26 @@ onUnmounted(() => {
 watch(() => workflowStore.currentWorkflow, (workflow) => {
   if (workflow) {
     workflowName.value = workflow.name
+  }
+})
+
+// Watch for route changes to clear workflow state when switching between workflows
+watch(() => route.params.id, async (newId, oldId) => {
+  if (newId !== oldId) {
+    // Clear the canvas state when switching workflows
+    nodeStore.clearWorkflow()
+    
+    if (newId) {
+      await workflowStore.fetchWorkflow(newId as string)
+      if (workflowStore.currentWorkflow) {
+        workflowName.value = workflowStore.currentWorkflow.name
+        loadWorkflowData()
+      }
+    } else {
+      // For new workflows
+      workflowName.value = ''
+      loadWorkflowData()
+    }
   }
 })
 
@@ -201,7 +227,7 @@ function loadWorkflowData() {
           type: 'trigger',
           methods: ['POST']
         },
-        status: 'ready'
+        status: 'ready' as const
       }
     })
   }
@@ -283,7 +309,7 @@ function onDrop(event: DragEvent) {
         label: nodeTypeData.label,
         description: nodeTypeData.description,
         config: { ...nodeTypeData.defaultConfig },
-        status: 'ready'
+        status: 'ready' as const
       }
     }
     
@@ -303,15 +329,89 @@ async function updateWorkflowName() {
 async function saveWorkflow() {
   saving.value = true
   try {
-    // TODO: Convert nodes and edges to API format and save
-    console.log('Saving workflow:', {
-      nodes: nodeStore.nodes,
-      edges: nodeStore.edges
-    })
+    if (!workflowStore.currentWorkflow) {
+      console.error('No current workflow to save')
+      return
+    }
+
+    // Debug: Log current state
+    console.log('Current nodes in store:', nodeStore.nodes)
+    console.log('Current edges in store:', nodeStore.edges)
+
+    // Convert Vue Flow nodes to API format
+    const apiNodes = nodeStore.nodes.map(node => ({
+      name: node.data.label || node.id,
+      node_type: convertNodeToApiType(node)
+    }))
+
+    // Convert Vue Flow edges to API format
+    const apiEdges = nodeStore.edges.map(edge => ({
+      from_node_name: nodeStore.getNodeById(edge.source)?.data.label || edge.source,
+      to_node_name: nodeStore.getNodeById(edge.target)?.data.label || edge.target,
+      condition_result: edge.sourceHandle === 'true' ? true : edge.sourceHandle === 'false' ? false : undefined
+    }))
+
+    console.log('API Nodes:', apiNodes)
+    console.log('API Edges:', apiEdges)
+
+    // Find the trigger node to set as start_node_name
+    const triggerNode = nodeStore.nodes.find(node => node.type === 'trigger')
+    const startNodeName = triggerNode?.data.label || triggerNode?.id || 'trigger-1'
+
+    const workflowData = {
+      name: workflowName.value || workflowStore.currentWorkflow.name,
+      description: workflowStore.currentWorkflow.description,
+      start_node_name: startNodeName,
+      nodes: apiNodes,
+      edges: apiEdges
+    }
+
+    await workflowStore.updateWorkflow(workflowStore.currentWorkflow.id, workflowData)
+    console.log('Workflow saved successfully')
   } catch (error) {
     console.error('Failed to save workflow:', error)
   } finally {
     saving.value = false
+  }
+}
+
+function convertNodeToApiType(node: any) {
+  switch (node.type) {
+    case 'trigger':
+      return {
+        Trigger: {
+          methods: node.data.config.methods || ['POST']
+        }
+      }
+    case 'condition':
+      return {
+        Condition: {
+          script: node.data.config.script || 'function condition(event) { return true; }'
+        }
+      }
+    case 'transformer':
+      return {
+        Transformer: {
+          script: node.data.config.script || 'function transformer(event) { return event; }'
+        }
+      }
+    case 'app':
+      return {
+        App: {
+          app_type: node.data.config.app_type || 'Webhook',
+          url: node.data.config.url || 'https://httpbin.org/post',
+          method: node.data.config.method || 'POST',
+          timeout_seconds: node.data.config.timeout_seconds || 30,
+          retry_config: node.data.config.retry_config || {
+            max_attempts: 3,
+            initial_delay_ms: 100,
+            max_delay_ms: 5000,
+            backoff_multiplier: 2.0
+          }
+        }
+      }
+    default:
+      throw new Error(`Unknown node type: ${node.type}`)
   }
 }
 

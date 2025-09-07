@@ -11,6 +11,11 @@ export interface WorkflowNode extends Node {
 }
 
 export interface WorkflowEdge extends Edge {
+  id: string
+  source: string
+  target: string
+  sourceHandle?: string
+  targetHandle?: string
   data?: {
     condition_result?: boolean
   }
