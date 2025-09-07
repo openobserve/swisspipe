@@ -1,0 +1,172 @@
+/* All imports must come first */
+@import './base.css';
+@import '@vue-flow/core/dist/style.css';
+@import '@vue-flow/core/dist/theme-default.css';
+@import '@vue-flow/controls/dist/style.css';
+@import '@vue-flow/minimap/dist/style.css';
+
+/* Tailwind directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+#app {
+  font-weight: normal;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: 
+    radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 40% 80%, rgba(16, 185, 129, 0.3) 0%, transparent 50%),
+    linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: #1e293b;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #475569;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #64748b;
+}
+
+/* Vue Flow Dark Theme Overrides */
+.vue-flow__node {
+  border: none;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.vue-flow__edge {
+  stroke: #64748b;
+  stroke-width: 2;
+}
+
+.vue-flow__edge.selected {
+  stroke: #3b82f6;
+}
+
+/* Vue Flow Handle Overrides */
+.vue-flow__handle {
+  width: 16px !important;
+  height: 16px !important;
+  border-radius: 50% !important;
+  border: 4px solid !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+.vue-flow__handle:hover {
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(255, 255, 255, 0.4) !important;
+  border-width: 3px !important;
+}
+
+/* Node-specific handle colors */
+.node-trigger .vue-flow__handle {
+  background-color: #3b82f6 !important;
+  border-color: #93c5fd !important;
+}
+
+.node-transformer .vue-flow__handle {
+  background-color: #8b5cf6 !important;
+  border-color: #c4b5fd !important;
+}
+
+.node-condition .vue-flow__handle[data-handlepos="top"] {
+  background-color: #f59e0b !important;
+  border-color: #fcd34d !important;
+}
+
+.node-condition .vue-flow__handle[data-id="true"] {
+  background-color: #10b981 !important;
+  border-color: #6ee7b7 !important;
+}
+
+.node-condition .vue-flow__handle[data-id="false"] {
+  background-color: #ef4444 !important;
+  border-color: #fca5a5 !important;
+}
+
+.node-app .vue-flow__handle {
+  background-color: #10b981 !important;
+  border-color: #6ee7b7 !important;
+}
+
+/* Glassmorphism utility classes */
+.glass {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.glass-dark {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.glass-medium {
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+/* Node specific styles with glassmorphism */
+.node-trigger {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.8), rgba(29, 78, 216, 0.9));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: white;
+  box-shadow: 0 8px 32px rgba(37, 99, 235, 0.2);
+}
+
+.node-transformer {
+  background: linear-gradient(135deg, rgba(147, 51, 234, 0.8), rgba(124, 58, 237, 0.9));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(147, 51, 234, 0.3);
+  color: white;
+  box-shadow: 0 8px 32px rgba(147, 51, 234, 0.2);
+}
+
+.node-condition {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.8), rgba(217, 119, 6, 0.9));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: white;
+  box-shadow: 0 8px 32px rgba(245, 158, 11, 0.2);
+}
+
+.node-app {
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.8), rgba(21, 128, 61, 0.9));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(22, 163, 74, 0.3);
+  color: white;
+  box-shadow: 0 8px 32px rgba(22, 163, 74, 0.2);
+}

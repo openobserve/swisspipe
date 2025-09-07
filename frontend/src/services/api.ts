@@ -1,0 +1,95 @@
+import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios'
+import type { ApiResponse, ApiError } from '../types/api'
+import type { Workflow, WorkflowListResponse, CreateWorkflowRequest } from '../types/workflow'
+
+class ApiClient {
+  private client: AxiosInstance
+
+  constructor() {
+    this.client = axios.create({
+      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3700',
+      timeout: 10000,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    this.setupInterceptors()
+  }
+
+  private setupInterceptors() {
+    // Request interceptor for auth
+    this.client.interceptors.request.use(
+      (config) => {
+        // Add Basic Auth for management endpoints
+        if (!config.url?.includes('/api/v1/')) {
+          const username = import.meta.env.VITE_API_USERNAME
+          const password = import.meta.env.VITE_API_PASSWORD
+          
+          if (username && password) {
+            const token = btoa(`${username}:${password}`)
+            config.headers.Authorization = `Basic ${token}`
+          } else {
+            console.warn('API credentials not configured. Set VITE_API_USERNAME and VITE_API_PASSWORD environment variables.')
+          }
+        }
+        return config
+      },
+      (error) => {
+        return Promise.reject(error)
+      }
+    )
+
+    // Response interceptor for error handling
+    this.client.interceptors.response.use(
+      (response: AxiosResponse) => response,
+      (error) => {
+        const apiError: ApiError = {
+          message: error.response?.data?.message || error.message || 'An unexpected error occurred',
+          status: error.response?.status || 0,
+          code: error.response?.data?.code
+        }
+        return Promise.reject(apiError)
+      }
+    )
+  }
+
+  // Workflow endpoints
+  async getWorkflows(): Promise<WorkflowListResponse> {
+    const response = await this.client.get<WorkflowListResponse>('/workflows')
+    return response.data
+  }
+
+  async getWorkflow(id: string): Promise<Workflow> {
+    const response = await this.client.get<Workflow>(`/workflows/${id}`)
+    return response.data
+  }
+
+  async createWorkflow(workflow: CreateWorkflowRequest): Promise<Workflow> {
+    const response = await this.client.post<Workflow>('/workflows', workflow)
+    return response.data
+  }
+
+  async updateWorkflow(id: string, workflow: CreateWorkflowRequest): Promise<Workflow> {
+    const response = await this.client.put<Workflow>(`/workflows/${id}`, workflow)
+    return response.data
+  }
+
+  async deleteWorkflow(id: string): Promise<void> {
+    await this.client.delete(`/workflows/${id}`)
+  }
+
+  // Workflow execution endpoints
+  async executeWorkflow(workflowId: string, data: any): Promise<any> {
+    const response = await this.client.post(`/api/v1/${workflowId}/ep`, data)
+    return response.data
+  }
+
+  async executeWorkflowArray(workflowId: string, data: any[]): Promise<any> {
+    const response = await this.client.post(`/api/v1/${workflowId}/json_array`, data)
+    return response.data
+  }
+}
+
+export const apiClient = new ApiClient()
+export default apiClient
