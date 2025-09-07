@@ -220,12 +220,13 @@ function loadWorkflowData() {
     
     // Convert API nodes to VueFlow format
     workflow.nodes.forEach((node, index) => {
+      const nodeType = convertApiNodeTypeToVueFlowType(node.node_type)
       const vueFlowNode = {
         id: node.id,
-        type: convertApiNodeTypeToVueFlowType(node.node_type),
+        type: nodeType,
         position: { x: node.position_x || (150 + (index * 200)), y: node.position_y || (100 + (Math.floor(index / 3) * 150)) },
         data: {
-          label: node.name,
+          label: nodeType === 'trigger' ? 'Start' : node.name,
           description: getNodeDescription(node.node_type),
           config: convertApiNodeConfigToVueFlowConfig(node.node_type),
           status: 'ready' as const
@@ -258,7 +259,7 @@ function loadWorkflowData() {
       type: 'trigger',
       position: { x: 100, y: 100 },
       data: {
-        label: 'Workflow Trigger',
+        label: 'Start',
         description: 'HTTP endpoint trigger',
         config: {
           type: 'trigger',
@@ -373,22 +374,25 @@ async function saveWorkflow() {
 
     // Convert Vue Flow nodes to API format
     const apiNodes = nodeStore.nodes.map(node => ({
-      name: node.data.label || node.id,
+      name: node.type === 'trigger' ? 'Start' : (node.data.label || node.id),
       node_type: convertNodeToApiType(node),
       position_x: node.position.x,
       position_y: node.position.y
     }))
 
     // Convert Vue Flow edges to API format
-    const apiEdges = nodeStore.edges.map(edge => ({
-      from_node_name: nodeStore.getNodeById(edge.source)?.data.label || edge.source,
-      to_node_name: nodeStore.getNodeById(edge.target)?.data.label || edge.target,
-      condition_result: edge.sourceHandle === 'true' ? true : edge.sourceHandle === 'false' ? false : undefined
-    }))
+    const apiEdges = nodeStore.edges.map(edge => {
+      const sourceNode = nodeStore.getNodeById(edge.source)
+      const targetNode = nodeStore.getNodeById(edge.target)
+      return {
+        from_node_name: sourceNode?.type === 'trigger' ? 'Start' : (sourceNode?.data.label || edge.source),
+        to_node_name: targetNode?.type === 'trigger' ? 'Start' : (targetNode?.data.label || edge.target),
+        condition_result: edge.sourceHandle === 'true' ? true : edge.sourceHandle === 'false' ? false : undefined
+      }
+    })
 
-    // Find the trigger node to set as start_node_name
-    const triggerNode = nodeStore.nodes.find(node => node.type === 'trigger')
-    const startNodeName = triggerNode?.data.label || triggerNode?.id || 'trigger-1'
+    // Set start_node_name to 'Start' (hardcoded for trigger)
+    const startNodeName = 'Start'
 
     const workflowData = {
       name: workflowName.value || workflowStore.currentWorkflow.name,
@@ -442,12 +446,15 @@ function convertApiNodeConfigToVueFlowConfig(nodeType: any): any {
     }
   }
   if (nodeType.App) {
-    return {
+    const config = {
       type: 'app',
       app_type: nodeType.App.app_type || 'Webhook',
       url: nodeType.App.url || 'https://httpbin.org/post',
       method: nodeType.App.method || 'POST',
       timeout_seconds: nodeType.App.timeout_seconds || 30,
+      failure_action: nodeType.App.failure_action || 'Stop',
+      openobserve_url: '',
+      authorization_header: '',
       retry_config: nodeType.App.retry_config || {
         max_attempts: 3,
         initial_delay_ms: 100,
@@ -455,6 +462,15 @@ function convertApiNodeConfigToVueFlowConfig(nodeType: any): any {
         backoff_multiplier: 2.0
       }
     }
+    
+    // Handle OpenObserve specific fields
+    if (typeof nodeType.App.app_type === 'object' && nodeType.App.app_type.OpenObserve) {
+      config.app_type = 'OpenObserve'
+      config.openobserve_url = nodeType.App.app_type.OpenObserve.url || ''
+      config.authorization_header = nodeType.App.app_type.OpenObserve.authorization_header || ''
+    }
+    
+    return config
   }
   return {}
 }
@@ -480,13 +496,27 @@ function convertNodeToApiType(node: any) {
         }
       }
     case 'app':
+      const appConfig = node.data.config
+      let app_type = appConfig.app_type || 'Webhook'
+      
+      // Handle OpenObserve as structured type
+      if (appConfig.app_type === 'OpenObserve') {
+        app_type = {
+          OpenObserve: {
+            url: appConfig.openobserve_url || '',
+            authorization_header: appConfig.authorization_header || ''
+          }
+        }
+      }
+      
       return {
         App: {
-          app_type: node.data.config.app_type || 'Webhook',
-          url: node.data.config.url || 'https://httpbin.org/post',
-          method: node.data.config.method || 'POST',
-          timeout_seconds: node.data.config.timeout_seconds || 30,
-          retry_config: node.data.config.retry_config || {
+          app_type: app_type,
+          url: appConfig.url || 'https://httpbin.org/post',
+          method: appConfig.method || 'POST',
+          timeout_seconds: appConfig.timeout_seconds || 30,
+          failure_action: appConfig.failure_action || 'Stop',
+          retry_config: appConfig.retry_config || {
             max_attempts: 3,
             initial_delay_ms: 100,
             max_delay_ms: 5000,

@@ -110,28 +110,19 @@
             </select>
           </div>
           
-          <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">URL</label>
-            <input
-              v-model="localNodeData.config.url"
-              @blur="updateNodeData"
-              type="url"
-              class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          <!-- App-specific configuration -->
+          <div class="mt-4">
+            <WebhookConfig
+              v-if="localNodeData.config.app_type === 'Webhook'"
+              v-model="localNodeData.config"
+              @update="updateNodeData"
             />
-          </div>
-          
-          <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">HTTP Method</label>
-            <select
-              v-model="localNodeData.config.method"
-              @change="updateNodeData"
-              class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="GET">GET</option>
-              <option value="POST">POST</option>
-              <option value="PUT">PUT</option>
-              <option value="DELETE">DELETE</option>
-            </select>
+            
+            <OpenObserveConfig
+              v-else-if="localNodeData.config.app_type === 'OpenObserve'"
+              v-model="localNodeData.config"
+              @update="updateNodeData"
+            />
           </div>
           
           <div>
@@ -142,6 +133,31 @@
               type="number"
               min="1"
               max="300"
+              class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">On Failure</label>
+            <select
+              v-model="localNodeData.config.failure_action"
+              @change="updateNodeData"
+              class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="Stop">Stop Workflow</option>
+              <option value="Continue">Continue to Next Node</option>
+              <option value="Retry">Retry This Node</option>
+            </select>
+          </div>
+          
+          <div v-if="localNodeData.config.failure_action === 'Retry'">
+            <label class="block text-sm font-medium text-gray-300 mb-2">Retry Attempts</label>
+            <input
+              v-model.number="localNodeData.config.retry_config.max_attempts"
+              @blur="updateNodeData"
+              type="number"
+              min="1"
+              max="10"
               class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
@@ -200,6 +216,8 @@ import { ref, computed, watch } from 'vue'
 import { XMarkIcon } from '@heroicons/vue/24/outline'
 import { useNodeStore } from '../../stores/nodes'
 import CodeEditor from '../common/CodeEditor.vue'
+import WebhookConfig from '../app-configs/WebhookConfig.vue'
+import OpenObserveConfig from '../app-configs/OpenObserveConfig.vue'
 
 const nodeStore = useNodeStore()
 
@@ -239,19 +257,6 @@ function deleteNode() {
   }
 }
 
-function openCodeEditor() {
-  if (localNodeData.value.config.script) {
-    codeEditorValue.value = localNodeData.value.config.script
-  } else {
-    // Set default template based on node type
-    if (selectedNodeData.value?.type === 'condition') {
-      codeEditorValue.value = 'function condition(event) {\n  // Return true or false\n  return event.data.value > 50;\n}'
-    } else if (selectedNodeData.value?.type === 'transformer') {
-      codeEditorValue.value = 'function transformer(event) {\n  // Modify event.data as needed\n  event.data.processed = true;\n  return event;\n}'
-    }
-  }
-  showCodeEditor.value = true
-}
 
 function saveCode(code: string) {
   localNodeData.value.config.script = code

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Workflow, CreateWorkflowRequest, WorkflowFilters } from '../types/workflow'
+import type { Workflow, CreateWorkflowRequest } from '../types/workflow'
 import type { ApiError } from '../types/api'
 import { apiClient } from '../services/api'
 
@@ -10,7 +10,7 @@ export const useWorkflowStore = defineStore('workflows', () => {
   const currentWorkflow = ref<Workflow | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const filters = ref<WorkflowFilters>({
+  const filters = ref({
     search: '',
     status: []
   })

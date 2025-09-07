@@ -60,6 +60,11 @@ export const useNodeStore = defineStore('nodes', () => {
         url: 'https://httpbin.org/post',
         method: 'POST',
         timeout_seconds: 30,
+        failure_action: 'Stop',
+        headers: {},
+        openobserve_url: '',
+        authorization_header: '',
+        stream_name: 'default',
         retry_config: {
           max_attempts: 3,
           initial_delay_ms: 100,

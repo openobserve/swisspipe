@@ -98,18 +98,18 @@ impl AppExecutor {
                 })
             }
             
-            AppType::OpenObserve { username, password, stream_name } => {
+            AppType::OpenObserve { url: openobserve_url, authorization_header } => {
                 // OpenObserve expects JSON array format
                 let payload = match &event.data {
                     serde_json::Value::Array(arr) => arr.clone(),
                     single_value => vec![single_value.clone()],
                 };
                 
-                let openobserve_url = format!("{}/api/{}/ingest", url, stream_name);
+                let full_url = openobserve_url.clone();
                 
                 let response = self.client
-                    .post(&openobserve_url)
-                    .basic_auth(username, Some(password))
+                    .post(&full_url)
+                    .header("Authorization", authorization_header)
                     .header("Content-Type", "application/json")
                     .json(&payload)
                     .timeout(timeout)

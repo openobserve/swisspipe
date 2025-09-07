@@ -136,10 +136,34 @@ impl WorkflowEngine {
                 
                 Ok(transformed_event)
             }
-            NodeType::App { app_type, url, method, timeout_seconds, retry_config } => {
-                self.app_executor
-                    .execute_app(app_type, url, method, *timeout_seconds, retry_config, event)
-                    .await
+            NodeType::App { app_type, url, method, timeout_seconds, failure_action, retry_config } => {
+                match failure_action {
+                    crate::workflow::models::FailureAction::Retry => {
+                        // Use retry_config for retries on failure
+                        self.app_executor
+                            .execute_app(app_type, url, method, *timeout_seconds, retry_config, event)
+                            .await
+                    },
+                    crate::workflow::models::FailureAction::Continue => {
+                        // Try once, if it fails, continue with original event
+                        match self.app_executor
+                            .execute_app(app_type, url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event.clone())
+                            .await 
+                        {
+                            Ok(result) => Ok(result),
+                            Err(e) => {
+                                tracing::warn!("App node '{}' failed but continuing: {}", node.name, e);
+                                Ok(event) // Continue with original event
+                            }
+                        }
+                    },
+                    crate::workflow::models::FailureAction::Stop => {
+                        // Try once, if it fails, stop the workflow
+                        self.app_executor
+                            .execute_app(app_type, url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event)
+                            .await
+                    }
+                }
             }
         }
     }

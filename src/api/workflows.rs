@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::{
     database::{edges, entities, nodes},
     workflow::{
-        models::{Edge, Node, NodeType, AppType, HttpMethod, RetryConfig},
+        models::{Edge, Node, NodeType, AppType, HttpMethod, RetryConfig, FailureAction},
         validation::WorkflowValidator,
     },
     AppState,
@@ -258,6 +258,7 @@ pub async fn get_workflow(
                     url: "".to_string(),
                     method: HttpMethod::GET,
                     timeout_seconds: 30,
+                    failure_action: FailureAction::Stop,
                     retry_config: RetryConfig::default(),
                 });
             NodeResponse {

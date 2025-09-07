@@ -451,6 +451,20 @@ impl JavaScriptExecutor {
 
 ### Retry and Timeout Configuration
 
+  1. 🔄 Retry (failure_action: "Retry")
+    - Uses the full retry_config settings (max_attempts, backoff, etc.)
+    - Keeps retrying according to user-defined retry configuration
+    - Only fails if all retry attempts are exhausted
+  2. ➡️ Continue (failure_action: "Continue")
+    - Tries only once (max_attempts: 1)
+    - If successful: Passes the app response to next nodes
+    - If fails: Logs a warning and continues workflow with original event data
+    - Never stops the workflow due to app failures
+  3. ⏹️ Stop (failure_action: "Stop")
+    - Tries only once (max_attempts: 1)
+    - If successful: Passes the app response to next nodes
+    - If fails: Stops the entire workflow execution
+
 #### RetryConfig Structure
 ```
 max_attempts: u32        // Maximum retry attempts (default: 3)
@@ -689,3 +703,4 @@ pub async fn auth_middleware(
 - Memory usage under load
 - JavaScript execution performance
 - Database query optimization
+

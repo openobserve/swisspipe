@@ -1,7 +1,9 @@
 import type { Node, Edge } from '@vue-flow/core'
 
-export interface WorkflowNode extends Node {
+export interface WorkflowNode {
+  id: string
   type: NodeTypeString
+  position: { x: number; y: number }
   data: {
     label: string
     description?: string
@@ -44,11 +46,15 @@ export interface TransformerConfig {
 
 export interface AppConfig {
   type: 'app'
-  app_type: string
+  app_type: AppType
   url: string
   method: string
   timeout_seconds: number
+  failure_action: FailureAction
   headers?: Record<string, string>
+  openobserve_url?: string
+  authorization_header?: string
+  stream_name?: string
   retry_config: {
     max_attempts: number
     initial_delay_ms: number
@@ -56,6 +62,9 @@ export interface AppConfig {
     backoff_multiplier: number
   }
 }
+
+export type AppType = 'Webhook' | { OpenObserve: { url: string, authorization_header: string } }
+export type FailureAction = 'Continue' | 'Stop' | 'Retry'
 
 export interface NodeTypeDefinition {
   type: NodeTypeString

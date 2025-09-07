@@ -39,10 +39,16 @@ impl Default for RetryConfig {
 pub enum AppType {
     Webhook,
     OpenObserve {
-        username: String,
-        password: String,
-        stream_name: String,
+        url: String,
+        authorization_header: String,
     },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FailureAction {
+    Continue,    // Continue to next node
+    Stop,        // Stop workflow execution
+    Retry,       // Retry the current node
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,6 +67,7 @@ pub enum NodeType {
         url: String,
         method: HttpMethod,
         timeout_seconds: u64,
+        failure_action: FailureAction,
         retry_config: RetryConfig,
     },
 }

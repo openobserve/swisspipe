@@ -72,13 +72,18 @@ export interface TransformerNode {
 
 export interface AppNode {
   App: {
-    app_type: string
+    app_type: AppType
     url: string
     method: HttpMethod
     timeout_seconds: number
+    failure_action: FailureAction
     retry_config: RetryConfig
   }
 }
+
+export type AppType = 'Webhook' | { OpenObserve: { url: string, authorization_header: string } }
+
+export type FailureAction = 'Continue' | 'Stop' | 'Retry'
 
 export interface RetryConfig {
   max_attempts: number
