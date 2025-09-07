@@ -436,7 +436,17 @@ function convertApiNodeConfigToVueFlowConfig(nodeType: any): any {
   if (nodeType.Condition) {
     return {
       type: 'condition',
-      script: nodeType.Condition.script || 'function condition(event) { return true; }'
+      script: nodeType.Condition.script || `function condition(event) {
+    // Access the incoming data in the event object
+    // do some evaluation
+    const a = 20;
+
+    if (a < 5) {
+      return false
+    }
+
+    return true; // or false
+}`
     }
   }
   if (nodeType.Transformer) {
@@ -486,7 +496,17 @@ function convertNodeToApiType(node: any) {
     case 'condition':
       return {
         Condition: {
-          script: node.data.config.script || 'function condition(event) { return true; }'
+          script: node.data.config.script || `function condition(event) {
+    // Access the incoming data in the event object
+    // do some evaluation
+    const a = 20;
+
+    if (a < 5) {
+      return false
+    }
+
+    return true; // or false
+}`
         }
       }
     case 'transformer':

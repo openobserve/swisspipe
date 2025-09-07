@@ -68,13 +68,13 @@
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Condition Configuration</h3>
         <div>
           <label class="block text-sm font-medium text-gray-300 mb-2">JavaScript Code</label>
-          <button
-            @click="showCodeEditor = true"
-            class="w-full text-left bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md hover:bg-slate-600 transition-colors"
-          >
-            <span v-if="localNodeData.config.script">{{ localNodeData.config.script.substring(0, 50) }}...</span>
-            <span v-else class="text-gray-400">Click to edit JavaScript code</span>
-          </button>
+          <div class="h-80">
+            <CodeEditor
+              v-model="localNodeData.config.script"
+              :language="'javascript'"
+              @save="updateNodeData"
+            />
+          </div>
         </div>
       </div>
 
@@ -83,13 +83,13 @@
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Transformer Configuration</h3>
         <div>
           <label class="block text-sm font-medium text-gray-300 mb-2">JavaScript Code</label>
-          <button
-            @click="showCodeEditor = true"
-            class="w-full text-left bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md hover:bg-slate-600 transition-colors"
-          >
-            <span v-if="localNodeData.config.script">{{ localNodeData.config.script.substring(0, 50) }}...</span>
-            <span v-else class="text-gray-400">Click to edit JavaScript code</span>
-          </button>
+          <div class="h-80">
+            <CodeEditor
+              v-model="localNodeData.config.script"
+              :language="'javascript'"
+              @save="updateNodeData"
+            />
+          </div>
         </div>
       </div>
 
@@ -184,29 +184,6 @@
       </div>
     </div>
 
-    <!-- Code Editor Modal -->
-    <div
-      v-if="showCodeEditor"
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      @click.self="showCodeEditor = false"
-    >
-      <div class="bg-slate-800 rounded-lg p-6 w-full max-w-4xl h-3/4">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-medium text-white">JavaScript Code Editor</h2>
-          <button
-            @click="showCodeEditor = false"
-            class="text-gray-400 hover:text-gray-200 transition-colors"
-          >
-            <XMarkIcon class="h-6 w-6" />
-          </button>
-        </div>
-        <CodeEditor
-          v-model="codeEditorValue"
-          :language="'javascript'"
-          @save="saveCode"
-        />
-      </div>
-    </div>
   </div>
 </template>
 
@@ -227,8 +204,6 @@ const nodeTypeDefinition = computed(() =>
 )
 
 const localNodeData = ref<any>({})
-const showCodeEditor = ref(false)
-const codeEditorValue = ref('')
 
 // Watch for selected node changes
 watch(selectedNodeData, (newNode) => {
@@ -256,9 +231,4 @@ function deleteNode() {
 }
 
 
-function saveCode(code: string) {
-  localNodeData.value.config.script = code
-  updateNodeData()
-  showCodeEditor.value = false
-}
 </script>

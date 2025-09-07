@@ -34,7 +34,17 @@ export const useNodeStore = defineStore('nodes', () => {
       icon: 'question-mark-circle',
       defaultConfig: {
         type: 'condition',
-        script: 'function condition(event) {\n  // Return true or false\n  return event.data.value > 50;\n}'
+        script: `function condition(event) {
+    // Access the incoming data in the event object
+    // do some evaluation
+    const a = 20;
+
+    if (a < 5) {
+      return false
+    }
+
+    return true; // or false
+}`
       }
     },
     {
