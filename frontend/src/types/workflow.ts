@@ -1,3 +1,16 @@
+export interface Node {
+  id: string
+  name: string
+  node_type: NodeType
+}
+
+export interface Edge {
+  id: string
+  from_node_name: string
+  to_node_name: string
+  condition_result?: boolean
+}
+
 export interface Workflow {
   id: string
   name: string
@@ -6,6 +19,8 @@ export interface Workflow {
   endpoint_url: string
   created_at: string
   updated_at: string
+  nodes: Node[]
+  edges: Edge[]
 }
 
 export interface WorkflowListResponse {

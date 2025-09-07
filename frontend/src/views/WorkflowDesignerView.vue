@@ -213,9 +213,47 @@ watch(() => route.params.id, async (newId, oldId) => {
 })
 
 function loadWorkflowData() {
-  // TODO: Load actual workflow nodes and edges from backend
-  // For now, create a simple starter workflow
-  if (nodeStore.nodes.length === 0) {
+  const workflow = workflowStore.currentWorkflow
+  
+  if (workflow && workflow.nodes && workflow.edges) {
+    // Load actual workflow nodes and edges from backend
+    console.log('Loading workflow data:', workflow)
+    
+    // Convert API nodes to VueFlow format
+    workflow.nodes.forEach((node, index) => {
+      const vueFlowNode = {
+        id: node.id,
+        type: convertApiNodeTypeToVueFlowType(node.node_type),
+        position: { x: 150 + (index * 200), y: 100 + (Math.floor(index / 3) * 150) },
+        data: {
+          label: node.name,
+          description: getNodeDescription(node.node_type),
+          config: convertApiNodeConfigToVueFlowConfig(node.node_type),
+          status: 'ready' as const
+        }
+      }
+      nodeStore.addNode(vueFlowNode)
+    })
+    
+    // Convert API edges to VueFlow format
+    workflow.edges.forEach(edge => {
+      const sourceNode = workflow.nodes.find(n => n.name === edge.from_node_name)
+      const targetNode = workflow.nodes.find(n => n.name === edge.to_node_name)
+      
+      if (sourceNode && targetNode) {
+        const vueFlowEdge = {
+          id: edge.id,
+          source: sourceNode.id,
+          target: targetNode.id,
+          sourceHandle: edge.condition_result === true ? 'true' : edge.condition_result === false ? 'false' : undefined,
+          targetHandle: undefined,
+          data: {}
+        }
+        nodeStore.addEdge(vueFlowEdge)
+      }
+    })
+  } else if (nodeStore.nodes.length === 0) {
+    // Create default starter workflow only if no nodes exist and no workflow data
     nodeStore.addNode({
       id: 'trigger-1',
       type: 'trigger',
@@ -373,6 +411,59 @@ async function saveWorkflow() {
   } finally {
     saving.value = false
   }
+}
+
+function convertApiNodeTypeToVueFlowType(nodeType: any): 'trigger' | 'condition' | 'transformer' | 'app' {
+  if (nodeType.Trigger) return 'trigger'
+  if (nodeType.Condition) return 'condition'
+  if (nodeType.Transformer) return 'transformer'
+  if (nodeType.App) return 'app'
+  return 'app' // fallback
+}
+
+function getNodeDescription(nodeType: any): string {
+  if (nodeType.Trigger) return 'HTTP endpoint trigger'
+  if (nodeType.Condition) return 'Conditional logic node'
+  if (nodeType.Transformer) return 'Data transformation node'
+  if (nodeType.App) return 'External application node'
+  return 'Unknown node type'
+}
+
+function convertApiNodeConfigToVueFlowConfig(nodeType: any): any {
+  if (nodeType.Trigger) {
+    return {
+      type: 'trigger',
+      methods: nodeType.Trigger.methods || ['POST']
+    }
+  }
+  if (nodeType.Condition) {
+    return {
+      type: 'condition',
+      script: nodeType.Condition.script || 'function condition(event) { return true; }'
+    }
+  }
+  if (nodeType.Transformer) {
+    return {
+      type: 'transformer',
+      script: nodeType.Transformer.script || 'function transformer(event) { return event; }'
+    }
+  }
+  if (nodeType.App) {
+    return {
+      type: 'app',
+      app_type: nodeType.App.app_type || 'Webhook',
+      url: nodeType.App.url || 'https://httpbin.org/post',
+      method: nodeType.App.method || 'POST',
+      timeout_seconds: nodeType.App.timeout_seconds || 30,
+      retry_config: nodeType.App.retry_config || {
+        max_attempts: 3,
+        initial_delay_ms: 100,
+        max_delay_ms: 5000,
+        backoff_multiplier: 2.0
+      }
+    }
+  }
+  return {}
 }
 
 function convertNodeToApiType(node: any) {
