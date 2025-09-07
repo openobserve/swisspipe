@@ -2,6 +2,8 @@ export interface Node {
   id: string
   name: string
   node_type: NodeType
+  position_x: number
+  position_y: number
 }
 
 export interface Edge {
@@ -38,6 +40,8 @@ export interface CreateWorkflowRequest {
 export interface NodeRequest {
   name: string
   node_type: NodeType
+  position_x?: number
+  position_y?: number
 }
 
 export interface EdgeRequest {

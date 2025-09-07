@@ -32,6 +32,8 @@ pub struct CreateWorkflowRequest {
 pub struct NodeRequest {
     pub name: String,
     pub node_type: NodeType,
+    pub position_x: Option<f64>,
+    pub position_y: Option<f64>,
 }
 
 #[derive(Deserialize)]
@@ -46,6 +48,8 @@ pub struct NodeResponse {
     pub id: String,
     pub name: String,
     pub node_type: NodeType,
+    pub position_x: f64,
+    pub position_y: f64,
 }
 
 #[derive(Serialize)]
@@ -177,6 +181,8 @@ pub async fn create_workflow(
                 NodeType::App { .. } => "app".to_string(),
             }),
             config: Set(node_config),
+            position_x: Set(node_req.position_x.unwrap_or(100.0)),
+            position_y: Set(node_req.position_y.unwrap_or(100.0)),
             ..Default::default()
         };
 
@@ -258,6 +264,8 @@ pub async fn get_workflow(
                 id: node.id,
                 name: node.name,
                 node_type,
+                position_x: node.position_x,
+                position_y: node.position_y,
             }
         })
         .collect();
@@ -371,6 +379,8 @@ pub async fn update_workflow(
                 NodeType::App { .. } => "app".to_string(),
             }),
             config: Set(node_config),
+            position_x: Set(node_req.position_x.unwrap_or(100.0)),
+            position_y: Set(node_req.position_y.unwrap_or(100.0)),
             ..Default::default()
         };
 

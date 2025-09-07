@@ -12,6 +12,8 @@ pub struct Model {
     pub name: String,
     pub node_type: String,
     pub config: String, // JSON configuration
+    pub position_x: f64,
+    pub position_y: f64,
     pub created_at: ChronoDateTimeUtc,
 }
 

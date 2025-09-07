@@ -21,14 +21,6 @@ class ApiClient {
     // Request interceptor for auth
     this.client.interceptors.request.use(
       (config) => {
-        // Debug: Log the request being sent
-        if (config.method === 'put' && config.url?.includes('/workflows/')) {
-          console.log('API Request - PUT Workflow:', {
-            url: config.url,
-            data: config.data,
-            headers: config.headers
-          })
-        }
 
         // Add Basic Auth for management endpoints
         if (!config.url?.includes('/api/v1/')) {

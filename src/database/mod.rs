@@ -30,6 +30,8 @@ pub async fn create_tables(db: &DatabaseConnection) -> Result<(), DbErr> {
             name TEXT NOT NULL,
             node_type TEXT NOT NULL,
             config TEXT NOT NULL,
+            position_x REAL DEFAULT 0,
+            position_y REAL DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE,
             UNIQUE(workflow_id, name)
@@ -48,6 +50,17 @@ pub async fn create_tables(db: &DatabaseConnection) -> Result<(), DbErr> {
     for sql in sql_statements {
         let statement = Statement::from_string(backend, sql);
         db.execute(statement).await?;
+    }
+    
+    // Add position columns to existing nodes table (will fail silently if already exist)
+    let alter_statements = vec![
+        "ALTER TABLE nodes ADD COLUMN position_x REAL DEFAULT 0",
+        "ALTER TABLE nodes ADD COLUMN position_y REAL DEFAULT 0",
+    ];
+    
+    for sql in alter_statements {
+        let statement = Statement::from_string(backend, sql);
+        let _ = db.execute(statement).await; // Ignore errors for existing columns
     }
     
     Ok(())

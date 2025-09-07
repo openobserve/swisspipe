@@ -217,14 +217,13 @@ function loadWorkflowData() {
   
   if (workflow && workflow.nodes && workflow.edges) {
     // Load actual workflow nodes and edges from backend
-    console.log('Loading workflow data:', workflow)
     
     // Convert API nodes to VueFlow format
     workflow.nodes.forEach((node, index) => {
       const vueFlowNode = {
         id: node.id,
         type: convertApiNodeTypeToVueFlowType(node.node_type),
-        position: { x: 150 + (index * 200), y: 100 + (Math.floor(index / 3) * 150) },
+        position: { x: node.position_x || (150 + (index * 200)), y: node.position_y || (100 + (Math.floor(index / 3) * 150)) },
         data: {
           label: node.name,
           description: getNodeDescription(node.node_type),
@@ -372,14 +371,12 @@ async function saveWorkflow() {
       return
     }
 
-    // Debug: Log current state
-    console.log('Current nodes in store:', nodeStore.nodes)
-    console.log('Current edges in store:', nodeStore.edges)
-
     // Convert Vue Flow nodes to API format
     const apiNodes = nodeStore.nodes.map(node => ({
       name: node.data.label || node.id,
-      node_type: convertNodeToApiType(node)
+      node_type: convertNodeToApiType(node),
+      position_x: node.position.x,
+      position_y: node.position.y
     }))
 
     // Convert Vue Flow edges to API format
@@ -388,9 +385,6 @@ async function saveWorkflow() {
       to_node_name: nodeStore.getNodeById(edge.target)?.data.label || edge.target,
       condition_result: edge.sourceHandle === 'true' ? true : edge.sourceHandle === 'false' ? false : undefined
     }))
-
-    console.log('API Nodes:', apiNodes)
-    console.log('API Edges:', apiEdges)
 
     // Find the trigger node to set as start_node_name
     const triggerNode = nodeStore.nodes.find(node => node.type === 'trigger')
@@ -405,7 +399,6 @@ async function saveWorkflow() {
     }
 
     await workflowStore.updateWorkflow(workflowStore.currentWorkflow.id, workflowData)
-    console.log('Workflow saved successfully')
   } catch (error) {
     console.error('Failed to save workflow:', error)
   } finally {
