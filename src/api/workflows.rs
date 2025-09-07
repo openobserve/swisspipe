@@ -6,7 +6,7 @@ use axum::{
     routing::{delete, get, post, put},
     Router,
 };
-use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, EntityTrait, Set, ColumnTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -42,6 +42,21 @@ pub struct EdgeRequest {
 }
 
 #[derive(Serialize)]
+pub struct NodeResponse {
+    pub id: String,
+    pub name: String,
+    pub node_type: NodeType,
+}
+
+#[derive(Serialize)]
+pub struct EdgeResponse {
+    pub id: String,
+    pub from_node_name: String,
+    pub to_node_name: String,
+    pub condition_result: Option<bool>,
+}
+
+#[derive(Serialize)]
 pub struct WorkflowResponse {
     pub id: String,
     pub name: String,
@@ -50,6 +65,8 @@ pub struct WorkflowResponse {
     pub endpoint_url: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub nodes: Vec<NodeResponse>,
+    pub edges: Vec<EdgeResponse>,
 }
 
 #[derive(Serialize)]
@@ -81,6 +98,8 @@ pub async fn list_workflows(
             start_node_name: w.start_node_name,
             created_at: w.created_at,
             updated_at: w.updated_at,
+            nodes: vec![], // Not included in list view for performance
+            edges: vec![], // Not included in list view for performance
         })
         .collect();
 
@@ -192,6 +211,8 @@ pub async fn create_workflow(
         endpoint_url: format!("/api/v1/{}/ep", workflow.id),
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
+        nodes: vec![], // Will be populated by subsequent GET request
+        edges: vec![], // Will be populated by subsequent GET request
     };
 
     Ok((StatusCode::CREATED, Json(response)))
@@ -207,6 +228,51 @@ pub async fn get_workflow(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
 
+    // Fetch nodes
+    let nodes = nodes::Entity::find()
+        .filter(nodes::Column::WorkflowId.eq(&id))
+        .all(&*state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Fetch edges
+    let edges = edges::Entity::find()
+        .filter(edges::Column::WorkflowId.eq(&id))
+        .all(&*state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Convert nodes to response format
+    let node_responses: Vec<NodeResponse> = nodes
+        .into_iter()
+        .map(|node| {
+            let node_type: NodeType = serde_json::from_str(&node.config)
+                .unwrap_or(NodeType::App {
+                    app_type: "Unknown".to_string(),
+                    url: "".to_string(),
+                    method: "GET".to_string(),
+                    timeout_seconds: 30,
+                    retry_config: None,
+                });
+            NodeResponse {
+                id: node.id,
+                name: node.name,
+                node_type,
+            }
+        })
+        .collect();
+
+    // Convert edges to response format
+    let edge_responses: Vec<EdgeResponse> = edges
+        .into_iter()
+        .map(|edge| EdgeResponse {
+            id: edge.id,
+            from_node_name: edge.from_node_name,
+            to_node_name: edge.to_node_name,
+            condition_result: edge.condition_result,
+        })
+        .collect();
+
     let response = WorkflowResponse {
         id: workflow.id.clone(),
         name: workflow.name,
@@ -215,6 +281,8 @@ pub async fn get_workflow(
         endpoint_url: format!("/api/v1/{}/ep", workflow.id),
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
+        nodes: node_responses,
+        edges: edge_responses,
     };
 
     Ok(Json(response))
@@ -274,6 +342,61 @@ pub async fn update_workflow(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    // Delete existing nodes and edges
+    nodes::Entity::delete_many()
+        .filter(nodes::Column::WorkflowId.eq(&id))
+        .exec(&*state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    edges::Entity::delete_many()
+        .filter(edges::Column::WorkflowId.eq(&id))
+        .exec(&*state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Create new nodes
+    for node_req in request.nodes {
+        let node_config = serde_json::to_string(&node_req.node_type)
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+        let node_model = nodes::ActiveModel {
+            id: Set(Uuid::new_v4().to_string()),
+            workflow_id: Set(id.clone()),
+            name: Set(node_req.name),
+            node_type: Set(match node_req.node_type {
+                NodeType::Trigger { .. } => "trigger".to_string(),
+                NodeType::Condition { .. } => "condition".to_string(),
+                NodeType::Transformer { .. } => "transformer".to_string(),
+                NodeType::App { .. } => "app".to_string(),
+            }),
+            config: Set(node_config),
+            ..Default::default()
+        };
+
+        node_model
+            .insert(&*state.db)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+
+    // Create new edges
+    for edge_req in request.edges {
+        let edge_model = edges::ActiveModel {
+            id: Set(Uuid::new_v4().to_string()),
+            workflow_id: Set(id.clone()),
+            from_node_name: Set(edge_req.from_node_name),
+            to_node_name: Set(edge_req.to_node_name),
+            condition_result: Set(edge_req.condition_result),
+            ..Default::default()
+        };
+
+        edge_model
+            .insert(&*state.db)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+
     let response = WorkflowResponse {
         id: workflow.id.clone(),
         name: workflow.name,
@@ -282,6 +405,8 @@ pub async fn update_workflow(
         endpoint_url: format!("/api/v1/{}/ep", workflow.id),
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
+        nodes: vec![], // Will be populated by subsequent GET request
+        edges: vec![], // Will be populated by subsequent GET request
     };
 
     Ok(Json(response))
