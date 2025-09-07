@@ -27,8 +27,17 @@
             v-model="localNodeData.label"
             @blur="updateNodeData"
             type="text"
-            class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            :readonly="selectedNodeData?.type === 'trigger'"
+            :class="[
+              'w-full border text-gray-100 px-3 py-2 rounded-md focus:outline-none',
+              selectedNodeData?.type === 'trigger' 
+                ? 'bg-slate-800 border-slate-700 text-gray-400 cursor-not-allowed' 
+                : 'bg-slate-700 border-slate-600 focus:ring-2 focus:ring-primary-500'
+            ]"
           />
+          <p v-if="selectedNodeData?.type === 'trigger'" class="text-xs text-gray-500 mt-1">
+            Trigger node name is always "Start" and cannot be changed
+          </p>
         </div>
         
         <div>
@@ -48,20 +57,10 @@
       <!-- Trigger Node Configuration -->
       <div v-if="selectedNodeData.type === 'trigger'">
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Trigger Configuration</h3>
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">HTTP Methods</label>
-          <div class="space-y-2">
-            <label v-for="method in httpMethods" :key="method" class="flex items-center">
-              <input
-                v-model="localNodeData.config.methods"
-                :value="method"
-                type="checkbox"
-                class="mr-2 rounded border-slate-600 bg-slate-700 text-primary-500 focus:ring-primary-500"
-              />
-              <span class="text-sm text-gray-300">{{ method }}</span>
-            </label>
-          </div>
-        </div>
+        <TriggerConfig
+          v-model="localNodeData.config"
+          @update="updateNodeData"
+        />
       </div>
 
       <!-- Condition Node Configuration -->
@@ -216,6 +215,7 @@ import { ref, computed, watch } from 'vue'
 import { XMarkIcon } from '@heroicons/vue/24/outline'
 import { useNodeStore } from '../../stores/nodes'
 import CodeEditor from '../common/CodeEditor.vue'
+import TriggerConfig from '../app-configs/TriggerConfig.vue'
 import WebhookConfig from '../app-configs/WebhookConfig.vue'
 import OpenObserveConfig from '../app-configs/OpenObserveConfig.vue'
 
@@ -229,8 +229,6 @@ const nodeTypeDefinition = computed(() =>
 const localNodeData = ref<any>({})
 const showCodeEditor = ref(false)
 const codeEditorValue = ref('')
-
-const httpMethods = ['GET', 'POST', 'PUT', 'DELETE']
 
 // Watch for selected node changes
 watch(selectedNodeData, (newNode) => {
