@@ -93,7 +93,7 @@ function initializeEditor() {
     }
   })
 
-  // Create editor with full features
+  // Create editor with full Monaco features
   editor = monaco.editor.create(editorContainer.value, {
     value: props.modelValue || '',
     language: props.language,
@@ -116,26 +116,78 @@ function initializeEditor() {
     guides: {
       indentation: true,
       bracketPairs: true
-    }
+    },
+    // Enable all advanced features
+    hover: { enabled: true },
+    parameterHints: { enabled: true },
+    occurrencesHighlight: true,
+    selectionHighlight: true,
+    links: true,
+    colorDecorators: true,
+    codeLens: false,  // Keep this disabled to avoid clutter
+    folding: true,
+    foldingHighlight: true,
+    showUnused: true,
+    showDeprecated: true
   })
 
-  // Configure JavaScript with minimal TypeScript features to avoid worker issues
+  // Configure JavaScript with full TypeScript language service features
   if (props.language === 'javascript') {
     try {
-      // Disable TypeScript validation entirely but keep syntax highlighting
+      // Enable full TypeScript validation and suggestions
       monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
-        noSemanticValidation: true,
-        noSyntaxValidation: true,
-        noSuggestionDiagnostics: true,
+        noSemanticValidation: false,
+        noSyntaxValidation: false,
+        noSuggestionDiagnostics: false,
       })
       
-      // Minimal compiler options
+      // Full compiler options for better IntelliSense
       monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+        target: monaco.languages.typescript.ScriptTarget.ES2020,
         allowJs: true,
-        checkJs: false,
-        noLib: true,
-        lib: []
+        checkJs: true,
+        strict: false,
+        allowNonTsExtensions: true,
+        moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+        module: monaco.languages.typescript.ModuleKind.CommonJS,
+        typeRoots: ['node_modules/@types']
       })
+
+      // Add comprehensive type definitions for workflow context
+      monaco.languages.typescript.javascriptDefaults.addExtraLib(`
+        interface WorkflowEvent {
+          /** The main data payload from the trigger or previous node */
+          data: any;
+          /** Metadata key-value pairs for the workflow execution */
+          metadata: Record<string, string>;
+          /** HTTP headers if triggered by webhook */
+          headers: Record<string, string>;
+          /** Results from previous condition nodes */
+          condition_results: Record<string, boolean>;
+        }
+        
+        /**
+         * Condition function that evaluates workflow data
+         * @param event The workflow event containing data, metadata, headers, and condition results
+         * @returns true to follow the true branch, false to follow the false branch
+         */
+        declare function condition(event: WorkflowEvent): boolean;
+        
+        /**
+         * Transformer function that modifies workflow data
+         * @param event The workflow event to transform
+         * @returns The modified event, or null to drop the event
+         */
+        declare function transformer(event: WorkflowEvent): WorkflowEvent | null;
+        
+        // Global console for debugging
+        declare const console: {
+          log(...args: any[]): void;
+          warn(...args: any[]): void;
+          error(...args: any[]): void;
+          info(...args: any[]): void;
+        };
+      `, 'workflow-types.d.ts')
     } catch (error) {
       console.warn('Failed to configure JavaScript language features:', error)
     }

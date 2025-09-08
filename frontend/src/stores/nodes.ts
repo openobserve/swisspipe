@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { WorkflowNode, WorkflowEdge, NodeTypeDefinition, ValidationState } from '../types/nodes'
+import { DEFAULT_CONDITION_SCRIPT, DEFAULT_TRANSFORMER_SCRIPT } from '../constants/defaults'
 
 export const useNodeStore = defineStore('nodes', () => {
   // State
@@ -34,17 +35,7 @@ export const useNodeStore = defineStore('nodes', () => {
       icon: 'question-mark-circle',
       defaultConfig: {
         type: 'condition',
-        script: `function condition(event) {
-    // Access the incoming data in the event object
-    // do some evaluation
-    const a = 20;
-
-    if (a < 5) {
-      return false
-    }
-
-    return true; // or false
-}`
+        script: DEFAULT_CONDITION_SCRIPT
       }
     },
     {
@@ -55,7 +46,7 @@ export const useNodeStore = defineStore('nodes', () => {
       icon: 'arrow-path',
       defaultConfig: {
         type: 'transformer',
-        script: 'function transformer(event) {\n  // Modify event.data as needed\n  event.data.processed = true;\n  return event;\n}'
+        script: DEFAULT_TRANSFORMER_SCRIPT
       }
     },
     {

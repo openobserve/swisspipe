@@ -144,6 +144,7 @@ import TriggerNode from '../components/nodes/TriggerNode.vue'
 import ConditionNode from '../components/nodes/ConditionNode.vue'
 import TransformerNode from '../components/nodes/TransformerNode.vue'
 import AppNode from '../components/nodes/AppNode.vue'
+import { DEFAULT_CONDITION_SCRIPT, DEFAULT_TRANSFORMER_SCRIPT } from '../constants/defaults'
 
 const router = useRouter()
 const route = useRoute()
@@ -436,23 +437,13 @@ function convertApiNodeConfigToVueFlowConfig(nodeType: any): any {
   if (nodeType.Condition) {
     return {
       type: 'condition',
-      script: nodeType.Condition.script || `function condition(event) {
-    // Access the incoming data in the event object
-    // do some evaluation
-    const a = 20;
-
-    if (a < 5) {
-      return false
-    }
-
-    return true; // or false
-}`
+      script: nodeType.Condition.script || DEFAULT_CONDITION_SCRIPT
     }
   }
   if (nodeType.Transformer) {
     return {
       type: 'transformer',
-      script: nodeType.Transformer.script || 'function transformer(event) { return event; }'
+      script: nodeType.Transformer.script || DEFAULT_TRANSFORMER_SCRIPT
     }
   }
   if (nodeType.App) {
@@ -496,23 +487,13 @@ function convertNodeToApiType(node: any) {
     case 'condition':
       return {
         Condition: {
-          script: node.data.config.script || `function condition(event) {
-    // Access the incoming data in the event object
-    // do some evaluation
-    const a = 20;
-
-    if (a < 5) {
-      return false
-    }
-
-    return true; // or false
-}`
+          script: node.data.config.script || DEFAULT_CONDITION_SCRIPT
         }
       }
     case 'transformer':
       return {
         Transformer: {
-          script: node.data.config.script || 'function transformer(event) { return event; }'
+          script: node.data.config.script || DEFAULT_TRANSFORMER_SCRIPT
         }
       }
     case 'app':

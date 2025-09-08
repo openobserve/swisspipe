@@ -10,7 +10,10 @@ export default defineConfig({
   plugins: [
     vue(),
     vueDevTools(),
-    (monacoEditorPlugin as any).default({})
+    (monacoEditorPlugin as any).default({
+      languages: ['javascript', 'typescript', 'json'],
+      features: ['!gotoSymbol'] // Disable features that might cause issues
+    })
   ],
   resolve: {
     alias: {
@@ -27,5 +30,8 @@ export default defineConfig({
   },
   define: {
     'process.env': {}
+  },
+  worker: {
+    format: 'es'
   }
 })
