@@ -114,7 +114,33 @@ CREATE INDEX idx_execution_steps_status ON workflow_execution_steps(status);
 - Ability to cancel running executions
 - Pagination for execution lists
 
-### 5. Worker Pool Architecture
+### 5. Data Cleanup Service
+
+**Requirement:** Implement automated cleanup of old workflow execution data to prevent database growth and maintain performance.
+
+**Components:**
+- **CleanupService**: Background service that periodically deletes old execution records
+- **Configurable Retention**: Environment variable control over data retention period
+- **Automatic Scheduling**: Runs at configurable intervals without manual intervention
+- **Safe Deletion**: Respects foreign key constraints and deletes in proper order
+
+**Acceptance Criteria:**
+- Configurable retention period via `SP_EXECUTION_RETENTION_HOURS` (default: 1 hour)
+- Configurable cleanup interval via `SP_CLEANUP_INTERVAL_MINUTES` (default: 1 minute)
+- Automatic deletion of workflow_execution_steps records older than retention period
+- Automatic deletion of workflow_executions records older than retention period
+- Proper cascade deletion order (steps first, then executions)
+- Comprehensive logging for cleanup operations
+- Graceful error handling - continues running if individual cleanup cycles fail
+- Integration with application lifecycle (starts with app, stops on shutdown)
+
+**CleanupService Statistics API:**
+- Monitoring endpoint to check cleanup service status
+- Returns retention configuration and cleanup statistics
+- Shows counts of old records that would be cleaned up
+- Displays total records in database for monitoring
+
+### 6. Worker Pool Architecture
 
 **Requirement:** Implement a worker pool system that picks up and executes workflow jobs asynchronously.
 
@@ -344,33 +370,51 @@ The following environment variables can be used to configure SwissPipe:
   - Example: `SP_DANGEROUS_HEADERS="authorization,x-secret,x-private"`
   - Set to empty string to disable header stripping: `SP_DANGEROUS_HEADERS=""`
 
+- **`SP_EXECUTION_RETENTION_HOURS`**: Number of hours to retain workflow execution data before cleanup
+  - Default: `1` (1 hour)
+  - Example: `SP_EXECUTION_RETENTION_HOURS=24` (retain for 24 hours)
+  - Used by CleanupService to determine cutoff time for data deletion
+
+- **`SP_CLEANUP_INTERVAL_MINUTES`**: How often the cleanup service runs (in minutes)
+  - Default: `1` (every 1 minute)
+  - Example: `SP_CLEANUP_INTERVAL_MINUTES=5` (run every 5 minutes)
+  - Used by CleanupService to schedule background cleanup operations
+
 ## Migration Strategy
 
-### Phase 1: Infrastructure Setup
-1. Add database tables for execution tracking and job queue
-2. Implement SeaORM entities for new tables
-3. Create basic worker pool framework
-4. Add status API endpoints
+### Phase 1: Infrastructure Setup ✅ **COMPLETED**
+1. ✅ Add database tables for execution tracking and job queue
+2. ✅ Implement SeaORM entities for new tables
+3. ✅ Create basic worker pool framework
+4. ✅ Add status API endpoints
 
-### Phase 2: Worker Pool Implementation
-1. Implement job claiming mechanism with atomic operations
-2. Create worker manager and job poller
-3. Implement workflow execution engine for workers
-4. Add worker health monitoring and restart logic
+### Phase 2: Worker Pool Implementation ✅ **COMPLETED**
+1. ✅ Implement job claiming mechanism with atomic operations
+2. ✅ Create worker manager and job poller
+3. ✅ Implement workflow execution engine for workers
+4. ✅ Add worker health monitoring and restart logic
 
-### Phase 3: Async Triggers & Job Processing
-1. Modify trigger endpoints to return 202 and create jobs
-2. Implement job retry mechanism with exponential backoff
-3. Add execution state management and step tracking
-4. Implement job priority and scheduling
+### Phase 3: Async Triggers & Job Processing ✅ **COMPLETED**
+1. ✅ Modify trigger endpoints to return 202 and create jobs
+2. ✅ Implement job retry mechanism with exponential backoff
+3. ✅ Add execution state management and step tracking
+4. ✅ Implement job priority and scheduling
 
-### Phase 4: Recovery & Advanced Features
-1. Implement crash recovery for claimed jobs
-2. Add dead letter queue handling
-3. Implement execution cancellation and cleanup
-4. Add comprehensive logging and monitoring
+### Phase 4: Recovery & Advanced Features ✅ **COMPLETED**
+1. ✅ Implement crash recovery for claimed jobs
+2. ✅ Add dead letter queue handling
+3. ✅ Implement execution cancellation and cleanup
+4. ✅ Add comprehensive logging and monitoring
 
-### Phase 5: Optimization & Scaling
+### Phase 5: Data Cleanup & Production Readiness ✅ **COMPLETED**
+1. ✅ **Implement CleanupService for automatic data retention management**
+2. ✅ **Add configurable retention periods and cleanup intervals**
+3. ✅ **Integrate cleanup service with application lifecycle**
+4. ✅ **Add comprehensive cleanup logging and error handling**
+5. ✅ **Implement header sanitization for security**
+6. ✅ **Add environment variable configuration for dangerous headers**
+
+### Phase 6: Optimization & Scaling (Future)
 1. Performance tuning for high-volume job processing
 2. Worker pool auto-scaling based on queue size
 3. Advanced metrics and alerting integration
@@ -401,17 +445,22 @@ The following environment variables can be used to configure SwissPipe:
 
 ## Success Criteria
 
-- [ ] All workflow triggers return HTTP 202 within 100ms
-- [ ] Worker pool processes jobs concurrently with configurable limits
-- [ ] Zero workflow execution data loss during system crashes
-- [ ] Successful recovery of interrupted workflows and claimed jobs on restart
-- [ ] Complete execution audit trail available via API
-- [ ] Job retry mechanism with exponential backoff working correctly
-- [ ] Dead letter queue handling for permanently failed jobs
-- [ ] Worker health monitoring and automatic restart functionality
-- [ ] Job claiming mechanism prevents race conditions
-- [ ] Configurable worker pool size and job processing settings
-- [ ] Comprehensive monitoring and alerting for worker pool and job queue
+- [x] All workflow triggers return HTTP 202 within 100ms
+- [x] Worker pool processes jobs concurrently with configurable limits
+- [x] Zero workflow execution data loss during system crashes
+- [x] Successful recovery of interrupted workflows and claimed jobs on restart
+- [x] Complete execution audit trail available via API
+- [x] Job retry mechanism with exponential backoff working correctly
+- [x] Dead letter queue handling for permanently failed jobs
+- [x] Worker health monitoring and automatic restart functionality
+- [x] Job claiming mechanism prevents race conditions
+- [x] Configurable worker pool size and job processing settings
+- [x] Comprehensive monitoring and alerting for worker pool and job queue
+- [x] **CleanupService automatically removes old execution data based on retention period**
+- [x] **Configurable cleanup intervals and retention periods via environment variables**
+- [x] **Graceful cleanup service startup and shutdown with application lifecycle**
+- [x] **Safe cascade deletion respecting database foreign key constraints**
+- [x] **Comprehensive cleanup operation logging and error handling**
 
 ## Dependencies
 
