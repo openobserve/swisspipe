@@ -39,8 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db = establish_connection(&config.database_url).await?;
     let db = Arc::new(db);
 
-    // Create tables if they don't exist
-    database::create_tables(&db).await?;
+    // Tables are created automatically via migrations in establish_connection()
 
     // Initialize workflow engine
     let engine = Arc::new(WorkflowEngine::new(db.clone())?);
