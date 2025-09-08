@@ -11,8 +11,8 @@ use std::{collections::{HashMap, HashSet}, sync::Arc};
 
 pub struct WorkflowEngine {
     db: Arc<DatabaseConnection>,
-    js_executor: Arc<JavaScriptExecutor>,
-    app_executor: Arc<AppExecutor>,
+    pub js_executor: Arc<JavaScriptExecutor>,
+    pub app_executor: Arc<AppExecutor>,
 }
 
 impl WorkflowEngine {

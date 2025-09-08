@@ -327,7 +327,22 @@ dead_letter_threshold = 10
 worker_health_check_interval_seconds = 30
 job_claim_cleanup_interval_seconds = 600
 metrics_collection_enabled = true
+
+[security]
+# Configurable dangerous headers (environment variable: SP_DANGEROUS_HEADERS)
+# Default: "authorization,cookie,x-forwarded-for,x-real-ip,x-forwarded-proto,host,origin,referer,x-csrf-token,x-api-key,x-auth-token,bearer,www-authenticate,proxy-authorization,proxy-authenticate"
+# Set SP_DANGEROUS_HEADERS to override (comma-separated list)
+# Example: SP_DANGEROUS_HEADERS="authorization,x-secret,x-private"
 ```
+
+## Environment Variables
+
+The following environment variables can be used to configure SwissPipe:
+
+- **`SP_DANGEROUS_HEADERS`**: Comma-separated list of header names to strip from incoming requests for security
+  - Default: `"authorization,cookie,x-forwarded-for,x-real-ip,x-forwarded-proto,host,origin,referer,x-csrf-token,x-api-key,x-auth-token,bearer,www-authenticate,proxy-authorization,proxy-authenticate"`
+  - Example: `SP_DANGEROUS_HEADERS="authorization,x-secret,x-private"`
+  - Set to empty string to disable header stripping: `SP_DANGEROUS_HEADERS=""`
 
 ## Migration Strategy
 

@@ -10,7 +10,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::{
-    workflow::models::WorkflowEvent,
+    async_execution::ExecutionService,
     AppState,
 };
 
@@ -25,14 +25,14 @@ pub async fn trigger_workflow_get(
     Path(workflow_id): Path<String>,
     headers: HeaderMap,
     Query(params): Query<HashMap<String, String>>,
-) -> std::result::Result<Json<Value>, StatusCode> {
+) -> std::result::Result<(StatusCode, Json<Value>), StatusCode> {
     let data = params
         .into_iter()
         .map(|(k, v)| (k, Value::String(v)))
         .collect::<serde_json::Map<_, _>>();
 
-    let event = create_workflow_event(Value::Object(data), headers);
-    execute_workflow(&state, &workflow_id, event).await
+    let event_headers = extract_headers(&headers);
+    execute_workflow_async(&state, &workflow_id, Value::Object(data), event_headers).await
 }
 
 pub async fn trigger_workflow_post(
@@ -40,9 +40,9 @@ pub async fn trigger_workflow_post(
     Path(workflow_id): Path<String>,
     headers: HeaderMap,
     Json(data): Json<Value>,
-) -> std::result::Result<Json<Value>, StatusCode> {
-    let event = create_workflow_event(data, headers);
-    execute_workflow(&state, &workflow_id, event).await
+) -> std::result::Result<(StatusCode, Json<Value>), StatusCode> {
+    let event_headers = extract_headers(&headers);
+    execute_workflow_async(&state, &workflow_id, data, event_headers).await
 }
 
 pub async fn trigger_workflow_put(
@@ -50,9 +50,9 @@ pub async fn trigger_workflow_put(
     Path(workflow_id): Path<String>,
     headers: HeaderMap,
     Json(data): Json<Value>,
-) -> std::result::Result<Json<Value>, StatusCode> {
-    let event = create_workflow_event(data, headers);
-    execute_workflow(&state, &workflow_id, event).await
+) -> std::result::Result<(StatusCode, Json<Value>), StatusCode> {
+    let event_headers = extract_headers(&headers);
+    execute_workflow_async(&state, &workflow_id, data, event_headers).await
 }
 
 pub async fn trigger_workflow_array(
@@ -60,40 +60,31 @@ pub async fn trigger_workflow_array(
     Path(workflow_id): Path<String>,
     headers: HeaderMap,
     Json(data): Json<Vec<Value>>,
-) -> std::result::Result<Json<Value>, StatusCode> {
-    let event = create_workflow_event(Value::Array(data), headers);
-    execute_workflow(&state, &workflow_id, event).await
+) -> std::result::Result<(StatusCode, Json<Value>), StatusCode> {
+    let event_headers = extract_headers(&headers);
+    execute_workflow_async(&state, &workflow_id, Value::Array(data), event_headers).await
 }
 
-fn create_workflow_event(data: Value, headers: HeaderMap) -> WorkflowEvent {
+fn extract_headers(headers: &HeaderMap) -> HashMap<String, String> {
     let mut event_headers = HashMap::new();
-    let mut metadata = HashMap::new();
-
+    
     for (name, value) in headers.iter() {
         if let Ok(value_str) = value.to_str() {
             event_headers.insert(name.to_string(), value_str.to_string());
         }
     }
-
-    // Add some basic metadata
-    metadata.insert("timestamp".to_string(), chrono::Utc::now().to_rfc3339());
-    metadata.insert("event_id".to_string(), uuid::Uuid::new_v4().to_string());
-
-    WorkflowEvent {
-        data,
-        metadata,
-        headers: event_headers,
-        condition_results: HashMap::new(),
-    }
+    
+    event_headers
 }
 
-async fn execute_workflow(
+async fn execute_workflow_async(
     state: &AppState,
     workflow_id: &str,
-    event: WorkflowEvent,
-) -> std::result::Result<Json<Value>, StatusCode> {
-    // Load workflow
-    let workflow = state
+    input_data: Value,
+    headers: HashMap<String, String>,
+) -> std::result::Result<(StatusCode, Json<Value>), StatusCode> {
+    // Verify workflow exists
+    let _workflow = state
         .engine
         .load_workflow(workflow_id)
         .await
@@ -102,15 +93,29 @@ async fn execute_workflow(
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         })?;
 
-    // Execute workflow
-    let result = state
-        .engine
-        .execute_workflow(&workflow, event)
+    // Create execution service
+    let execution_service = ExecutionService::new(state.db.clone());
+    
+    // Create execution and queue job
+    let execution_id = execution_service
+        .create_execution(
+            workflow_id.to_string(),
+            input_data,
+            headers,
+            None, // No priority specified
+        )
         .await
         .map_err(|e| {
-            tracing::error!("Workflow execution failed: {}", e);
+            tracing::error!("Failed to create execution: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    Ok(Json(result.data))
+    // Return HTTP 202 with execution details
+    let response = serde_json::json!({
+        "status": "accepted",
+        "execution_id": execution_id,
+        "message": "Workflow execution has been queued"
+    });
+
+    Ok((StatusCode::ACCEPTED, Json(response)))
 }

@@ -1,4 +1,5 @@
 use crate::workflow::errors::SwissPipeError;
+use crate::async_execution::worker_pool::WorkerPoolConfig;
 use std::env;
 
 #[derive(Clone, Debug)]
@@ -7,6 +8,7 @@ pub struct Config {
     pub password: String,
     pub database_url: String,
     pub port: u16,
+    pub worker_pool: WorkerPoolConfig,
 }
 
 impl Config {
@@ -21,6 +23,40 @@ impl Config {
             .unwrap_or_else(|_| "3700".to_string())
             .parse()
             .map_err(|_| SwissPipeError::Config("Invalid PORT value".to_string()))?;
+
+        // Worker pool configuration
+        let worker_count = env::var("WORKER_COUNT")
+            .unwrap_or_else(|_| "5".to_string())
+            .parse()
+            .map_err(|_| SwissPipeError::Config("Invalid WORKER_COUNT value".to_string()))?;
+            
+        let job_poll_interval_ms = env::var("JOB_POLL_INTERVAL_MS")
+            .unwrap_or_else(|_| "1000".to_string())
+            .parse()
+            .map_err(|_| SwissPipeError::Config("Invalid JOB_POLL_INTERVAL_MS value".to_string()))?;
+            
+        let job_claim_timeout_seconds = env::var("JOB_CLAIM_TIMEOUT_SECONDS")
+            .unwrap_or_else(|_| "300".to_string())
+            .parse()
+            .map_err(|_| SwissPipeError::Config("Invalid JOB_CLAIM_TIMEOUT_SECONDS value".to_string()))?;
+            
+        let worker_health_check_interval_seconds = env::var("WORKER_HEALTH_CHECK_INTERVAL_SECONDS")
+            .unwrap_or_else(|_| "30".to_string())
+            .parse()
+            .map_err(|_| SwissPipeError::Config("Invalid WORKER_HEALTH_CHECK_INTERVAL_SECONDS value".to_string()))?;
+            
+        let job_claim_cleanup_interval_seconds = env::var("JOB_CLAIM_CLEANUP_INTERVAL_SECONDS")
+            .unwrap_or_else(|_| "600".to_string())
+            .parse()
+            .map_err(|_| SwissPipeError::Config("Invalid JOB_CLAIM_CLEANUP_INTERVAL_SECONDS value".to_string()))?;
+
+        let worker_pool_config = WorkerPoolConfig {
+            worker_count,
+            job_poll_interval_ms,
+            job_claim_timeout_seconds,
+            worker_health_check_interval_seconds,
+            job_claim_cleanup_interval_seconds,
+        };
 
         // Ensure data directory exists
         if let Some(db_path_str) = database_url.strip_prefix("sqlite:") {
@@ -37,6 +73,7 @@ impl Config {
             password,
             database_url,
             port,
+            worker_pool: worker_pool_config,
         })
     }
 }

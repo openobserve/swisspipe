@@ -28,6 +28,9 @@ pub enum SwissPipeError {
     
     #[error("Configuration error: {0}")]
     Config(String),
+    
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
 }
 
 #[derive(Debug, Error)]

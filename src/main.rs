@@ -4,6 +4,7 @@ mod config;
 mod database;
 mod utils;
 mod workflow;
+mod async_execution;
 
 use axum::middleware;
 use std::sync::Arc;
@@ -14,12 +15,14 @@ use tracing_subscriber;
 use config::Config;
 use database::establish_connection;
 use workflow::engine::WorkflowEngine;
+use async_execution::WorkerPool;
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: Arc<sea_orm::DatabaseConnection>,
     pub engine: Arc<WorkflowEngine>,
     pub config: Arc<Config>,
+    pub worker_pool: Arc<WorkerPool>,
 }
 
 #[tokio::main]
@@ -44,11 +47,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize workflow engine
     let engine = Arc::new(WorkflowEngine::new(db.clone())?);
 
+    // Initialize worker pool
+    let worker_pool = Arc::new(WorkerPool::new(
+        db.clone(),
+        engine.clone(),
+        Some(config.worker_pool.clone()), // Use configuration
+    ));
+
+    // Start worker pool
+    tracing::info!("Initializing worker pool...");
+    match worker_pool.start().await {
+        Ok(()) => {
+            tracing::info!("Worker pool started successfully");
+        }
+        Err(e) => {
+            tracing::error!("Failed to start worker pool: {}", e);
+            return Err(e.into());
+        }
+    }
+
     // Store port before moving config into Arc
     let port = config.port;
     
     // Create app state
-    let state = AppState { db, engine, config: Arc::new(config) };
+    let state = AppState { 
+        db, 
+        engine, 
+        config: Arc::new(config),
+        worker_pool: worker_pool.clone(),
+    };
 
     // Build application
     let app = api::create_router()
@@ -66,7 +93,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("SwissPipe server listening on http://0.0.0.0:{}", port);
 
-    axum::serve(listener, app).await?;
+    // Setup graceful shutdown
+    let shutdown_signal = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+        tracing::info!("Received shutdown signal");
+    };
 
+    // Start server with graceful shutdown
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal)
+        .await?;
+
+    // Shutdown worker pool
+    tracing::info!("Shutting down worker pool...");
+    worker_pool.shutdown().await?;
+    
+    tracing::info!("Application shutdown complete");
     Ok(())
 }

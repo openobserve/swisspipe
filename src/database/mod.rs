@@ -2,6 +2,9 @@ pub mod entities;
 pub mod nodes;
 pub mod edges;
 pub mod migrator;
+pub mod workflow_executions;
+pub mod workflow_execution_steps;
+pub mod job_queue;
 
 use sea_orm::{Database, DatabaseConnection, DbErr};
 use sea_orm_migration::MigratorTrait;

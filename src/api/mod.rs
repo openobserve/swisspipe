@@ -1,3 +1,4 @@
+pub mod executions;
 pub mod ingestion;
 pub mod workflows;
 
@@ -8,4 +9,5 @@ pub fn create_router() -> Router<AppState> {
     Router::new()
         .nest("/api/v1", ingestion::routes())
         .nest("/workflows", workflows::routes())
+        .nest("/executions", executions::routes())
 }
