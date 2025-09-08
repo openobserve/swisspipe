@@ -11,8 +11,14 @@ pub struct AppExecutor {
 
 impl AppExecutor {
     pub fn new() -> Self {
+        // Create client with reasonable default timeout to prevent hanging
+        let client = Client::builder()
+            .timeout(Duration::from_secs(60)) // Default 60s timeout as fallback
+            .build()
+            .unwrap_or_else(|_| Client::new());
+            
         Self {
-            client: Client::new(),
+            client,
         }
     }
     
@@ -26,21 +32,37 @@ impl AppExecutor {
         event: WorkflowEvent,
         node_headers: &std::collections::HashMap<String, String>,
     ) -> Result<WorkflowEvent, SwissPipeError> {
+        tracing::info!("Starting app execution: url={}, method={:?}, timeout={}s, max_attempts={}", 
+            url, method, timeout_seconds, retry_config.max_attempts);
+        
         let mut attempts = 0;
         let mut delay = Duration::from_millis(retry_config.initial_delay_ms);
         
         loop {
             attempts += 1;
+            tracing::info!("App execution attempt {} of {}", attempts, retry_config.max_attempts);
             
+            let start_time = std::time::Instant::now();
             match self.execute_app_request(app_type, url, method, timeout_seconds, &event, node_headers).await {
-                Ok(response_event) => return Ok(response_event),
+                Ok(response_event) => {
+                    let elapsed = start_time.elapsed();
+                    tracing::info!("App execution succeeded on attempt {} after {:?}", attempts, elapsed);
+                    return Ok(response_event);
+                },
                 Err(e) if attempts >= retry_config.max_attempts => {
+                    let elapsed = start_time.elapsed();
+                    tracing::error!("App execution failed after {} attempts. Final attempt took {:?}. Error: {}", 
+                        attempts, elapsed, e);
                     return Err(SwissPipeError::App(AppError::HttpRequestFailed {
                         attempts,
                         error: e.to_string(),
                     }));
                 }
-                Err(_) => {
+                Err(e) => {
+                    let elapsed = start_time.elapsed();
+                    tracing::warn!("App execution attempt {} failed after {:?}, retrying in {:?}. Error: {}", 
+                        attempts, elapsed, delay, e);
+                    
                     // Wait before retry
                     tokio::time::sleep(delay).await;
                     
@@ -63,6 +85,7 @@ impl AppExecutor {
         node_headers: &std::collections::HashMap<String, String>,
     ) -> Result<WorkflowEvent, SwissPipeError> {
         let timeout = Duration::from_secs(timeout_seconds);
+        tracing::info!("Executing HTTP request: url={}, timeout={:?}", url, timeout);
         
         match app_type {
             AppType::Webhook => {
@@ -76,21 +99,64 @@ impl AppExecutor {
                     }
                 };
                 
-                // Add headers from node configuration (from frontend)
-                for (key, value) in node_headers {
-                    request = request.header(key, value);
+                // Headers that should not be forwarded as they can cause issues
+                let forbidden_headers = [
+                    "host", "connection", "content-length", "transfer-encoding",
+                    "accept-encoding", "expect", "upgrade", "proxy-authorization",
+                    "te", "trailer"
+                ];
+                
+                // Merge headers from both sources, with event headers taking precedence
+                let mut combined_headers = node_headers.clone();
+                for (key, value) in &event.headers {
+                    let key_lower = key.to_lowercase();
+                    // Filter out problematic headers
+                    if !forbidden_headers.contains(&key_lower.as_str()) {
+                        combined_headers.insert(key.clone(), value.clone());
+                    } else {
+                        tracing::debug!("Filtering out forbidden header: '{}': '{}'", key, value);
+                    }
                 }
                 
-                // Add headers from workflow event (runtime headers)
-                for (key, value) in &event.headers {
-                    request = request.header(key, value);
+                // Add all headers to the request, validating each one
+                for (key, value) in &combined_headers {
+                    let key_lower = key.to_lowercase();
+                    // Double-check forbidden headers (in case they came from node_headers)
+                    if forbidden_headers.contains(&key_lower.as_str()) {
+                        tracing::debug!("Skipping forbidden header: '{}': '{}'", key, value);
+                        continue;
+                    }
+                    
+                    // Skip empty header values and invalid header names
+                    if !value.is_empty() && !key.is_empty() {
+                        match (reqwest::header::HeaderName::from_bytes(key.as_bytes()), reqwest::header::HeaderValue::from_str(value)) {
+                            (Ok(name), Ok(val)) => {
+                                request = request.header(name, val);
+                            }
+                            _ => {
+                                tracing::warn!("Skipping invalid header: '{}': '{}'", key, value);
+                            }
+                        }
+                    } else {
+                        tracing::debug!("Skipping empty header key or value: '{}': '{}'", key, value);
+                    }
                 }
+                
+                tracing::info!("Sending HTTP request with {} headers: {:?}", combined_headers.len(), combined_headers);
+                let request_start = std::time::Instant::now();
                 
                 let response = request
                     .timeout(timeout)
                     .send()
                     .await
-                    .map_err(|e| AppError::HttpRequestFailed { attempts: 1, error: e.to_string() })?;
+                    .map_err(|e| {
+                        let elapsed = request_start.elapsed();
+                        tracing::error!("HTTP request failed after {:?}: {}", elapsed, e);
+                        AppError::HttpRequestFailed { attempts: 1, error: e.to_string() }
+                    })?;
+                
+                let request_elapsed = request_start.elapsed();
+                tracing::info!("HTTP request completed in {:?}, status: {}", request_elapsed, response.status());
                 
                 if !response.status().is_success() {
                     return Err(SwissPipeError::App(AppError::InvalidStatus {
@@ -119,6 +185,9 @@ impl AppExecutor {
                 
                 let full_url = openobserve_url.clone();
                 
+                tracing::info!("Sending OpenObserve request to: {}", full_url);
+                let request_start = std::time::Instant::now();
+                
                 let response = self.client
                     .post(&full_url)
                     .header("Authorization", authorization_header)
@@ -127,7 +196,14 @@ impl AppExecutor {
                     .timeout(timeout)
                     .send()
                     .await
-                    .map_err(|e| AppError::HttpRequestFailed { attempts: 1, error: e.to_string() })?;
+                    .map_err(|e| {
+                        let elapsed = request_start.elapsed();
+                        tracing::error!("OpenObserve request failed after {:?}: {}", elapsed, e);
+                        AppError::HttpRequestFailed { attempts: 1, error: e.to_string() }
+                    })?;
+                
+                let request_elapsed = request_start.elapsed();
+                tracing::info!("OpenObserve request completed in {:?}, status: {}", request_elapsed, response.status());
                 
                 match response.status().as_u16() {
                     200..=299 => {
