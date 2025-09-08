@@ -5,6 +5,7 @@ use crate::{
         errors::{Result, SwissPipeError},
         models::{Edge, Node, NodeType, Workflow, WorkflowEvent},
     },
+    email::service::EmailService,
 };
 use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait};
 use std::{collections::{HashMap, HashSet}, sync::Arc};
@@ -13,17 +14,21 @@ pub struct WorkflowEngine {
     db: Arc<DatabaseConnection>,
     pub js_executor: Arc<JavaScriptExecutor>,
     pub app_executor: Arc<AppExecutor>,
+    pub email_service: Arc<EmailService>,
 }
 
 impl WorkflowEngine {
     pub fn new(db: Arc<DatabaseConnection>) -> Result<Self> {
         let js_executor = Arc::new(JavaScriptExecutor::new()?);
         let app_executor = Arc::new(AppExecutor::new());
+        let email_service = Arc::new(EmailService::new(db.clone())
+            .map_err(|e| SwissPipeError::Generic(e.to_string()))?);
         
         Ok(Self {
             db,
             js_executor,
             app_executor,
+            email_service,
         })
     }
     
@@ -164,6 +169,20 @@ impl WorkflowEngine {
                         self.app_executor
                             .execute_app(app_type, url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event, headers)
                             .await
+                    }
+                }
+            }
+            NodeType::Email { config } => {
+                // Execute email node
+                match self.email_service.send_email(config, &event, &node.workflow_id, &node.id).await {
+                    Ok(result) => {
+                        tracing::info!("Email node '{}' executed successfully: {:?}", node.name, result);
+                        // Email nodes pass through the original event
+                        Ok(event)
+                    }
+                    Err(e) => {
+                        tracing::error!("Email node '{}' failed: {}", node.name, e);
+                        Err(SwissPipeError::Generic(format!("Email node failed: {}", e)))
                     }
                 }
             }

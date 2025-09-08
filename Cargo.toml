@@ -22,3 +22,12 @@ anyhow = "1.0"
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors"] }
 dotenvy = "0.15"
+
+# Email dependencies
+lettre = { version = "0.11", features = ["tokio1-native-tls", "smtp-transport", "builder"] }
+handlebars = "4.0"
+mime = "0.3"
+validator = { version = "0.16", features = ["derive"] }
+html-escape = "0.2"
+governor = "0.6"
+tokio-util = { version = "0.7", features = ["time"] }

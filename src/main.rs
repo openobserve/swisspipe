@@ -5,6 +5,7 @@ mod database;
 mod utils;
 mod workflow;
 mod async_execution;
+mod email;
 
 use axum::middleware;
 use std::sync::Arc;
@@ -72,6 +73,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Starting cleanup service...");
     let _cleanup_handle = cleanup_service.start().await;
     tracing::info!("Cleanup service started successfully");
+
+    // Initialize and start email queue processor
+    let email_service = engine.email_service.clone();
+    let email_db = db.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
+        tracing::info!("Email queue processor started");
+        
+        loop {
+            interval.tick().await;
+            
+            match email_service.process_email_queue().await {
+                Ok(processed) => {
+                    if processed > 0 {
+                        tracing::debug!("Processed {} emails from queue", processed);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Error processing email queue: {}", e);
+                }
+            }
+            
+            // Cleanup expired emails
+            match email_service.cleanup_expired_emails().await {
+                Ok(cleaned) => {
+                    if cleaned > 0 {
+                        tracing::info!("Cleaned up {} expired emails from queue", cleaned);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Error cleaning up expired emails: {}", e);
+                }
+            }
+        }
+    });
 
     // Store port before moving config into Arc
     let port = config.port;

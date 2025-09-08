@@ -71,6 +71,9 @@ pub enum NodeType {
         retry_config: RetryConfig,
         headers: HashMap<String, String>,
     },
+    Email {
+        config: crate::email::EmailConfig,
+    },
 }
 
 #[derive(Debug, Clone)]
