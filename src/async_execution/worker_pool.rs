@@ -157,23 +157,55 @@ impl WorkerPool {
                 0 => break, // End of workflow
                 1 => current_node_name = next_nodes[0].clone(),
                 _ => {
-                    // Handle multiple outgoing paths by executing them sequentially for now
-                    // TODO: In the future, we could implement true parallel execution with proper Send bounds
-                    tracing::debug!("Node '{}' has {} outgoing paths, executing sequentially", current_node_name, next_nodes.len());
+                    // Handle multiple outgoing paths by executing them in parallel
+                    tracing::debug!("Node '{}' has {} outgoing paths, executing in parallel", current_node_name, next_nodes.len());
                     
+                    let mut handles = Vec::new();
                     for next_node_name in next_nodes {
-                        tracing::debug!("Starting branch execution for node: {}", next_node_name);
-                        match self.execute_branch(execution_id, workflow, next_node_name, current_event.clone()).await {
-                            Ok(_) => {
-                                tracing::debug!("Branch execution completed successfully");
+                        // Clone all necessary data for the spawned task
+                        let execution_id_clone = execution_id.to_string();
+                        let workflow_clone = workflow.clone();
+                        let event_clone = current_event.clone();
+                        let execution_service = self.execution_service.clone();
+                        let workflow_engine = self.workflow_engine.clone();
+                        
+                        let handle = tokio::spawn(async move {
+                            let worker_pool = WorkerPoolForBranch {
+                                execution_service,
+                                workflow_engine,
+                            };
+                            
+                            tracing::debug!("Starting parallel branch execution for node: {}", next_node_name);
+                            let result = worker_pool.execute_branch_static(
+                                &execution_id_clone,
+                                &workflow_clone,
+                                next_node_name,
+                                event_clone
+                            ).await;
+                            
+                            match &result {
+                                Ok(_) => tracing::debug!("Parallel branch execution completed successfully"),
+                                Err(e) => tracing::error!("Parallel branch execution failed: {}", e),
                             }
-                            Err(e) => {
-                                tracing::error!("Branch execution failed: {}", e);
-                                return Err(e);
-                            }
+                            
+                            result
+                        });
+                        
+                        handles.push(handle);
+                    }
+                    
+                    // Wait for all branches to complete
+                    let results = futures::future::try_join_all(handles).await
+                        .map_err(|e| SwissPipeError::Generic(format!("Failed to join parallel execution: {}", e)))?;
+                    
+                    // Check if any branch failed
+                    for result in results {
+                        if let Err(e) = result {
+                            return Err(e);
                         }
                     }
                     
+                    tracing::debug!("All parallel branches completed successfully");
                     // All branches completed successfully - workflow is done
                     break;
                 }
@@ -183,101 +215,7 @@ impl WorkerPool {
         Ok(current_event)
     }
     
-    /// Execute a branch starting from a specific node
-    fn execute_branch<'a>(
-        &'a self,
-        execution_id: &'a str,
-        workflow: &'a Workflow,
-        start_node_name: String,
-        mut event: WorkflowEvent,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'a>> {
-        Box::pin(async move {
-        let mut current_node_name = start_node_name;
-        let mut visited = std::collections::HashSet::new();
-        
-        // Build node lookup for efficiency
-        let node_map: std::collections::HashMap<String, &crate::workflow::models::Node> = workflow.nodes
-            .iter()
-            .map(|node| (node.name.clone(), node))
-            .collect();
-        
-        loop {
-            // Prevent infinite loops
-            if visited.contains(&current_node_name) {
-                return Err(SwissPipeError::CycleDetected);
-            }
-            visited.insert(current_node_name.clone());
-            
-            let node = node_map
-                .get(&current_node_name)
-                .ok_or_else(|| SwissPipeError::NodeNotFound(current_node_name.clone()))?;
-            
-            // Create execution step
-            let input_data = serde_json::to_value(&event).ok();
-            let step_id = self.execution_service
-                .create_execution_step(
-                    execution_id.to_string(),
-                    node.id.clone(),
-                    node.name.clone(),
-                    input_data,
-                )
-                .await?;
-            
-            self.execution_service
-                .update_execution_step(&step_id, crate::database::workflow_execution_steps::StepStatus::Running, None, None)
-                .await?;
-            
-            // Execute the node
-            match self.execute_node_with_tracking(execution_id, node, event).await {
-                Ok(result_event) => {
-                    // Mark step as completed
-                    let output_data = serde_json::to_value(&result_event).ok();
-                    self.execution_service
-                        .update_execution_step(&step_id, crate::database::workflow_execution_steps::StepStatus::Completed, output_data, None)
-                        .await?;
-                    
-                    event = result_event;
-                }
-                Err(e) => {
-                    // Mark step as failed
-                    self.execution_service
-                        .update_execution_step(&step_id, crate::database::workflow_execution_steps::StepStatus::Failed, None, Some(e.to_string()))
-                        .await?;
-                    return Err(e);
-                }
-            }
-            
-            // Get next nodes using the workflow engine's logic
-            let next_nodes = self.get_next_nodes(workflow, &current_node_name, &event)?;
-            match next_nodes.len() {
-                0 => break, // End of branch
-                1 => current_node_name = next_nodes[0].clone(),
-                _ => {
-                    // This branch also has multiple paths - recursively handle them sequentially
-                    tracing::debug!("Branch node '{}' has {} outgoing paths, executing sequentially", current_node_name, next_nodes.len());
-                    
-                    for next_node_name in next_nodes {
-                        tracing::debug!("Starting sub-branch execution for node: {}", next_node_name);
-                        match self.execute_branch(execution_id, workflow, next_node_name, event.clone()).await {
-                            Ok(_) => {
-                                tracing::debug!("Sub-branch execution completed successfully");
-                            }
-                            Err(e) => {
-                                tracing::error!("Sub-branch execution failed: {}", e);
-                                return Err(e);
-                            }
-                        }
-                    }
-                    
-                    // All sub-branches completed successfully
-                    break;
-                }
-            }
-        }
-        
-        Ok(())
-        })
-    }
+
     
     /// Execute a single node with the same logic as workflow engine
     async fn execute_node_with_tracking(
@@ -803,6 +741,197 @@ impl WorkerPool {
             queue_failed: queue_stats.failed,
             queue_dead_letter: queue_stats.dead_letter,
         }
+    }
+}
+
+/// Helper struct for parallel branch execution that owns its dependencies
+struct WorkerPoolForBranch {
+    execution_service: Arc<ExecutionService>,
+    workflow_engine: Arc<crate::workflow::engine::WorkflowEngine>,
+}
+
+impl WorkerPoolForBranch {
+    async fn execute_branch_static(
+        &self,
+        execution_id: &str,
+        workflow: &Workflow,
+        start_node_name: String,
+        mut event: WorkflowEvent,
+    ) -> Result<()> {
+        let mut current_node_name = start_node_name;
+        let mut visited = std::collections::HashSet::new();
+        
+        // Build node lookup for efficiency
+        let node_map: std::collections::HashMap<String, &crate::workflow::models::Node> = workflow.nodes
+            .iter()
+            .map(|node| (node.name.clone(), node))
+            .collect();
+        
+        loop {
+            // Prevent infinite loops
+            if visited.contains(&current_node_name) {
+                return Err(SwissPipeError::CycleDetected);
+            }
+            visited.insert(current_node_name.clone());
+            
+            let node = node_map
+                .get(&current_node_name)
+                .ok_or_else(|| SwissPipeError::NodeNotFound(current_node_name.clone()))?;
+            
+            // Create execution step
+            let input_data = serde_json::to_value(&event).ok();
+            let step_id = self.execution_service
+                .create_execution_step(
+                    execution_id.to_string(),
+                    node.id.clone(),
+                    node.name.clone(),
+                    input_data,
+                )
+                .await?;
+            
+            self.execution_service
+                .update_execution_step(&step_id, crate::database::workflow_execution_steps::StepStatus::Running, None, None)
+                .await?;
+            
+            // Execute the node
+            match self.execute_node_static(execution_id, node, event).await {
+                Ok(result_event) => {
+                    // Mark step as completed
+                    let output_data = serde_json::to_value(&result_event).ok();
+                    self.execution_service
+                        .update_execution_step(&step_id, crate::database::workflow_execution_steps::StepStatus::Completed, output_data, None)
+                        .await?;
+                    
+                    event = result_event;
+                }
+                Err(e) => {
+                    // Mark step as failed
+                    self.execution_service
+                        .update_execution_step(&step_id, crate::database::workflow_execution_steps::StepStatus::Failed, None, Some(e.to_string()))
+                        .await?;
+                    return Err(e);
+                }
+            }
+            
+            // Get next nodes - use a simplified approach for parallel branches
+            let next_nodes = self.get_next_nodes_static(workflow, &current_node_name, &event)?;
+            match next_nodes.len() {
+                0 => break, // End of branch
+                1 => current_node_name = next_nodes[0].clone(),
+                _ => {
+                    // For nested branches within parallel execution, execute sequentially for now
+                    tracing::debug!("Nested branch node '{}' has {} outgoing paths, executing sequentially", current_node_name, next_nodes.len());
+                    
+                    for next_node_name in next_nodes {
+                        tracing::debug!("Starting nested branch execution for node: {}", next_node_name);
+                        match Box::pin(self.execute_branch_static(execution_id, workflow, next_node_name, event.clone())).await {
+                            Ok(_) => {
+                                tracing::debug!("Nested branch execution completed successfully");
+                            }
+                            Err(e) => {
+                                tracing::error!("Nested branch execution failed: {}", e);
+                                return Err(e);
+                            }
+                        }
+                    }
+                    
+                    // All nested branches completed successfully
+                    break;
+                }
+            }
+        }
+        
+        Ok(())
+    }
+    
+    async fn execute_node_static(
+        &self,
+        execution_id: &str,
+        node: &crate::workflow::models::Node,
+        mut event: WorkflowEvent,
+    ) -> Result<WorkflowEvent> {
+        use crate::workflow::models::NodeType;
+        
+        match &node.node_type {
+            NodeType::Trigger { .. } => Ok(event),
+            NodeType::Condition { script } => {
+                let condition_result = self.workflow_engine.js_executor.execute_condition(script, &event).await?;
+                event.condition_results.insert(node.name.clone(), condition_result);
+                Ok(event)
+            }
+            NodeType::Transformer { script } => {
+                let mut transformed_event = self.workflow_engine.js_executor.execute_transformer(script, event.clone()).await
+                    .map_err(|e| SwissPipeError::JavaScript(e))?;
+                transformed_event.condition_results = event.condition_results;
+                Ok(transformed_event)
+            }
+            NodeType::App { app_type, url, method, timeout_seconds, failure_action, retry_config, headers } => {
+                match failure_action {
+                    crate::workflow::models::FailureAction::Retry => {
+                        self.workflow_engine.app_executor
+                            .execute_app(app_type, url, method, *timeout_seconds, retry_config, event, headers)
+                            .await
+                    },
+                    crate::workflow::models::FailureAction::Continue => {
+                        match self.workflow_engine.app_executor
+                            .execute_app(app_type, url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event.clone(), headers)
+                            .await 
+                        {
+                            Ok(result) => Ok(result),
+                            Err(e) => {
+                                tracing::warn!("App node '{}' failed but continuing: {}", node.name, e);
+                                Ok(event)
+                            }
+                        }
+                    },
+                    crate::workflow::models::FailureAction::Stop => {
+                        self.workflow_engine.app_executor
+                            .execute_app(app_type, url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event, headers)
+                            .await
+                    }
+                }
+            }
+            NodeType::Email { config } => {
+                match self.workflow_engine.email_service.send_email(config, &event, execution_id, &node.id).await {
+                    Ok(result) => {
+                        tracing::info!("Email node '{}' executed successfully: {:?}", node.name, result);
+                        Ok(event)
+                    }
+                    Err(e) => {
+                        tracing::error!("Email node '{}' failed: {}", node.name, e);
+                        Err(SwissPipeError::Generic(format!("Email node failed: {}", e)))
+                    }
+                }
+            }
+        }
+    }
+    
+    fn get_next_nodes_static(
+        &self,
+        workflow: &Workflow,
+        current_node_name: &str,
+        event: &WorkflowEvent,
+    ) -> Result<Vec<String>> {
+        let mut next_nodes = Vec::new();
+        
+        for edge in &workflow.edges {
+            if edge.from_node_name == current_node_name {
+                // Check if this edge has a condition
+                if let Some(condition_result) = edge.condition_result {
+                    // Look up the stored condition result for the current node
+                    if let Some(&stored_result) = event.condition_results.get(current_node_name) {
+                        if stored_result == condition_result {
+                            next_nodes.push(edge.to_node_name.clone());
+                        }
+                    }
+                } else {
+                    // Unconditional edge
+                    next_nodes.push(edge.to_node_name.clone());
+                }
+            }
+        }
+        
+        Ok(next_nodes)
     }
 }
 

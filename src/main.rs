@@ -129,13 +129,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start server
     let listener = TcpListener::bind(&format!("0.0.0.0:{}", port)).await?;
-    
-    tracing::info!(
-        "SwissPipe server listening on http://0.0.0.0:{}",
-        port
-    );
 
-    println!("SwissPipe server listening on http://0.0.0.0:{}", port);
+    println!("SwissPipe server listening on http://0.0.0.0:{port}");
 
     // Setup graceful shutdown
     let shutdown_signal = async {
