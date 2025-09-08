@@ -9,8 +9,8 @@
     
     <!-- True/False labels -->
     <div class="flex justify-between text-xs">
-      <span class="text-green-200">T</span>
-      <span class="text-red-200">F</span>
+      <span class="text-green-200">True</span>
+      <span class="text-red-200">False</span>
     </div>
     
     <!-- Connection handles -->
