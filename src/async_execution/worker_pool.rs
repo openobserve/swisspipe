@@ -156,11 +156,127 @@ impl WorkerPool {
             match next_nodes.len() {
                 0 => break, // End of workflow
                 1 => current_node_name = next_nodes[0].clone(),
-                _ => return Err(SwissPipeError::Config("Multiple paths not supported".to_string())),
+                _ => {
+                    // Handle multiple outgoing paths by executing them sequentially for now
+                    // TODO: In the future, we could implement true parallel execution with proper Send bounds
+                    tracing::debug!("Node '{}' has {} outgoing paths, executing sequentially", current_node_name, next_nodes.len());
+                    
+                    for next_node_name in next_nodes {
+                        tracing::debug!("Starting branch execution for node: {}", next_node_name);
+                        match self.execute_branch(execution_id, workflow, next_node_name, current_event.clone()).await {
+                            Ok(_) => {
+                                tracing::debug!("Branch execution completed successfully");
+                            }
+                            Err(e) => {
+                                tracing::error!("Branch execution failed: {}", e);
+                                return Err(e);
+                            }
+                        }
+                    }
+                    
+                    // All branches completed successfully - workflow is done
+                    break;
+                }
             }
         }
         
         Ok(current_event)
+    }
+    
+    /// Execute a branch starting from a specific node
+    fn execute_branch<'a>(
+        &'a self,
+        execution_id: &'a str,
+        workflow: &'a Workflow,
+        start_node_name: String,
+        mut event: WorkflowEvent,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(async move {
+        let mut current_node_name = start_node_name;
+        let mut visited = std::collections::HashSet::new();
+        
+        // Build node lookup for efficiency
+        let node_map: std::collections::HashMap<String, &crate::workflow::models::Node> = workflow.nodes
+            .iter()
+            .map(|node| (node.name.clone(), node))
+            .collect();
+        
+        loop {
+            // Prevent infinite loops
+            if visited.contains(&current_node_name) {
+                return Err(SwissPipeError::CycleDetected);
+            }
+            visited.insert(current_node_name.clone());
+            
+            let node = node_map
+                .get(&current_node_name)
+                .ok_or_else(|| SwissPipeError::NodeNotFound(current_node_name.clone()))?;
+            
+            // Create execution step
+            let input_data = serde_json::to_value(&event).ok();
+            let step_id = self.execution_service
+                .create_execution_step(
+                    execution_id.to_string(),
+                    node.id.clone(),
+                    node.name.clone(),
+                    input_data,
+                )
+                .await?;
+            
+            self.execution_service
+                .update_execution_step(&step_id, crate::database::workflow_execution_steps::StepStatus::Running, None, None)
+                .await?;
+            
+            // Execute the node
+            match self.execute_node_with_tracking(execution_id, node, event).await {
+                Ok(result_event) => {
+                    // Mark step as completed
+                    let output_data = serde_json::to_value(&result_event).ok();
+                    self.execution_service
+                        .update_execution_step(&step_id, crate::database::workflow_execution_steps::StepStatus::Completed, output_data, None)
+                        .await?;
+                    
+                    event = result_event;
+                }
+                Err(e) => {
+                    // Mark step as failed
+                    self.execution_service
+                        .update_execution_step(&step_id, crate::database::workflow_execution_steps::StepStatus::Failed, None, Some(e.to_string()))
+                        .await?;
+                    return Err(e);
+                }
+            }
+            
+            // Get next nodes using the workflow engine's logic
+            let next_nodes = self.get_next_nodes(workflow, &current_node_name, &event)?;
+            match next_nodes.len() {
+                0 => break, // End of branch
+                1 => current_node_name = next_nodes[0].clone(),
+                _ => {
+                    // This branch also has multiple paths - recursively handle them sequentially
+                    tracing::debug!("Branch node '{}' has {} outgoing paths, executing sequentially", current_node_name, next_nodes.len());
+                    
+                    for next_node_name in next_nodes {
+                        tracing::debug!("Starting sub-branch execution for node: {}", next_node_name);
+                        match self.execute_branch(execution_id, workflow, next_node_name, event.clone()).await {
+                            Ok(_) => {
+                                tracing::debug!("Sub-branch execution completed successfully");
+                            }
+                            Err(e) => {
+                                tracing::error!("Sub-branch execution failed: {}", e);
+                                return Err(e);
+                            }
+                        }
+                    }
+                    
+                    // All sub-branches completed successfully
+                    break;
+                }
+            }
+        }
+        
+        Ok(())
+        })
     }
     
     /// Execute a single node with the same logic as workflow engine
