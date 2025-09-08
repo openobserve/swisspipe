@@ -69,6 +69,7 @@ pub enum NodeType {
         timeout_seconds: u64,
         failure_action: FailureAction,
         retry_config: RetryConfig,
+        headers: HashMap<String, String>,
     },
 }
 

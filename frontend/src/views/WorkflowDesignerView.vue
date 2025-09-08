@@ -454,6 +454,7 @@ function convertApiNodeConfigToVueFlowConfig(nodeType: any): any {
       method: nodeType.App.method || 'POST',
       timeout_seconds: nodeType.App.timeout_seconds || 30,
       failure_action: nodeType.App.failure_action || 'Stop',
+      headers: nodeType.App.headers || {},
       openobserve_url: '',
       authorization_header: '',
       retry_config: nodeType.App.retry_config || {
@@ -517,6 +518,7 @@ function convertNodeToApiType(node: any) {
           method: appConfig.method || 'POST',
           timeout_seconds: appConfig.timeout_seconds || 30,
           failure_action: appConfig.failure_action || 'Stop',
+          headers: appConfig.headers || {},
           retry_config: appConfig.retry_config || {
             max_attempts: 3,
             initial_delay_ms: 100,

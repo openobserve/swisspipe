@@ -138,18 +138,18 @@ impl WorkflowEngine {
                 
                 Ok(transformed_event)
             }
-            NodeType::App { app_type, url, method, timeout_seconds, failure_action, retry_config } => {
+            NodeType::App { app_type, url, method, timeout_seconds, failure_action, retry_config, headers } => {
                 match failure_action {
                     crate::workflow::models::FailureAction::Retry => {
                         // Use retry_config for retries on failure
                         self.app_executor
-                            .execute_app(app_type, url, method, *timeout_seconds, retry_config, event)
+                            .execute_app(app_type, url, method, *timeout_seconds, retry_config, event, headers)
                             .await
                     },
                     crate::workflow::models::FailureAction::Continue => {
                         // Try once, if it fails, continue with original event
                         match self.app_executor
-                            .execute_app(app_type, url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event.clone())
+                            .execute_app(app_type, url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event.clone(), headers)
                             .await 
                         {
                             Ok(result) => Ok(result),
@@ -162,7 +162,7 @@ impl WorkflowEngine {
                     crate::workflow::models::FailureAction::Stop => {
                         // Try once, if it fails, stop the workflow
                         self.app_executor
-                            .execute_app(app_type, url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event)
+                            .execute_app(app_type, url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event, headers)
                             .await
                     }
                 }

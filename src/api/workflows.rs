@@ -260,6 +260,7 @@ pub async fn get_workflow(
                     timeout_seconds: 30,
                     failure_action: FailureAction::Stop,
                     retry_config: RetryConfig::default(),
+                    headers: std::collections::HashMap::new(),
                 });
             NodeResponse {
                 id: node.id,

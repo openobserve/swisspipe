@@ -24,6 +24,7 @@ impl AppExecutor {
         timeout_seconds: u64,
         retry_config: &RetryConfig,
         event: WorkflowEvent,
+        node_headers: &std::collections::HashMap<String, String>,
     ) -> Result<WorkflowEvent, SwissPipeError> {
         let mut attempts = 0;
         let mut delay = Duration::from_millis(retry_config.initial_delay_ms);
@@ -31,7 +32,7 @@ impl AppExecutor {
         loop {
             attempts += 1;
             
-            match self.execute_app_request(app_type, url, method, timeout_seconds, &event).await {
+            match self.execute_app_request(app_type, url, method, timeout_seconds, &event, node_headers).await {
                 Ok(response_event) => return Ok(response_event),
                 Err(e) if attempts >= retry_config.max_attempts => {
                     return Err(SwissPipeError::App(AppError::HttpRequestFailed {
@@ -59,12 +60,13 @@ impl AppExecutor {
         method: &HttpMethod,
         timeout_seconds: u64,
         event: &WorkflowEvent,
+        node_headers: &std::collections::HashMap<String, String>,
     ) -> Result<WorkflowEvent, SwissPipeError> {
         let timeout = Duration::from_secs(timeout_seconds);
         
         match app_type {
             AppType::Webhook => {
-                let request = match method {
+                let mut request = match method {
                     HttpMethod::POST => self.client.post(url).json(&event.data),
                     HttpMethod::PUT => self.client.put(url).json(&event.data),
                     HttpMethod::GET => {
@@ -73,6 +75,16 @@ impl AppExecutor {
                         self.client.get(url).query(&query_params)
                     }
                 };
+                
+                // Add headers from node configuration (from frontend)
+                for (key, value) in node_headers {
+                    request = request.header(key, value);
+                }
+                
+                // Add headers from workflow event (runtime headers)
+                for (key, value) in &event.headers {
+                    request = request.header(key, value);
+                }
                 
                 let response = request
                     .timeout(timeout)
