@@ -93,7 +93,7 @@ function initializeEditor() {
     }
   })
 
-  // Create editor
+  // Create editor with full features
   editor = monaco.editor.create(editorContainer.value, {
     value: props.modelValue || '',
     language: props.language,
@@ -119,28 +119,26 @@ function initializeEditor() {
     }
   })
 
-  // Add JavaScript-specific configuration
+  // Configure JavaScript with minimal TypeScript features to avoid worker issues
   if (props.language === 'javascript') {
-    monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true)
-    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
-      target: monaco.languages.typescript.ScriptTarget.ES2020,
-      allowJs: true,
-      checkJs: true,
-      strict: false
-    })
-
-    // Add type definitions for workflow event
-    monaco.languages.typescript.javascriptDefaults.addExtraLib(`
-      interface WorkflowEvent {
-        data: any;
-        metadata: Record<string, string>;
-        headers: Record<string, string>;
-        condition_results: Record<string, boolean>;
-      }
+    try {
+      // Disable TypeScript validation entirely but keep syntax highlighting
+      monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+        noSemanticValidation: true,
+        noSyntaxValidation: true,
+        noSuggestionDiagnostics: true,
+      })
       
-      declare function condition(event: WorkflowEvent): boolean;
-      declare function transformer(event: WorkflowEvent): WorkflowEvent | null;
-    `, 'workflow-types.d.ts')
+      // Minimal compiler options
+      monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+        allowJs: true,
+        checkJs: false,
+        noLib: true,
+        lib: []
+      })
+    } catch (error) {
+      console.warn('Failed to configure JavaScript language features:', error)
+    }
   }
 
   // Listen for content changes

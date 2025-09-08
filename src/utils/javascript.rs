@@ -29,7 +29,13 @@ impl JavaScriptExecutor {
                 script, event_json
             );
             
+            tracing::info!("Executing JavaScript condition: {}", full_script);
+            
             let result: rquickjs::Result<bool> = ctx.eval(full_script.as_bytes());
+            match &result {
+                Ok(val) => tracing::info!("JavaScript condition result: {}", val),
+                Err(e) => tracing::error!("JavaScript condition error: {}", e),
+            }
             result.map_err(|e| JavaScriptError::ExecutionError(e.to_string()))
         })?;
         

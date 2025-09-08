@@ -72,6 +72,7 @@
             <CodeEditor
               v-model="localNodeData.config.script"
               :language="'javascript'"
+              @update:modelValue="onScriptChange"
               @save="updateNodeData"
             />
           </div>
@@ -87,6 +88,7 @@
             <CodeEditor
               v-model="localNodeData.config.script"
               :language="'javascript'"
+              @update:modelValue="onScriptChange"
               @save="updateNodeData"
             />
           </div>
@@ -217,6 +219,18 @@ function updateNodeData() {
     nodeStore.updateNode(selectedNodeData.value.id, {
       data: localNodeData.value
     })
+  }
+}
+
+function onScriptChange(newScript: string) {
+  console.log('Script changed to:', newScript)
+  if (localNodeData.value.config) {
+    localNodeData.value.config.script = newScript
+    console.log('Updated localNodeData.config.script:', localNodeData.value.config.script)
+    // Immediately update the node store so changes are reflected in saves
+    updateNodeData()
+  } else {
+    console.error('localNodeData.config is undefined!')
   }
 }
 

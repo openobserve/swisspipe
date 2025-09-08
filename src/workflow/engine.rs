@@ -120,6 +120,8 @@ impl WorkflowEngine {
                 // Execute the condition and store the result
                 let condition_result = self.js_executor.execute_condition(script, &event).await?;
                 
+                tracing::info!("Condition node '{}' evaluated to: {}", node.name, condition_result);
+                
                 // Store the condition result in the event for edge routing
                 event.condition_results.insert(node.name.clone(), condition_result);
                 
@@ -171,11 +173,17 @@ impl WorkflowEngine {
     fn get_next_nodes(&self, workflow: &Workflow, current_node_name: &str, event: &WorkflowEvent) -> Result<Vec<String>> {
         let mut next_nodes = Vec::new();
         
+        tracing::info!("Finding next nodes from '{}'", current_node_name);
+        
         for edge in &workflow.edges {
             if edge.from_node_name == current_node_name {
+                tracing::info!("Processing edge: {} -> {} (condition_result: {:?})", 
+                    edge.from_node_name, edge.to_node_name, edge.condition_result);
+                
                 match edge.condition_result {
                     None => {
                         // Unconditional edge
+                        tracing::info!("Following unconditional edge to '{}'", edge.to_node_name);
                         next_nodes.push(edge.to_node_name.clone());
                     }
                     Some(expected_result) => {
@@ -183,13 +191,17 @@ impl WorkflowEngine {
                         // This is a simplified approach - in practice, you'd need to store
                         // the condition result from the previous node execution
                         if self.should_follow_conditional_edge(workflow, current_node_name, expected_result, event)? {
+                            tracing::info!("Following conditional edge to '{}'", edge.to_node_name);
                             next_nodes.push(edge.to_node_name.clone());
+                        } else {
+                            tracing::info!("Skipping conditional edge to '{}'", edge.to_node_name);
                         }
                     }
                 }
             }
         }
         
+        tracing::info!("Next nodes: {:?}", next_nodes);
         Ok(next_nodes)
     }
     
@@ -213,6 +225,9 @@ impl WorkflowEngine {
                     .get(current_node_name)
                     .copied()
                     .unwrap_or(false); // Default to false if no result stored
+                
+                tracing::info!("Edge from '{}': expected={}, actual={}, follow={}", 
+                    current_node_name, expected_result, actual_result, actual_result == expected_result);
                 
                 // Only follow the edge if the actual result matches the expected result
                 Ok(actual_result == expected_result)
