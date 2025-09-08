@@ -2,9 +2,6 @@
   <div class="node-trigger px-4 py-3 rounded-lg shadow-2xl min-w-[180px] border-2 border-blue-400/30">
     <div class="flex items-center justify-between">
       <span class="text-sm font-medium">{{ data.label || 'Trigger' }}</span>
-      <button class="text-white/70 hover:text-white transition-colors">
-        <CogIcon class="h-4 w-4" />
-      </button>
     </div>
     
     <!-- Connection handles -->
@@ -17,7 +14,6 @@
 
 <script setup lang="ts">
 import { Handle, Position } from '@vue-flow/core'
-import { CogIcon } from '@heroicons/vue/24/outline'
 
 interface Props {
   data: {

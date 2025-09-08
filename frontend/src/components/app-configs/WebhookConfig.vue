@@ -30,7 +30,7 @@
     <div>
       <label class="block text-sm font-medium text-gray-300 mb-2">Headers</label>
       <div class="space-y-2">
-        <div v-for="(value, key) in modelValue.headers || {}" :key="key" class="flex gap-2">
+        <div v-for="(value, key, index) in modelValue.headers || {}" :key="`header-${index}`" class="flex gap-2">
           <input
             :value="key"
             @input="updateHeaderKey($event, key)"

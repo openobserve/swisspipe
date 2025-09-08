@@ -5,9 +5,6 @@
         <div class="text-sm font-medium">{{ data.label || 'Condition' }}</div>
         <div class="text-xs text-amber-200 opacity-80">{{ getConditionType() }}</div>
       </div>
-      <button class="text-white/70 hover:text-white transition-colors">
-        <CogIcon class="h-4 w-4" />
-      </button>
     </div>
     
     <!-- True/False labels -->
@@ -38,7 +35,6 @@
 
 <script setup lang="ts">
 import { Handle, Position } from '@vue-flow/core'
-import { CogIcon } from '@heroicons/vue/24/outline'
 
 interface Props {
   data: {

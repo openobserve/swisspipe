@@ -5,9 +5,6 @@
         <div class="text-sm font-medium">{{ data.label || 'App' }}</div>
         <div class="text-xs text-green-200 opacity-80">{{ getAppType() }}</div>
       </div>
-      <button class="text-white/70 hover:text-white transition-colors">
-        <CogIcon class="h-4 w-4" />
-      </button>
     </div>
     
     <!-- Connection handles -->
@@ -24,7 +21,6 @@
 
 <script setup lang="ts">
 import { Handle, Position } from '@vue-flow/core'
-import { CogIcon } from '@heroicons/vue/24/outline'
 
 interface Props {
   data: {
