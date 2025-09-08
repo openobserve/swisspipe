@@ -11,9 +11,12 @@ pub struct WorkflowEvent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum HttpMethod {
-    GET,
-    POST,
-    PUT,
+    #[serde(alias = "GET")]
+    Get,
+    #[serde(alias = "POST")]
+    Post,
+    #[serde(alias = "PUT")]
+    Put,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

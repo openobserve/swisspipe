@@ -70,7 +70,7 @@ pub fn validate_workflow_id(workflow_id: &str) -> Result<()> {
 pub fn validate_input_data(input_data: &Value) -> Result<()> {
     // Check serialized size
     let serialized = serde_json::to_string(input_data)
-        .map_err(|e| SwissPipeError::InvalidInput(format!("Invalid JSON input data: {}", e)))?;
+        .map_err(|e| SwissPipeError::InvalidInput(format!("Invalid JSON input data: {e}")))?;
     
     if serialized.len() > MAX_INPUT_DATA_SIZE {
         return Err(SwissPipeError::InvalidInput(
@@ -143,9 +143,9 @@ pub fn validate_and_sanitize_headers(headers: &HashMap<String, String>) -> Resul
 /// Validate priority range
 pub fn validate_priority(priority: Option<i32>) -> Result<()> {
     if let Some(p) = priority {
-        if p < 0 || p > 10 {
+        if !(0..=10).contains(&p) {
             return Err(SwissPipeError::InvalidInput(
-                format!("Priority must be between 0 and 10, got: {}", p)
+                format!("Priority must be between 0 and 10, got: {p}")
             ));
         }
     }
@@ -161,7 +161,7 @@ fn is_dangerous_header(key: &str) -> bool {
 fn validate_json_depth(value: &Value, current_depth: usize, max_depth: usize) -> Result<()> {
     if current_depth > max_depth {
         return Err(SwissPipeError::InvalidInput(
-            format!("JSON nesting too deep: {} levels (max: {})", current_depth, max_depth)
+            format!("JSON nesting too deep: {current_depth} levels (max: {max_depth})")
         ));
     }
 

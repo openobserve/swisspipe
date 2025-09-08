@@ -37,13 +37,13 @@ impl TemplateEngine {
         // Render subject
         let subject = self.handlebars
             .render_template(&email_config.subject, &context)
-            .map_err(|e| EmailError::template(format!("Failed to render subject: {}", e)))?;
+            .map_err(|e| EmailError::template(format!("Failed to render subject: {e}")))?;
         
         // Render body templates
         let html_body = if email_config.template_type == "html" {
             Some(self.handlebars
                 .render_template(&email_config.body_template, &context)
-                .map_err(|e| EmailError::template(format!("Failed to render HTML body: {}", e)))?)
+                .map_err(|e| EmailError::template(format!("Failed to render HTML body: {e}")))?)
         } else {
             None
         };
@@ -51,11 +51,11 @@ impl TemplateEngine {
         let text_body = if email_config.template_type == "text" {
             Some(self.handlebars
                 .render_template(&email_config.body_template, &context)
-                .map_err(|e| EmailError::template(format!("Failed to render text body: {}", e)))?)
+                .map_err(|e| EmailError::template(format!("Failed to render text body: {e}")))?)
         } else if let Some(ref text_template) = email_config.text_body_template {
             Some(self.handlebars
                 .render_template(text_template, &context)
-                .map_err(|e| EmailError::template(format!("Failed to render text body: {}", e)))?)
+                .map_err(|e| EmailError::template(format!("Failed to render text body: {e}")))?)
         } else {
             None
         };
@@ -134,19 +134,19 @@ impl TemplateEngine {
     ) -> Result<EmailAddress, EmailError> {
         let email = self.handlebars
             .render_template(&addr_config.email, context)
-            .map_err(|e| EmailError::template(format!("Failed to render email address: {}", e)))?;
+            .map_err(|e| EmailError::template(format!("Failed to render email address: {e}")))?;
         
         let name = if let Some(ref name_template) = addr_config.name {
             Some(self.handlebars
                 .render_template(name_template, context)
-                .map_err(|e| EmailError::template(format!("Failed to render email name: {}", e)))?)
+                .map_err(|e| EmailError::template(format!("Failed to render email name: {e}")))?)
         } else {
             None
         };
         
         // Validate email
         if !validator::validate_email(&email) {
-            return Err(EmailError::validation(format!("Invalid email address: {}", email)));
+            return Err(EmailError::validation(format!("Invalid email address: {email}")));
         }
         
         Ok(EmailAddress { email, name })
@@ -196,7 +196,7 @@ fn json_helper(
         .ok_or_else(|| RenderError::new("json helper requires a parameter"))?;
     
     let json_str = serde_json::to_string_pretty(value.value())
-        .map_err(|e| RenderError::new(&format!("Failed to serialize to JSON: {}", e)))?;
+        .map_err(|e| RenderError::new(format!("Failed to serialize to JSON: {e}")))?;
     
     out.write(&json_str)?;
     Ok(())

@@ -83,15 +83,22 @@ async fn execute_workflow_async(
     input_data: Value,
     headers: HashMap<String, String>,
 ) -> std::result::Result<(StatusCode, Json<Value>), StatusCode> {
+    tracing::info!("Executing workflow: {}", workflow_id);
+    
     // Verify workflow exists
     let _workflow = state
         .engine
         .load_workflow(workflow_id)
         .await
-        .map_err(|e| match e {
-            crate::workflow::errors::SwissPipeError::WorkflowNotFound(_) => StatusCode::NOT_FOUND,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        .map_err(|e| {
+            tracing::error!("Failed to load workflow {}: {}", workflow_id, e);
+            match e {
+                crate::workflow::errors::SwissPipeError::WorkflowNotFound(_) => StatusCode::NOT_FOUND,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            }
         })?;
+
+    tracing::info!("Workflow {} loaded successfully", workflow_id);
 
     // Create execution service
     let execution_service = ExecutionService::new(state.db.clone());

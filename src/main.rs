@@ -11,7 +11,6 @@ use axum::middleware;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
-use tracing_subscriber;
 
 use config::Config;
 use database::establish_connection;
@@ -128,7 +127,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_state(state);
 
     // Start server
-    let listener = TcpListener::bind(&format!("0.0.0.0:{}", port)).await?;
+    let listener = TcpListener::bind(&format!("0.0.0.0:{port}")).await?;
 
     println!("SwissPipe server listening on http://0.0.0.0:{port}");
 

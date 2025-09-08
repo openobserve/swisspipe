@@ -63,7 +63,7 @@ impl Config {
             if let Some(db_path) = db_path_str.split('?').next() {
                 if let Some(parent) = std::path::Path::new(db_path).parent() {
                     std::fs::create_dir_all(parent)
-                        .map_err(|e| SwissPipeError::Config(format!("Failed to create data directory: {}", e)))?;
+                        .map_err(|e| SwissPipeError::Config(format!("Failed to create data directory: {e}")))?;
                 }
             }
         }

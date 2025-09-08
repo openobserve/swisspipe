@@ -257,7 +257,7 @@ struct Worker {
 
 **Before:**
 ```http
-POST /api/v1/{workflow_id}/trigger
+POST /api/v1/{workflow_id}/ep
 Content-Type: application/json
 
 {
@@ -272,7 +272,7 @@ Response: 200 OK
 
 **After:**
 ```http
-POST /api/v1/{workflow_id}/trigger
+POST /api/v1/{workflow_id}/ep
 Content-Type: application/json
 
 {

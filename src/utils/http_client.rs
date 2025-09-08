@@ -5,8 +5,15 @@ use crate::workflow::{
 use reqwest::Client;
 use std::time::Duration;
 
+
 pub struct AppExecutor {
     client: Client,
+}
+
+impl Default for AppExecutor {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AppExecutor {
@@ -22,6 +29,7 @@ impl AppExecutor {
         }
     }
     
+    #[allow(clippy::too_many_arguments)]
     pub async fn execute_app(
         &self,
         app_type: &AppType,
@@ -90,9 +98,9 @@ impl AppExecutor {
         match app_type {
             AppType::Webhook => {
                 let mut request = match method {
-                    HttpMethod::POST => self.client.post(url).json(&event.data),
-                    HttpMethod::PUT => self.client.put(url).json(&event.data),
-                    HttpMethod::GET => {
+                    HttpMethod::Post => self.client.post(url).json(&event.data),
+                    HttpMethod::Put => self.client.put(url).json(&event.data),
+                    HttpMethod::Get => {
                         // For GET, convert data to query parameters
                         let query_params = self.json_to_query_params(&event.data)?;
                         self.client.get(url).query(&query_params)

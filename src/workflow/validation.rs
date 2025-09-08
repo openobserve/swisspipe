@@ -38,8 +38,7 @@ impl WorkflowValidator {
         
         if !node_exists {
             return Err(SwissPipeError::Config(format!(
-                "Start node '{}' not found in workflow nodes", 
-                start_node_name
+                "Start node '{start_node_name}' not found in workflow nodes"
             )));
         }
         
@@ -91,13 +90,12 @@ impl WorkflowValidator {
         let mut black_set = HashSet::new();
         
         for node in &node_names {
-            if white_set.contains(node) {
-                if Self::has_cycle_dfs(node, &graph, &mut white_set, &mut gray_set, &mut black_set) {
+            if white_set.contains(node)
+                && Self::has_cycle_dfs(node, &graph, &mut white_set, &mut gray_set, &mut black_set) {
                     return Err(SwissPipeError::Config(
                         "Workflow contains cycles - DAG structure required".to_string()
                     ));
                 }
-            }
         }
         
         Ok(())
@@ -175,8 +173,7 @@ impl WorkflowValidator {
         for node_name in &node_names {
             if !visited.contains(node_name) {
                 return Err(SwissPipeError::Config(format!(
-                    "Node '{}' is not reachable from start node '{}'",
-                    node_name, start_node_name
+                    "Node '{node_name}' is not reachable from start node '{start_node_name}'"
                 )));
             }
         }
@@ -195,14 +192,13 @@ impl WorkflowValidator {
             .collect();
         
         for edge in edges {
-            if edge.condition_result.is_some() {
-                if !condition_nodes.contains(&edge.from_node_name) {
+            if edge.condition_result.is_some()
+                && !condition_nodes.contains(&edge.from_node_name) {
                     return Err(SwissPipeError::Config(format!(
                         "Conditional edge from '{}' requires a Condition node",
                         edge.from_node_name
                     )));
                 }
-            }
         }
         
         Ok(())
@@ -230,15 +226,13 @@ impl WorkflowValidator {
             
             if !has_true_edge {
                 warnings.push(format!(
-                    "Condition node '{}' has no true edge - some data may be dropped",
-                    condition_node
+                    "Condition node '{condition_node}' has no true edge - some data may be dropped"
                 ));
             }
             
             if !has_false_edge {
                 warnings.push(format!(
-                    "Condition node '{}' has no false edge - some data may be dropped",
-                    condition_node
+                    "Condition node '{condition_node}' has no false edge - some data may be dropped"
                 ));
             }
         }

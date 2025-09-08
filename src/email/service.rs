@@ -132,7 +132,7 @@ impl EmailService {
                 
                 return Ok(EmailSendResult {
                     success: true,
-                    message_id: Some(format!("queued:{}", queue_id)),
+                    message_id: Some(format!("queued:{queue_id}")),
                     error: None,
                     partial_success: None,
                 });
@@ -177,7 +177,7 @@ impl EmailService {
     ) -> Result<EmailSendResult, EmailError> {
         tracing::debug!("Looking up SMTP config: {}", smtp_config_name);
         let smtp_config = self.smtp_configs.get(smtp_config_name)
-            .ok_or_else(|| EmailError::config(format!("SMTP configuration '{}' not found", smtp_config_name)))?;
+            .ok_or_else(|| EmailError::config(format!("SMTP configuration '{smtp_config_name}' not found")))?;
         
         tracing::debug!("SMTP config found: {}:{} with security {:?}", 
             smtp_config.host, smtp_config.port, smtp_config.security);
@@ -200,7 +200,7 @@ impl EmailService {
                 tracing::info!("Email sent successfully: {}", message_text);
                 Ok(EmailSendResult {
                     success: true,
-                    message_id: Some(format!("Message sent: {}", message_text)),
+                    message_id: Some(format!("Message sent: {message_text}")),
                     error: None,
                     partial_success: None,
                 })
@@ -210,7 +210,7 @@ impl EmailService {
                 Ok(EmailSendResult {
                     success: false,
                     message_id: None,
-                    error: Some(format!("SMTP send error: {}", e)),
+                    error: Some(format!("SMTP send error: {e}")),
                     partial_success: None,
                 })
             }
@@ -277,7 +277,7 @@ impl EmailService {
         // This would involve extending the MultiPart with attachment parts
         
         let message = builder.multipart(body)
-            .map_err(|e| EmailError::send(format!("Failed to build email message: {}", e)))?;
+            .map_err(|e| EmailError::send(format!("Failed to build email message: {e}")))?;
         
         Ok(message)
     }
@@ -295,7 +295,7 @@ impl EmailService {
     
     fn create_smtp_transport(&self, smtp_config: &SmtpConfig) -> Result<SmtpTransport, EmailError> {
         let mut builder = SmtpTransport::relay(&smtp_config.host)
-            .map_err(|e| EmailError::connection(format!("Failed to create SMTP relay: {}", e)))?
+            .map_err(|e| EmailError::connection(format!("Failed to create SMTP relay: {e}")))?
             .port(smtp_config.port)
             .timeout(Some(Duration::from_secs(smtp_config.timeout_seconds)));
         
@@ -304,12 +304,12 @@ impl EmailService {
             SmtpSecurity::None => builder.tls(Tls::None),
             SmtpSecurity::Tls => {
                 let tls_params = TlsParameters::new(smtp_config.host.clone())
-                    .map_err(|e| EmailError::connection(format!("TLS configuration error: {}", e)))?;
+                    .map_err(|e| EmailError::connection(format!("TLS configuration error: {e}")))?;
                 builder.tls(Tls::Required(tls_params))
             },
             SmtpSecurity::Ssl => {
                 let tls_params = TlsParameters::new(smtp_config.host.clone())
-                    .map_err(|e| EmailError::connection(format!("TLS configuration error: {}", e)))?;
+                    .map_err(|e| EmailError::connection(format!("TLS configuration error: {e}")))?;
                 builder.tls(Tls::Wrapper(tls_params))
             },
         };

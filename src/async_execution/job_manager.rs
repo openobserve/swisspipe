@@ -234,7 +234,7 @@ impl JobManager {
     }
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Default, serde::Serialize)]
 pub struct QueueStats {
     pub pending: u64,
     pub claimed: u64,

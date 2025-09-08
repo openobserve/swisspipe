@@ -196,13 +196,11 @@ impl WorkerPool {
                     
                     // Wait for all branches to complete
                     let results = futures::future::try_join_all(handles).await
-                        .map_err(|e| SwissPipeError::Generic(format!("Failed to join parallel execution: {}", e)))?;
+                        .map_err(|e| SwissPipeError::Generic(format!("Failed to join parallel execution: {e}")))?;
                     
                     // Check if any branch failed
                     for result in results {
-                        if let Err(e) = result {
-                            return Err(e);
-                        }
+                        result?
                     }
                     
                     tracing::debug!("All parallel branches completed successfully");
@@ -243,7 +241,7 @@ impl WorkerPool {
             NodeType::Transformer { script } => {
                 // For transformers, preserve condition_results from input event
                 let mut transformed_event = self.workflow_engine.js_executor.execute_transformer(script, event.clone()).await
-                    .map_err(|e| SwissPipeError::JavaScript(e))?;
+                    .map_err(SwissPipeError::JavaScript)?;
                 
                 // Preserve condition results from the original event
                 transformed_event.condition_results = event.condition_results;
@@ -290,7 +288,7 @@ impl WorkerPool {
                     }
                     Err(e) => {
                         tracing::error!("Email node '{}' failed: {}", node.name, e);
-                        Err(SwissPipeError::Generic(format!("Email node failed: {}", e)))
+                        Err(SwissPipeError::Generic(format!("Email node failed: {e}")))
                     }
                 }
             }
@@ -395,7 +393,7 @@ impl WorkerPool {
         tracing::info!("Spawning {} workers...", self.config.worker_count);
         let mut workers = self.workers.write().await;
         for i in 0..self.config.worker_count {
-            let worker_id = format!("worker-{}", i);
+            let worker_id = format!("worker-{i}");
             tracing::debug!("Spawning worker: {}", worker_id);
             let handle = self.spawn_worker(worker_id.clone()).await;
             
@@ -861,7 +859,7 @@ impl WorkerPoolForBranch {
             }
             NodeType::Transformer { script } => {
                 let mut transformed_event = self.workflow_engine.js_executor.execute_transformer(script, event.clone()).await
-                    .map_err(|e| SwissPipeError::JavaScript(e))?;
+                    .map_err(SwissPipeError::JavaScript)?;
                 transformed_event.condition_results = event.condition_results;
                 Ok(transformed_event)
             }
@@ -899,7 +897,7 @@ impl WorkerPoolForBranch {
                     }
                     Err(e) => {
                         tracing::error!("Email node '{}' failed: {}", node.name, e);
-                        Err(SwissPipeError::Generic(format!("Email node failed: {}", e)))
+                        Err(SwissPipeError::Generic(format!("Email node failed: {e}")))
                     }
                 }
             }
@@ -947,14 +945,3 @@ pub struct WorkerPoolStats {
     pub queue_dead_letter: u64,
 }
 
-impl Default for crate::async_execution::job_manager::QueueStats {
-    fn default() -> Self {
-        Self {
-            pending: 0,
-            claimed: 0,
-            processing: 0,
-            failed: 0,
-            dead_letter: 0,
-        }
-    }
-}

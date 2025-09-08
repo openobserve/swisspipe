@@ -136,7 +136,7 @@ impl WorkflowEngine {
             NodeType::Transformer { script } => {
                 // For transformers, preserve condition_results from input event
                 let mut transformed_event = self.js_executor.execute_transformer(script, event.clone()).await
-                    .map_err(|e| SwissPipeError::JavaScript(e))?;
+                    .map_err(SwissPipeError::JavaScript)?;
                 
                 // Preserve condition results from the original event
                 transformed_event.condition_results = event.condition_results;
@@ -182,7 +182,7 @@ impl WorkflowEngine {
                     }
                     Err(e) => {
                         tracing::error!("Email node '{}' failed: {}", node.name, e);
-                        Err(SwissPipeError::Generic(format!("Email node failed: {}", e)))
+                        Err(SwissPipeError::Generic(format!("Email node failed: {e}")))
                     }
                 }
             }

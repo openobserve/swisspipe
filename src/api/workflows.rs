@@ -257,7 +257,7 @@ pub async fn get_workflow(
                 .unwrap_or(NodeType::App {
                     app_type: AppType::Webhook,
                     url: "".to_string(),
-                    method: HttpMethod::GET,
+                    method: HttpMethod::Get,
                     timeout_seconds: 30,
                     failure_action: FailureAction::Stop,
                     retry_config: RetryConfig::default(),

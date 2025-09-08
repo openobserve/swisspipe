@@ -23,10 +23,9 @@ impl JavaScriptExecutor {
             // User provides the complete function implementation
             let full_script = format!(
                 r#"
-                {}
-                condition({});
-                "#,
-                script, event_json
+                {script}
+                condition({event_json});
+                "#
             );
             
             tracing::info!("Executing JavaScript condition: {}", full_script);
@@ -57,10 +56,9 @@ impl JavaScriptExecutor {
             // User provides the complete function implementation
             let full_script = format!(
                 r#"
-                {}
-                JSON.stringify(transformer({}));
-                "#,
-                script, event_json
+                {script}
+                JSON.stringify(transformer({event_json}));
+                "#
             );
             
             let result: rquickjs::Result<String> = ctx.eval(full_script.as_bytes());
