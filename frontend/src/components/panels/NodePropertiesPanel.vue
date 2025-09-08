@@ -164,6 +164,15 @@
           </div>
         </div>
       </div>
+
+      <!-- Email Node Configuration -->
+      <div v-if="selectedNodeData.type === 'email'">
+        <h3 class="text-sm font-semibold text-gray-300 mb-3">Email Configuration</h3>
+        <EmailConfig
+          v-model="localNodeData.config"
+          @update:modelValue="updateNodeData"
+        />
+      </div>
     </div>
 
     <!-- Actions -->
@@ -197,6 +206,7 @@ import CodeEditor from '../common/CodeEditor.vue'
 import TriggerConfig from '../app-configs/TriggerConfig.vue'
 import WebhookConfig from '../app-configs/WebhookConfig.vue'
 import OpenObserveConfig from '../app-configs/OpenObserveConfig.vue'
+import EmailConfig from '../email-configs/EmailConfig.vue'
 
 const nodeStore = useNodeStore()
 

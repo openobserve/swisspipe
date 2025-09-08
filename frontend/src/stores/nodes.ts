@@ -73,6 +73,38 @@ export const useNodeStore = defineStore('nodes', () => {
           backoff_multiplier: 2.0
         }
       }
+    },
+    {
+      type: 'email',
+      label: 'Email',
+      description: 'Send email notifications and reports',
+      color: '#2196F3',
+      icon: 'envelope',
+      defaultConfig: {
+        type: 'email',
+        smtp_config: 'default',
+        from: {
+          email: 'noreply@company.com',
+          name: 'SwissPipe Workflow'
+        },
+        to: [{
+          email: '{{ workflow.data.user_email }}',
+          name: '{{ workflow.data.user_name }}'
+        }],
+        cc: [],
+        bcc: [],
+        subject: 'Workflow {{ workflow.name }} completed',
+        template_type: 'html',
+        body_template: '<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Status: {{ workflow.status }}</p><p>Data: {{ workflow.data | json }}</p></body></html>',
+        text_body_template: 'Workflow Results\nStatus: {{ workflow.status }}\nData: {{ workflow.data | json }}',
+        attachments: [],
+        priority: 'normal',
+        delivery_receipt: false,
+        read_receipt: false,
+        queue_if_rate_limited: true,
+        max_queue_wait_minutes: 60,
+        bypass_rate_limit: false
+      }
     }
   ])
 

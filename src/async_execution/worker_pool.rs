@@ -133,7 +133,7 @@ impl WorkerPool {
                 .await?;
             
             // Execute the node
-            match self.execute_node_with_tracking(node, current_event).await {
+            match self.execute_node_with_tracking(execution_id, node, current_event).await {
                 Ok(result_event) => {
                     // Mark step as completed
                     let output_data = serde_json::to_value(&result_event).ok();
@@ -166,6 +166,7 @@ impl WorkerPool {
     /// Execute a single node with the same logic as workflow engine
     async fn execute_node_with_tracking(
         &self,
+        execution_id: &str,
         node: &crate::workflow::models::Node,
         mut event: WorkflowEvent,
     ) -> Result<WorkflowEvent> {
@@ -226,7 +227,8 @@ impl WorkerPool {
             }
             NodeType::Email { config } => {
                 // Execute email node
-                match self.workflow_engine.email_service.send_email(config, &event, &node.workflow_id, &node.id).await {
+                tracing::debug!("Executing email node '{}' with config: {:?}", node.name, config);
+                match self.workflow_engine.email_service.send_email(config, &event, execution_id, &node.id).await {
                     Ok(result) => {
                         tracing::info!("Email node '{}' executed successfully: {:?}", node.name, result);
                         // Email nodes pass through the original event

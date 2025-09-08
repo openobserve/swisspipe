@@ -49,12 +49,19 @@ impl EmailService {
     }
     
     fn load_smtp_configs() -> Result<HashMap<String, SmtpConfig>, EmailError> {
+        tracing::debug!("Loading SMTP configurations...");
         let mut configs = HashMap::new();
         
         // Load default SMTP configuration
+        let smtp_host = std::env::var("SMTP_HOST")
+            .map_err(|_| EmailError::config("SMTP_HOST environment variable not set"))?;
+        let smtp_from_email = std::env::var("SMTP_FROM_EMAIL")
+            .map_err(|_| EmailError::config("SMTP_FROM_EMAIL environment variable not set"))?;
+            
+        tracing::info!("SMTP config loaded: host={}, from_email={}", smtp_host, smtp_from_email);
+        
         let default_config = SmtpConfig {
-            host: std::env::var("SMTP_HOST")
-                .map_err(|_| EmailError::config("SMTP_HOST environment variable not set"))?,
+            host: smtp_host,
             port: std::env::var("SMTP_PORT")
                 .unwrap_or_else(|_| "587".to_string())
                 .parse()
@@ -71,8 +78,7 @@ impl EmailService {
             },
             username: std::env::var("SMTP_USERNAME").ok(),
             password: std::env::var("SMTP_PASSWORD").ok(),
-            from_email: std::env::var("SMTP_FROM_EMAIL")
-                .map_err(|_| EmailError::config("SMTP_FROM_EMAIL environment variable not set"))?,
+            from_email: smtp_from_email,
             from_name: std::env::var("SMTP_FROM_NAME").ok(),
             timeout_seconds: std::env::var("SMTP_TIMEOUT_SECONDS")
                 .unwrap_or_else(|_| "30".to_string())
@@ -104,7 +110,16 @@ impl EmailService {
         execution_id: &str,
         node_id: &str,
     ) -> Result<EmailSendResult, EmailError> {
+        tracing::debug!("Starting email send for execution_id: {}, node_id: {}, smtp_config: {}", 
+            execution_id, node_id, email_config.smtp_config);
+        
         // Check rate limiter
+        if self.rate_limiter.check().is_err() {
+            tracing::debug!("Rate limit exceeded, email will be queued");
+        } else {
+            tracing::debug!("Rate limit check passed, proceeding with immediate send");
+        }
+        
         if self.rate_limiter.check().is_err() {
             if email_config.queue_if_rate_limited {
                 // Queue the email
@@ -127,6 +142,7 @@ impl EmailService {
         }
         
         // Render email template
+        tracing::debug!("Rendering email template for execution_id: {}", execution_id);
         let email_message = self.template_engine.render_email(
             email_config,
             workflow_event,
@@ -134,7 +150,12 @@ impl EmailService {
             node_id,
         )?;
         
+        tracing::debug!("Email template rendered successfully. To: {:?}, Subject: {}", 
+            email_message.to.iter().map(|addr| &addr.email).collect::<Vec<_>>(), 
+            email_message.subject);
+        
         // Send email immediately
+        tracing::debug!("Sending email via SMTP config: {}", email_config.smtp_config);
         let result = self.send_email_message(&email_config.smtp_config, &email_message).await?;
         
         // Log to audit table
@@ -154,26 +175,38 @@ impl EmailService {
         smtp_config_name: &str,
         email_message: &EmailMessage,
     ) -> Result<EmailSendResult, EmailError> {
+        tracing::debug!("Looking up SMTP config: {}", smtp_config_name);
         let smtp_config = self.smtp_configs.get(smtp_config_name)
             .ok_or_else(|| EmailError::config(format!("SMTP configuration '{}' not found", smtp_config_name)))?;
         
+        tracing::debug!("SMTP config found: {}:{} with security {:?}", 
+            smtp_config.host, smtp_config.port, smtp_config.security);
+        
         // Build the email message
+        tracing::debug!("Building lettre message");
         let message = self.build_lettre_message(email_message)?;
+        tracing::debug!("Message built successfully");
         
         // Create SMTP transport
+        tracing::debug!("Creating SMTP transport");
         let transport = self.create_smtp_transport(smtp_config)?;
+        tracing::debug!("SMTP transport created successfully");
         
         // Send the email
+        tracing::debug!("Sending email via SMTP transport");
         match transport.send(&message) {
             Ok(response) => {
+                let message_text = response.message().collect::<Vec<_>>().join(" ");
+                tracing::info!("Email sent successfully: {}", message_text);
                 Ok(EmailSendResult {
                     success: true,
-                    message_id: Some(format!("Message sent: {}", response.message().collect::<Vec<_>>().join(" "))),
+                    message_id: Some(format!("Message sent: {}", message_text)),
                     error: None,
                     partial_success: None,
                 })
             }
             Err(e) => {
+                tracing::error!("SMTP send error: {}", e);
                 Ok(EmailSendResult {
                     success: false,
                     message_id: None,
@@ -298,6 +331,8 @@ impl EmailService {
     ) -> Result<String, EmailError> {
         use crate::database::email_queue;
         
+        tracing::debug!("Enqueueing email with execution_id: {:?}, node_id: {:?}", execution_id, node_id);
+        
         let queue_id = Uuid::now_v7().to_string();
         let now = chrono::Utc::now().timestamp_micros();
         
@@ -312,8 +347,8 @@ impl EmailService {
         
         let active_model = email_queue::ActiveModel {
             id: Set(queue_id.clone()),
-            execution_id: Set(execution_id),
-            node_id: Set(node_id),
+            execution_id: Set(execution_id.clone()),
+            node_id: Set(node_id.clone()),
             smtp_config: Set(email_config.smtp_config.clone()),
             priority: Set(email_config.priority.as_str().to_string()),
             email_config: Set(serde_json::to_string(email_config)?),
@@ -331,7 +366,18 @@ impl EmailService {
             updated_at: Set(now),
         };
         
-        active_model.insert(&*self.db).await?;
+        tracing::debug!("About to insert email queue record with values - execution_id: {:?}, node_id: {:?}", 
+            execution_id, node_id);
+            
+        match active_model.insert(&*self.db).await {
+            Ok(_) => {
+                tracing::debug!("Successfully inserted email queue record");
+            }
+            Err(e) => {
+                tracing::error!("Failed to insert email queue record: {:?}", e);
+                return Err(e.into());
+            }
+        }
         
         Ok(queue_id)
     }

@@ -23,11 +23,11 @@ export interface WorkflowEdge extends Edge {
   }
 }
 
-export type NodeTypeString = 'trigger' | 'condition' | 'transformer' | 'app'
+export type NodeTypeString = 'trigger' | 'condition' | 'transformer' | 'app' | 'email'
 
 export type NodeStatus = 'ready' | 'running' | 'completed' | 'error'
 
-export type NodeConfig = TriggerConfig | ConditionConfig | TransformerConfig | AppConfig
+export type NodeConfig = TriggerConfig | ConditionConfig | TransformerConfig | AppConfig | EmailConfig
 
 export interface TriggerConfig {
   type: 'trigger'
@@ -61,6 +61,37 @@ export interface AppConfig {
     max_delay_ms: number
     backoff_multiplier: number
   }
+}
+
+export interface EmailConfig {
+  type: 'email'
+  smtp_config: string
+  from: EmailAddress
+  to: EmailAddress[]
+  cc?: EmailAddress[]
+  bcc?: EmailAddress[]
+  subject: string
+  template_type: 'html' | 'text'
+  body_template: string
+  text_body_template?: string
+  attachments?: EmailAttachment[]
+  priority: 'critical' | 'high' | 'normal' | 'low'
+  delivery_receipt: boolean
+  read_receipt: boolean
+  queue_if_rate_limited: boolean
+  max_queue_wait_minutes: number
+  bypass_rate_limit: boolean
+}
+
+export interface EmailAddress {
+  email: string
+  name?: string
+}
+
+export interface EmailAttachment {
+  filename: string
+  content_type: string
+  data: string
 }
 
 export type AppType = 'Webhook' | { OpenObserve: { url: string, authorization_header: string } }

@@ -1,0 +1,315 @@
+<template>
+  <div class="email-config p-4 space-y-6">
+    <!-- SMTP Configuration -->
+    <div class="config-section">
+      <h3 class="text-lg font-semibold text-white mb-4">SMTP Configuration</h3>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">
+            SMTP Config
+          </label>
+          <select
+            v-model="localConfig.smtp_config"
+            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="default">Default</option>
+            <option value="marketing">Marketing</option>
+            <option value="alerts">Alerts</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Email Recipients -->
+    <div class="config-section">
+      <h3 class="text-lg font-semibold text-white mb-4">Recipients</h3>
+      
+      <!-- From Address -->
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">From</label>
+          <div class="grid grid-cols-2 gap-2">
+            <input
+              v-model="localConfig.from.email"
+              @input="onEmailInput"
+              @blur="onFieldBlur"
+              placeholder="email@example.com"
+              type="email"
+              class="px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              v-model="localConfig.from.name"
+              placeholder="Display Name (optional)"
+              class="px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        <!-- To Recipients -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">To Recipients</label>
+          <EmailRecipientList
+            v-model="localConfig.to"
+            :allow-empty="false"
+          />
+        </div>
+
+        <!-- CC Recipients -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">CC Recipients (Optional)</label>
+          <EmailRecipientList v-model="localConfig.cc" />
+        </div>
+
+        <!-- BCC Recipients -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">BCC Recipients (Optional)</label>
+          <EmailRecipientList v-model="localConfig.bcc" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Email Content -->
+    <div class="config-section">
+      <h3 class="text-lg font-semibold text-white mb-4">Email Content</h3>
+      
+      <div class="space-y-4">
+        <!-- Subject -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Subject</label>
+          <input
+            v-model="localConfig.subject"
+            @input="onSubjectInput"
+            @blur="onFieldBlur"
+            placeholder="Email subject with {{ workflow.name }} variables"
+            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <!-- Template Type -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Content Type</label>
+          <div class="flex space-x-4">
+            <label class="flex items-center">
+              <input
+                v-model="localConfig.template_type"
+                type="radio"
+                value="html"
+                class="mr-2 text-blue-600"
+              />
+              <span class="text-white">HTML</span>
+            </label>
+            <label class="flex items-center">
+              <input
+                v-model="localConfig.template_type"
+                type="radio"
+                value="text"
+                class="mr-2 text-blue-600"
+              />
+              <span class="text-white">Plain Text</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Body Template -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">
+            {{ localConfig.template_type === 'html' ? 'HTML' : 'Text' }} Body Template
+          </label>
+          <EmailContentEditor
+            v-model="localConfig.body_template"
+            :content-type="localConfig.template_type"
+            :height="300"
+            @input="onBodyTemplateInput"
+            @blur="onFieldBlur"
+          />
+        </div>
+
+        <!-- Text Fallback (for HTML emails) -->
+        <div v-if="localConfig.template_type === 'html'">
+          <label class="block text-sm font-medium text-gray-300 mb-2">
+            Text Fallback (Optional)
+          </label>
+          <textarea
+            v-model="localConfig.text_body_template"
+            placeholder="Plain text version for email clients that don't support HTML"
+            rows="4"
+            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Email Options -->
+    <div class="config-section">
+      <h3 class="text-lg font-semibold text-white mb-4">Options</h3>
+      
+      <div class="grid grid-cols-2 gap-4">
+        <!-- Priority -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Priority</label>
+          <select
+            v-model="localConfig.priority"
+            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="low">Low</option>
+            <option value="normal">Normal</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
+        </div>
+
+        <!-- Max Queue Wait -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Max Queue Wait (minutes)</label>
+          <input
+            v-model.number="localConfig.max_queue_wait_minutes"
+            type="number"
+            min="1"
+            max="1440"
+            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      <!-- Checkboxes -->
+      <div class="space-y-2 mt-4">
+        <label class="flex items-center">
+          <input
+            v-model="localConfig.queue_if_rate_limited"
+            type="checkbox"
+            class="mr-2 text-blue-600"
+          />
+          <span class="text-white">Queue if rate limited</span>
+        </label>
+        
+        <label class="flex items-center">
+          <input
+            v-model="localConfig.delivery_receipt"
+            type="checkbox"
+            class="mr-2 text-blue-600"
+          />
+          <span class="text-white">Request delivery receipt</span>
+        </label>
+        
+        <label class="flex items-center">
+          <input
+            v-model="localConfig.read_receipt"
+            type="checkbox"
+            class="mr-2 text-blue-600"
+          />
+          <span class="text-white">Request read receipt</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Template Variables Helper -->
+    <div class="config-section">
+      <h3 class="text-lg font-semibold text-white mb-4">Template Variables</h3>
+      <EmailTemplateVariables />
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, watch, nextTick } from 'vue'
+import type { EmailConfig } from '../../types/nodes'
+import EmailRecipientList from './EmailRecipientList.vue'
+import EmailContentEditor from './EmailContentEditor.vue'
+import EmailTemplateVariables from './EmailTemplateVariables.vue'
+
+interface Props {
+  modelValue: EmailConfig
+}
+
+interface Emits {
+  (e: 'update:modelValue', value: EmailConfig): void
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<Emits>()
+
+// Local config to avoid direct prop mutation
+const localConfig = ref<EmailConfig>({ ...props.modelValue })
+
+// Watch for external changes (without deep watching) - but don't override if user is actively typing
+let userIsTyping = false
+watch(
+  () => props.modelValue,
+  (newValue) => {
+    console.log('EmailConfig props watcher triggered:', {
+      newValue: JSON.stringify(newValue, null, 2),
+      currentLocal: JSON.stringify(localConfig.value, null, 2),
+      userIsTyping
+    })
+    
+    // Only update if user is not actively typing
+    if (!userIsTyping) {
+      localConfig.value = { ...newValue }
+    }
+  }
+)
+
+// Debounced emit function to reduce update frequency
+let updateTimeout: ReturnType<typeof setTimeout> | null = null
+const emitUpdate = () => {
+  if (updateTimeout) clearTimeout(updateTimeout)
+  updateTimeout = setTimeout(() => {
+    console.log('EmailConfig emitting update:', JSON.stringify(localConfig.value, null, 2))
+    emit('update:modelValue', { ...localConfig.value })
+  }, 500) // Increased to 500ms debounce to avoid capturing partial input
+}
+
+// Special handler for email input to log what's being captured
+const onEmailInput = (event: Event) => {
+  userIsTyping = true
+  const target = event.target as HTMLInputElement
+  console.log('Email input event:', {
+    value: target.value,
+    currentFromEmail: localConfig.value.from?.email
+  })
+}
+
+// Subject input handler
+const onSubjectInput = (event: Event) => {
+  userIsTyping = true
+  const target = event.target as HTMLInputElement
+  console.log('Subject input event:', {
+    value: target.value,
+    currentSubject: localConfig.value.subject
+  })
+}
+
+// Body template input handler
+const onBodyTemplateInput = () => {
+  userIsTyping = true
+  console.log('Body template input event:', {
+    currentBodyTemplate: localConfig.value.body_template
+  })
+}
+
+// Use blur event instead of deep watching to avoid race conditions
+const onFieldBlur = () => {
+  userIsTyping = false  // User finished typing
+  console.log('Field blur - emitting immediate update:', JSON.stringify(localConfig.value, null, 2))
+  emit('update:modelValue', { ...localConfig.value })
+}
+
+// Keep the debounced watch as backup for non-input changes
+watch(
+  localConfig,
+  () => emitUpdate(),
+  { deep: true }
+)
+</script>
+
+<style scoped>
+.config-section {
+  @apply bg-gray-800 rounded-lg p-4 border border-gray-700;
+}
+
+.config-section h3 {
+  @apply border-b border-gray-700 pb-2 mb-4;
+}
+</style>

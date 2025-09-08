@@ -50,7 +50,6 @@
         @dragenter.prevent
       >
         <VueFlow
-          :key="nodeDataUpdateKey"
           v-model:nodes="nodeStore.nodes"
           v-model:edges="nodeStore.edges"
           @node-click="onNodeClick"
@@ -80,6 +79,9 @@
           </template>
           <template #node-app="{ data }">
             <AppNode :data="data" />
+          </template>
+          <template #node-email="{ data }">
+            <EmailNode :data="data" />
           </template>
         </VueFlow>
       </div>
@@ -144,6 +146,7 @@ import TriggerNode from '../components/nodes/TriggerNode.vue'
 import ConditionNode from '../components/nodes/ConditionNode.vue'
 import TransformerNode from '../components/nodes/TransformerNode.vue'
 import AppNode from '../components/nodes/AppNode.vue'
+import EmailNode from '../components/nodes/EmailNode.vue'
 import { DEFAULT_CONDITION_SCRIPT, DEFAULT_TRANSFORMER_SCRIPT } from '../constants/defaults'
 
 const router = useRouter()
@@ -157,10 +160,7 @@ const workflowName = ref('')
 const saving = ref(false)
 const selectedEdgeId = ref<string | null>(null)
 
-// Key to force VueFlow re-render when node data changes
-const nodeDataUpdateKey = computed(() => {
-  return nodeStore.nodes.map(n => `${n.id}-${JSON.stringify(n.data)}`).join('|')
-})
+// Removed nodeDataUpdateKey as it was causing performance issues with frequent re-renders
 
 onMounted(async () => {
   // Always clear the canvas state when entering a workflow
@@ -374,12 +374,25 @@ async function saveWorkflow() {
     }
 
     // Convert Vue Flow nodes to API format
-    const apiNodes = nodeStore.nodes.map(node => ({
-      name: node.type === 'trigger' ? 'Start' : (node.data.label || node.id),
-      node_type: convertNodeToApiType(node),
-      position_x: node.position.x,
-      position_y: node.position.y
-    }))
+    const apiNodes = nodeStore.nodes.map(node => {
+      const apiNode = {
+        name: node.type === 'trigger' ? 'Start' : (node.data.label || node.id),
+        node_type: convertNodeToApiType(node),
+        position_x: node.position.x,
+        position_y: node.position.y
+      }
+      
+      // Debug logging for email nodes specifically
+      if (node.type === 'email') {
+        console.log('Saving email node:', {
+          nodeId: node.id,
+          rawConfig: node.data.config,
+          convertedApiType: apiNode.node_type
+        })
+      }
+      
+      return apiNode
+    })
 
     // Convert Vue Flow edges to API format
     const apiEdges = nodeStore.edges.map(edge => {
@@ -411,11 +424,12 @@ async function saveWorkflow() {
   }
 }
 
-function convertApiNodeTypeToVueFlowType(nodeType: any): 'trigger' | 'condition' | 'transformer' | 'app' {
+function convertApiNodeTypeToVueFlowType(nodeType: any): 'trigger' | 'condition' | 'transformer' | 'app' | 'email' {
   if (nodeType.Trigger) return 'trigger'
   if (nodeType.Condition) return 'condition'
   if (nodeType.Transformer) return 'transformer'
   if (nodeType.App) return 'app'
+  if (nodeType.Email) return 'email'
   return 'app' // fallback
 }
 
@@ -424,6 +438,7 @@ function getNodeDescription(nodeType: any): string {
   if (nodeType.Condition) return 'Conditional logic node'
   if (nodeType.Transformer) return 'Data transformation node'
   if (nodeType.App) return 'External application node'
+  if (nodeType.Email) return 'Email notification node'
   return 'Unknown node type'
 }
 
@@ -473,6 +488,34 @@ function convertApiNodeConfigToVueFlowConfig(nodeType: any): any {
     }
     
     return config
+  }
+  if (nodeType.Email) {
+    const emailConfig = nodeType.Email.config
+    return {
+      type: 'email',
+      smtp_config: emailConfig.smtp_config || 'default',
+      from: emailConfig.from || {
+        email: 'noreply@company.com',
+        name: 'SwissPipe Workflow'
+      },
+      to: emailConfig.to || [{
+        email: '{{ workflow.data.user_email }}',
+        name: '{{ workflow.data.user_name }}'
+      }],
+      cc: emailConfig.cc || [],
+      bcc: emailConfig.bcc || [],
+      subject: emailConfig.subject || 'Workflow {{ workflow.name }} completed',
+      template_type: emailConfig.template_type || 'html',
+      body_template: emailConfig.body_template || '<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Status: {{ workflow.status }}</p><p>Data: {{ workflow.data | json }}</p></body></html>',
+      text_body_template: emailConfig.text_body_template,
+      attachments: emailConfig.attachments || [],
+      priority: emailConfig.priority ? emailConfig.priority.toLowerCase() : 'normal',
+      delivery_receipt: emailConfig.delivery_receipt || false,
+      read_receipt: emailConfig.read_receipt || false,
+      queue_if_rate_limited: emailConfig.queue_if_rate_limited !== undefined ? emailConfig.queue_if_rate_limited : true,
+      max_queue_wait_minutes: emailConfig.max_queue_wait_minutes || 60,
+      bypass_rate_limit: emailConfig.bypass_rate_limit || false
+    }
   }
   return {}
 }
@@ -524,6 +567,36 @@ function convertNodeToApiType(node: any) {
             initial_delay_ms: 100,
             max_delay_ms: 5000,
             backoff_multiplier: 2.0
+          }
+        }
+      }
+    case 'email':
+      const emailConfig = node.data.config
+      return {
+        Email: {
+          config: {
+            smtp_config: emailConfig.smtp_config || 'default',
+            from: emailConfig.from || {
+              email: 'noreply@company.com',
+              name: 'SwissPipe Workflow'
+            },
+            to: emailConfig.to || [{
+              email: '{{ workflow.data.user_email }}',
+              name: '{{ workflow.data.user_name }}'
+            }],
+            cc: emailConfig.cc || [],
+            bcc: emailConfig.bcc || [],
+            subject: emailConfig.subject || 'Workflow {{ workflow.name }} completed',
+            template_type: emailConfig.template_type || 'html',
+            body_template: emailConfig.body_template || '<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Status: {{ workflow.status }}</p><p>Data: {{ workflow.data | json }}</p></body></html>',
+            text_body_template: emailConfig.text_body_template,
+            attachments: emailConfig.attachments || [],
+            priority: emailConfig.priority ? emailConfig.priority.charAt(0).toUpperCase() + emailConfig.priority.slice(1).toLowerCase() : 'Normal',
+            delivery_receipt: emailConfig.delivery_receipt || false,
+            read_receipt: emailConfig.read_receipt || false,
+            queue_if_rate_limited: emailConfig.queue_if_rate_limited !== undefined ? emailConfig.queue_if_rate_limited : true,
+            max_queue_wait_minutes: emailConfig.max_queue_wait_minutes || 60,
+            bypass_rate_limit: emailConfig.bypass_rate_limit || false
           }
         }
       }
