@@ -224,6 +224,20 @@ impl WorkerPool {
                     }
                 }
             }
+            NodeType::Email { config } => {
+                // Execute email node
+                match self.workflow_engine.email_service.send_email(config, &event, &node.workflow_id, &node.id).await {
+                    Ok(result) => {
+                        tracing::info!("Email node '{}' executed successfully: {:?}", node.name, result);
+                        // Email nodes pass through the original event
+                        Ok(event)
+                    }
+                    Err(e) => {
+                        tracing::error!("Email node '{}' failed: {}", node.name, e);
+                        Err(SwissPipeError::Generic(format!("Email node failed: {}", e)))
+                    }
+                }
+            }
         }
     }
     

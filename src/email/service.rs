@@ -168,7 +168,7 @@ impl EmailService {
             Ok(response) => {
                 Ok(EmailSendResult {
                     success: true,
-                    message_id: Some(format!("Message sent: {}", response.message())),
+                    message_id: Some(format!("Message sent: {}", response.message().collect::<Vec<_>>().join(" "))),
                     error: None,
                     partial_success: None,
                 })
@@ -467,7 +467,7 @@ impl EmailService {
         Ok(())
     }
     
-    async fn mark_email_sent(&self, email_id: &str, message_id: Option<&str>) -> Result<(), EmailError> {
+    async fn mark_email_sent(&self, email_id: &str, _message_id: Option<&str>) -> Result<(), EmailError> {
         use crate::database::{email_queue, email_queue::Entity as EmailQueue};
         
         let now = chrono::Utc::now().timestamp_micros();
@@ -496,10 +496,11 @@ impl EmailService {
             .await?
             .ok_or_else(|| EmailError::validation("Email not found in queue"))?;
         
+        let retry_count = email.retry_count;
         let mut active_model: email_queue::ActiveModel = email.into();
         active_model.status = Set("failed".to_string());
         active_model.error_message = Set(Some(error.to_string()));
-        active_model.retry_count = Set(email.retry_count + 1);
+        active_model.retry_count = Set(retry_count + 1);
         active_model.updated_at = Set(now);
         
         active_model.update(&*self.db).await?;

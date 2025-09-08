@@ -169,7 +169,7 @@ impl TemplateEngine {
     fn render_attachments(
         &self,
         attachment_configs: &[EmailAttachment],
-        context: &Value,
+        _context: &Value,
     ) -> Result<Vec<EmailAttachment>, EmailError> {
         let mut attachments = Vec::new();
         

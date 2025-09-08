@@ -76,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize and start email queue processor
     let email_service = engine.email_service.clone();
-    let email_db = db.clone();
+    let _email_db = db.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
         tracing::info!("Email queue processor started");

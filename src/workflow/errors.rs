@@ -31,6 +31,9 @@ pub enum SwissPipeError {
     
     #[error("Invalid input: {0}")]
     InvalidInput(String),
+    
+    #[error("Generic error: {0}")]
+    Generic(String),
 }
 
 #[derive(Debug, Error)]
