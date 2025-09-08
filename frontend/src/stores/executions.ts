@@ -1,0 +1,180 @@
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import apiClient from '../services/api'
+import type { 
+  WorkflowExecution, 
+  ExecutionStep, 
+  ExecutionLog,
+  ExecutionStatus 
+} from '../types/execution'
+
+export const useExecutionStore = defineStore('executions', () => {
+  // State
+  const executions = ref<WorkflowExecution[]>([])
+  const loading = ref(false)
+  const error = ref<string | null>(null)
+  const searchTerm = ref('')
+  const selectedExecution = ref<WorkflowExecution | null>(null)
+  const executionSteps = ref<ExecutionStep[]>([])
+  const executionLogs = ref<ExecutionLog[]>([])
+  const showSidePanel = ref(false)
+
+  // Computed
+  const filteredExecutions = computed(() => {
+    if (!searchTerm.value) return executions.value
+    
+    const search = searchTerm.value.toLowerCase()
+    return executions.value.filter(execution => 
+      execution.id.toLowerCase().includes(search) ||
+      execution.workflow_id.toLowerCase().includes(search) ||
+      execution.status.toLowerCase().includes(search) ||
+      execution.current_node_name?.toLowerCase().includes(search)
+    )
+  })
+
+  const executionCount = computed(() => executions.value.length)
+
+  // Actions
+  async function fetchExecutions() {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await apiClient.getExecutions(50) // Get last 50 executions
+      executions.value = response.executions
+    } catch (err: any) {
+      error.value = err.message || 'Failed to fetch executions'
+      console.error('Error fetching executions:', err)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function fetchExecution(executionId: string) {
+    try {
+      const execution = await apiClient.getExecution(executionId)
+      selectedExecution.value = execution
+      return execution
+    } catch (err: any) {
+      error.value = err.message || 'Failed to fetch execution details'
+      console.error('Error fetching execution:', err)
+      throw err
+    }
+  }
+
+  async function fetchExecutionSteps(executionId: string) {
+    try {
+      const response = await apiClient.getExecutionSteps(executionId)
+      executionSteps.value = response.steps
+      return response.steps
+    } catch (err: any) {
+      error.value = err.message || 'Failed to fetch execution steps'
+      console.error('Error fetching execution steps:', err)
+      throw err
+    }
+  }
+
+  async function fetchExecutionLogs(executionId: string) {
+    try {
+      const response = await apiClient.getExecutionLogs(executionId)
+      executionLogs.value = response.logs
+      return response.logs
+    } catch (err: any) {
+      error.value = err.message || 'Failed to fetch execution logs'
+      console.error('Error fetching execution logs:', err)
+      throw err
+    }
+  }
+
+  async function cancelExecution(executionId: string) {
+    try {
+      await apiClient.cancelExecution(executionId)
+      // Update local state
+      const execution = executions.value.find(e => e.id === executionId)
+      if (execution) {
+        execution.status = 'cancelled'
+      }
+      if (selectedExecution.value?.id === executionId) {
+        selectedExecution.value.status = 'cancelled'
+      }
+    } catch (err: any) {
+      error.value = err.message || 'Failed to cancel execution'
+      console.error('Error cancelling execution:', err)
+      throw err
+    }
+  }
+
+  function openExecutionDetails(execution: WorkflowExecution) {
+    selectedExecution.value = execution
+    showSidePanel.value = true
+    // Load steps and logs for the selected execution
+    fetchExecutionSteps(execution.id)
+    fetchExecutionLogs(execution.id)
+  }
+
+  function closeSidePanel() {
+    showSidePanel.value = false
+    selectedExecution.value = null
+    executionSteps.value = []
+    executionLogs.value = []
+  }
+
+  function getStatusColor(status: ExecutionStatus): string {
+    switch (status) {
+      case 'pending':
+        return 'bg-gray-100 text-gray-800'
+      case 'running':
+        return 'bg-blue-100 text-blue-800'
+      case 'completed':
+        return 'bg-green-100 text-green-800'
+      case 'failed':
+        return 'bg-red-100 text-red-800'
+      case 'cancelled':
+        return 'bg-yellow-100 text-yellow-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  function formatTimestamp(timestamp: number | undefined): string {
+    if (!timestamp) return 'N/A'
+    return new Date(timestamp / 1000).toLocaleString()
+  }
+
+  function formatDuration(startedAt?: number, completedAt?: number): string {
+    if (!startedAt) return 'N/A'
+    if (!completedAt) return 'Running...'
+    
+    const durationMs = (completedAt - startedAt) / 1000
+    if (durationMs < 1000) return `${Math.round(durationMs)}ms`
+    if (durationMs < 60000) return `${Math.round(durationMs / 1000)}s`
+    return `${Math.round(durationMs / 60000)}m`
+  }
+
+  return {
+    // State
+    executions,
+    loading,
+    error,
+    searchTerm,
+    selectedExecution,
+    executionSteps,
+    executionLogs,
+    showSidePanel,
+    
+    // Computed
+    filteredExecutions,
+    executionCount,
+    
+    // Actions
+    fetchExecutions,
+    fetchExecution,
+    fetchExecutionSteps,
+    fetchExecutionLogs,
+    cancelExecution,
+    openExecutionDetails,
+    closeSidePanel,
+    getStatusColor,
+    formatTimestamp,
+    formatDuration
+  }
+})

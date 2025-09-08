@@ -21,6 +21,7 @@ pub struct GetExecutionsQuery {
 
 pub fn routes() -> Router<AppState> {
     Router::new()
+        .route("/", get(get_all_executions))
         .route("/:execution_id", get(get_execution))
         .route("/:execution_id/status", get(get_execution_status))
         .route("/:execution_id/logs", get(get_execution_logs))
@@ -284,4 +285,44 @@ pub async fn get_execution_logs(
     });
 
     Ok(Json(response))
+}
+
+/// Get all recent executions across workflows
+pub async fn get_all_executions(
+    State(state): State<AppState>,
+    Query(params): Query<GetExecutionsQuery>,
+) -> std::result::Result<Json<Value>, StatusCode> {
+    let execution_service = ExecutionService::new(state.db.clone());
+    
+    let executions = execution_service
+        .get_recent_executions(params.limit, params.offset)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to get all executions: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let executions_json: Vec<Value> = executions
+        .into_iter()
+        .map(|exec| {
+            serde_json::json!({
+                "id": exec.id,
+                "workflow_id": exec.workflow_id,
+                "status": exec.status,
+                "current_node_name": exec.current_node_name,
+                "input_data": exec.input_data.and_then(|d| serde_json::from_str::<Value>(&d).ok()),
+                "output_data": exec.output_data.and_then(|d| serde_json::from_str::<Value>(&d).ok()),
+                "error_message": exec.error_message,
+                "started_at": exec.started_at,
+                "completed_at": exec.completed_at,
+                "created_at": exec.created_at,
+                "updated_at": exec.updated_at
+            })
+        })
+        .collect();
+
+    Ok(Json(serde_json::json!({
+        "executions": executions_json,
+        "count": executions_json.len()
+    })))
 }

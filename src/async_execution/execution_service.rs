@@ -9,7 +9,7 @@ use crate::workflow::{
 };
 use sea_orm::{
     ActiveModelTrait, DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, Set,
-    QuerySelect,
+    QuerySelect, QueryOrder,
 };
 use serde_json::Value;
 use std::sync::Arc;
@@ -244,6 +244,30 @@ impl ExecutionService {
 
         if let Some(limit) = limit {
             query = query.limit(limit);
+        }
+
+        if let Some(offset) = offset {
+            query = query.offset(offset);
+        }
+
+        let executions = query.all(self.db.as_ref()).await?;
+        Ok(executions)
+    }
+
+    /// Get recent executions across all workflows
+    pub async fn get_recent_executions(
+        &self,
+        limit: Option<u64>,
+        offset: Option<u64>,
+    ) -> Result<Vec<workflow_executions::Model>> {
+        let mut query = workflow_executions::Entity::find()
+            .order_by_desc(workflow_executions::Column::CreatedAt);
+
+        if let Some(limit) = limit {
+            query = query.limit(limit);
+        } else {
+            // Default to 50 if no limit specified
+            query = query.limit(50);
         }
 
         if let Some(offset) = offset {

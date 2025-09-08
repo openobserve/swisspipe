@@ -9,9 +9,17 @@
             <nav class="flex space-x-6">
               <router-link
                 to="/workflows"
-                class="px-3 py-2 text-sm font-medium text-primary-400 bg-primary-900/20 rounded-md"
+                class="px-3 py-2 text-sm font-medium transition-colors rounded-md"
+                :class="$route.path === '/workflows' ? 'text-primary-400 bg-primary-900/20' : 'text-gray-300 hover:text-primary-400 hover:bg-primary-900/10'"
               >
                 Workflows
+              </router-link>
+              <router-link
+                to="/executions"
+                class="px-3 py-2 text-sm font-medium transition-colors rounded-md"
+                :class="$route.path === '/executions' ? 'text-primary-400 bg-primary-900/20' : 'text-gray-300 hover:text-primary-400 hover:bg-primary-900/10'"
+              >
+                Executions
               </router-link>
             </nav>
           </div>

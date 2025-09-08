@@ -1,0 +1,230 @@
+<template>
+  <!-- Slide-out panel overlay -->
+  <div 
+    v-if="executionStore.showSidePanel" 
+    class="fixed inset-0 z-50 overflow-hidden"
+  >
+    <!-- Background overlay -->
+    <div 
+      class="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity"
+      @click="executionStore.closeSidePanel"
+    ></div>
+    
+    <!-- Side panel -->
+    <div class="absolute right-0 top-0 h-full w-[72rem] glass-strong shadow-2xl transform transition-transform flex flex-col">
+      <!-- Header -->
+      <div class="flex items-center justify-between p-6 border-b border-slate-700/50 flex-shrink-0">
+        <h2 class="text-lg font-semibold text-white">Execution Details</h2>
+        <button 
+          @click="executionStore.closeSidePanel"
+          class="text-gray-400 hover:text-white transition-colors"
+        >
+          <XMarkIcon class="h-6 w-6" />
+        </button>
+      </div>
+      
+      <!-- Content -->
+      <div v-if="executionStore.selectedExecution" class="flex-1 overflow-y-auto p-6 space-y-6">
+        <!-- Basic Info -->
+        <div>
+          <h3 class="text-sm font-medium text-gray-300 mb-3">Basic Information</h3>
+          <div class="space-y-2">
+            <div>
+              <span class="text-xs text-gray-400">Execution ID</span>
+              <div class="text-sm text-white font-mono">{{ executionStore.selectedExecution.id }}</div>
+            </div>
+            <div>
+              <span class="text-xs text-gray-400">Workflow ID</span>
+              <div class="text-sm text-white font-mono">{{ executionStore.selectedExecution.workflow_id }}</div>
+            </div>
+            <div>
+              <span class="text-xs text-gray-400">Status</span>
+              <div class="mt-1">
+                <span 
+                  class="px-2 py-1 text-xs leading-4 font-semibold rounded-full"
+                  :class="getStatusColorClass(executionStore.selectedExecution.status)"
+                >
+                  {{ executionStore.selectedExecution.status }}
+                </span>
+              </div>
+            </div>
+            <div v-if="executionStore.selectedExecution.current_node_name">
+              <span class="text-xs text-gray-400">Current Node</span>
+              <div class="text-sm text-white">{{ executionStore.selectedExecution.current_node_name }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Timing -->
+        <div>
+          <h3 class="text-sm font-medium text-gray-300 mb-3">Timing</h3>
+          <div class="space-y-2">
+            <div>
+              <span class="text-xs text-gray-400">Created</span>
+              <div class="text-sm text-white">{{ executionStore.formatTimestamp(executionStore.selectedExecution.created_at) }}</div>
+            </div>
+            <div v-if="executionStore.selectedExecution.started_at">
+              <span class="text-xs text-gray-400">Started</span>
+              <div class="text-sm text-white">{{ executionStore.formatTimestamp(executionStore.selectedExecution.started_at) }}</div>
+            </div>
+            <div v-if="executionStore.selectedExecution.completed_at">
+              <span class="text-xs text-gray-400">Completed</span>
+              <div class="text-sm text-white">{{ executionStore.formatTimestamp(executionStore.selectedExecution.completed_at) }}</div>
+            </div>
+            <div>
+              <span class="text-xs text-gray-400">Duration</span>
+              <div class="text-sm text-white">{{ executionStore.formatDuration(executionStore.selectedExecution.started_at, executionStore.selectedExecution.completed_at) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Error Message -->
+        <div v-if="executionStore.selectedExecution.error_message">
+          <h3 class="text-sm font-medium text-gray-200 mb-3">Error</h3>
+          <div class="p-4 bg-red-900/30 border border-red-600/60 rounded-md">
+            <p class="text-sm text-red-100 font-medium leading-relaxed">{{ executionStore.selectedExecution.error_message }}</p>
+          </div>
+        </div>
+
+        <!-- Input Data -->
+        <div v-if="executionStore.selectedExecution.input_data">
+          <h3 class="text-sm font-medium text-gray-200 mb-3">Input Data</h3>
+          <div class="bg-slate-800/80 border border-slate-600/70 rounded-md p-4">
+            <pre class="text-sm text-gray-100 whitespace-pre-wrap font-mono leading-relaxed">{{ formatJson(executionStore.selectedExecution.input_data) }}</pre>
+          </div>
+        </div>
+
+        <!-- Output Data -->
+        <div v-if="executionStore.selectedExecution.output_data">
+          <h3 class="text-sm font-medium text-gray-200 mb-3">Output Data</h3>
+          <div class="bg-slate-800/80 border border-slate-600/70 rounded-md p-4">
+            <pre class="text-sm text-gray-100 whitespace-pre-wrap font-mono leading-relaxed">{{ formatJson(executionStore.selectedExecution.output_data) }}</pre>
+          </div>
+        </div>
+
+        <!-- Steps -->
+        <div>
+          <h3 class="text-sm font-medium text-gray-300 mb-3">Execution Steps</h3>
+          <div v-if="executionStore.executionSteps.length === 0" class="text-sm text-gray-400 text-center py-4">
+            No steps recorded yet
+          </div>
+          <div v-else class="space-y-3">
+            <div 
+              v-for="step in executionStore.executionSteps" 
+              :key="step.id"
+              class="bg-slate-800/80 border border-slate-600/70 rounded-md p-4"
+            >
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-white">{{ step.node_name }}</span>
+                <span 
+                  class="px-2 py-1 text-xs leading-4 font-semibold rounded-full"
+                  :class="getStepStatusColorClass(step.status)"
+                >
+                  {{ step.status }}
+                </span>
+              </div>
+              <div class="text-sm text-gray-200 space-y-1">
+                <div>Created: {{ executionStore.formatTimestamp(step.created_at) }}</div>
+                <div v-if="step.started_at">Started: {{ executionStore.formatTimestamp(step.started_at) }}</div>
+                <div v-if="step.completed_at">Completed: {{ executionStore.formatTimestamp(step.completed_at) }}</div>
+                <div v-if="step.error_message" class="text-red-300 font-medium">Error: {{ step.error_message }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex space-x-3 pt-4 border-t border-slate-700/50">
+          <button
+            v-if="executionStore.selectedExecution.status === 'running' || executionStore.selectedExecution.status === 'pending'"
+            @click="cancelExecution"
+            class="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+          >
+            Cancel Execution
+          </button>
+          <button
+            @click="refreshExecution"
+            class="flex-1 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { XMarkIcon } from '@heroicons/vue/24/outline'
+import { useExecutionStore } from '../stores/executions'
+import type { ExecutionStatus, StepStatus } from '../types/execution'
+
+const executionStore = useExecutionStore()
+
+function getStatusColorClass(status: ExecutionStatus): string {
+  switch (status) {
+    case 'pending':
+      return 'bg-gray-900 text-gray-300'
+    case 'running':
+      return 'bg-blue-900 text-blue-300'
+    case 'completed':
+      return 'bg-green-900 text-green-300'
+    case 'failed':
+      return 'bg-red-900 text-red-300'
+    case 'cancelled':
+      return 'bg-yellow-900 text-yellow-300'
+    default:
+      return 'bg-gray-900 text-gray-300'
+  }
+}
+
+function getStepStatusColorClass(status: StepStatus): string {
+  switch (status) {
+    case 'pending':
+      return 'bg-gray-900 text-gray-300'
+    case 'running':
+      return 'bg-blue-900 text-blue-300'
+    case 'completed':
+      return 'bg-green-900 text-green-300'
+    case 'failed':
+      return 'bg-red-900 text-red-300'
+    case 'skipped':
+      return 'bg-yellow-900 text-yellow-300'
+    default:
+      return 'bg-gray-900 text-gray-300'
+  }
+}
+
+function formatJson(data: any): string {
+  if (typeof data === 'string') {
+    try {
+      return JSON.stringify(JSON.parse(data), null, 2)
+    } catch {
+      return data
+    }
+  }
+  return JSON.stringify(data, null, 2)
+}
+
+async function cancelExecution() {
+  if (!executionStore.selectedExecution) return
+  
+  try {
+    await executionStore.cancelExecution(executionStore.selectedExecution.id)
+  } catch (error) {
+    console.error('Failed to cancel execution:', error)
+  }
+}
+
+async function refreshExecution() {
+  if (!executionStore.selectedExecution) return
+  
+  try {
+    await executionStore.fetchExecution(executionStore.selectedExecution.id)
+    await executionStore.fetchExecutionSteps(executionStore.selectedExecution.id)
+    await executionStore.fetchExecutionLogs(executionStore.selectedExecution.id)
+  } catch (error) {
+    console.error('Failed to refresh execution:', error)
+  }
+}
+</script>

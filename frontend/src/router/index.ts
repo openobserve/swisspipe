@@ -17,6 +17,11 @@ const router = createRouter({
       name: 'workflow-designer',
       component: () => import('../views/WorkflowDesignerView.vue'),
       props: true
+    },
+    {
+      path: '/executions',
+      name: 'executions',
+      component: () => import('../views/ExecutionsView.vue')
     }
   ],
 })

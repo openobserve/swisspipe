@@ -1,0 +1,59 @@
+export type ExecutionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped'
+
+export interface WorkflowExecution {
+  id: string
+  workflow_id: string
+  status: ExecutionStatus
+  current_node_name?: string
+  input_data?: any
+  output_data?: any
+  error_message?: string
+  started_at?: number
+  completed_at?: number
+  created_at: number
+  updated_at: number
+}
+
+export interface ExecutionStep {
+  id: string
+  execution_id: string
+  node_id: string
+  node_name: string
+  status: StepStatus
+  input_data?: any
+  output_data?: any
+  error_message?: string
+  started_at?: number
+  completed_at?: number
+  created_at: number
+}
+
+export interface ExecutionListResponse {
+  executions: WorkflowExecution[]
+  count: number
+}
+
+export interface ExecutionStepsResponse {
+  execution_id: string
+  steps: ExecutionStep[]
+}
+
+export interface ExecutionLog {
+  timestamp: number
+  level: string
+  node_name: string
+  node_id: string
+  status: string
+  message: string
+  error?: string
+  started_at?: number
+  completed_at?: number
+}
+
+export interface ExecutionLogsResponse {
+  execution_id: string
+  logs: ExecutionLog[]
+  total_entries: number
+}

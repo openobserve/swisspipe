@@ -1,6 +1,12 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import type { ApiResponse, ApiError } from '../types/api'
 import type { Workflow, WorkflowListResponse, CreateWorkflowRequest } from '../types/workflow'
+import type { 
+  WorkflowExecution, 
+  ExecutionListResponse, 
+  ExecutionStepsResponse, 
+  ExecutionLogsResponse 
+} from '../types/execution'
 
 class ApiClient {
   private client: AxiosInstance
@@ -88,6 +94,44 @@ class ApiClient {
 
   async executeWorkflowArray(workflowId: string, data: any[]): Promise<any> {
     const response = await this.client.post(`/api/v1/${workflowId}/json_array`, data)
+    return response.data
+  }
+
+  // Execution management endpoints
+  async getExecutions(limit?: number, offset?: number): Promise<ExecutionListResponse> {
+    const params = new URLSearchParams()
+    if (limit) params.append('limit', limit.toString())
+    if (offset) params.append('offset', offset.toString())
+    
+    const response = await this.client.get<ExecutionListResponse>(`/executions?${params}`)
+    return response.data
+  }
+
+  async getExecution(executionId: string): Promise<WorkflowExecution> {
+    const response = await this.client.get<WorkflowExecution>(`/executions/${executionId}`)
+    return response.data
+  }
+
+  async getExecutionSteps(executionId: string): Promise<ExecutionStepsResponse> {
+    const response = await this.client.get<ExecutionStepsResponse>(`/executions/${executionId}/steps`)
+    return response.data
+  }
+
+  async getExecutionLogs(executionId: string): Promise<ExecutionLogsResponse> {
+    const response = await this.client.get<ExecutionLogsResponse>(`/executions/${executionId}/logs`)
+    return response.data
+  }
+
+  async cancelExecution(executionId: string): Promise<void> {
+    await this.client.post(`/executions/${executionId}/cancel`)
+  }
+
+  async getExecutionsByWorkflow(workflowId: string, limit?: number, offset?: number): Promise<ExecutionListResponse> {
+    const params = new URLSearchParams()
+    if (limit) params.append('limit', limit.toString())
+    if (offset) params.append('offset', offset.toString())
+    
+    const response = await this.client.get<ExecutionListResponse>(`/executions/by_workflow/${workflowId}?${params}`)
     return response.data
   }
 }
