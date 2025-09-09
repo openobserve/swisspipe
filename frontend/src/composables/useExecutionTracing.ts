@@ -93,8 +93,8 @@ export function useExecutionTracing() {
           edge.markerEnd = {
             type: 'arrowclosed',
             color: '#3b82f6',
-            width: 20,
-            height: 20
+            width: 10,
+            height: 10
           }
         } else {
           edge.style = {
