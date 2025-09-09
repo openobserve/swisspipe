@@ -82,7 +82,7 @@
 
           <!-- Input Data -->
           <div>
-            <h3 class="text-sm font-medium text-gray-200 mb-3">Input Data</h3>
+            <h3 class="text-sm font-medium text-gray-200 mb-3">Input Data (event)</h3>
             <div v-if="executionStore.selectedExecution.input_data" class="bg-slate-800/80 border border-slate-600/70 rounded-md p-4 max-h-48 overflow-y-auto">
               <pre class="text-xs text-gray-100 whitespace-pre-wrap font-mono leading-relaxed">{{ formatJson(executionStore.selectedExecution.input_data) }}</pre>
             </div>
@@ -292,7 +292,7 @@
           <div v-if="selectedStep.input_data || selectedStep.output_data" class="grid grid-cols-2 gap-6">
             <!-- Input Data -->
             <div v-if="selectedStep.input_data">
-              <h3 class="text-sm font-medium text-gray-200 mb-3">Input Data</h3>
+              <h3 class="text-sm font-medium text-gray-200 mb-3">Input Data (event)</h3>
               <div class="bg-slate-800/80 border border-slate-600/70 rounded-md p-4">
                 <pre class="text-sm text-gray-100 whitespace-pre-wrap font-mono leading-relaxed">{{ formatJson(selectedStep.input_data) }}</pre>
               </div>
