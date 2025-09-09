@@ -20,10 +20,10 @@
         @blur="$emit('update')"
         class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
       >
-        <option value="GET">GET</option>
-        <option value="POST">POST</option>
-        <option value="PUT">PUT</option>
-        <option value="DELETE">DELETE</option>
+        <option value="Get">GET</option>
+        <option value="Post">POST</option>
+        <option value="Put">PUT</option>
+        <option value="Delete">DELETE</option>
       </select>
     </div>
     
@@ -66,13 +66,17 @@
 </template>
 
 <script setup lang="ts">
-// Vue imports not used in this component
+import { onMounted } from 'vue'
 
 interface WebhookConfig {
   url: string
   method: string
   headers?: Record<string, string>
 }
+
+onMounted(() => {
+  console.log('WebhookConfig modelValue:', props.modelValue)
+})
 
 interface Props {
   modelValue: WebhookConfig
