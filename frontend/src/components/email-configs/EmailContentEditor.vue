@@ -31,7 +31,7 @@
           @input="onInput"
           @blur="onBlur"
           :rows="Math.max(6, height / 20)"
-          placeholder="Enter your email template here. Use {{ workflow.data.field }} for dynamic content."
+          placeholder="Enter your email template here. Use {{ event.data.field }} for dynamic content."
           class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
         />
         
@@ -62,7 +62,7 @@
                 Bold
               </button>
               <button
-                @click="insertVariable('{{ workflow.name }}')"
+                @click="insertVariable('{{ event.name }}')"
                 class="px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs text-white"
               >
                 + Variable
@@ -78,9 +78,9 @@
             placeholder="<!DOCTYPE html>
 <html>
 <body>
-  <h1>{{ workflow.name }}</h1>
-  <p>Status: {{ workflow.status }}</p>
-  <p>Data: {{ workflow.data  }}</p>
+  <h1>{{ event.name }}</h1>
+  <p>Status: {{ event.status }}</p>
+  <p>Data: {{ event.data  }}</p>
 </body>
 </html>"
             class="w-full px-3 py-2 bg-gray-700 border-0 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm resize-none"
@@ -146,13 +146,13 @@ const showPreview = ref(false)
 const showVariableHelper = ref(false)
 
 const templateVariables = [
-  { path: '{{ workflow.name }}', description: 'Workflow name' },
-  { path: '{{ workflow.status }}', description: 'Execution status' },
-  { path: '{{ workflow.id }}', description: 'Execution ID' },
-  { path: '{{ workflow.data }}', description: 'Raw workflow data' },
-  { path: '{{ workflow.data  }}', description: 'Formatted JSON data' },
-  { path: '{{ workflow.metadata }}', description: 'Workflow metadata' },
-  { path: '{{ workflow.headers }}', description: 'HTTP headers' },
+  { path: '{{ event.name }}', description: 'Workflow name' },
+  { path: '{{ event.status }}', description: 'Execution status' },
+  { path: '{{ event.id }}', description: 'Execution ID' },
+  { path: '{{ event.data }}', description: 'Raw workflow data' },
+  { path: '{{ json event.data  }}', description: 'Formatted JSON data' },
+  { path: '{{ event.metadata }}', description: 'Workflow metadata' },
+  { path: '{{ event.headers }}', description: 'HTTP headers' },
   { path: '{{ node.id }}', description: 'Current node ID' },
   { path: '{{ system.timestamp }}', description: 'Current timestamp' },
   { path: '{{ system.hostname }}', description: 'Server hostname' }

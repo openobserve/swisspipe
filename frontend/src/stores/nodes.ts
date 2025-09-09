@@ -88,15 +88,15 @@ export const useNodeStore = defineStore('nodes', () => {
           name: 'SwissPipe Workflow'
         },
         to: [{
-          email: '{{ workflow.data.user_email }}',
-          name: '{{ workflow.data.user_name }}'
+          email: '{{ event.data.user_email }}',
+          name: '{{ event.data.user_name }}'
         }],
         cc: [],
         bcc: [],
-        subject: 'Workflow {{ workflow.name }} completed',
+        subject: 'Workflow completed',
         template_type: 'html',
-        body_template: '<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Status: {{ workflow.status }}</p><p>Data: {{ workflow.data  }}</p></body></html>',
-        text_body_template: 'Workflow Results\nStatus: {{ workflow.status }}\nData: {{ workflow.data  }}',
+        body_template: '<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Data: {{json event.data}}</p></body></html>',
+        text_body_template: 'Workflow Results\nData: {{json event.data}}',
         attachments: [],
         priority: 'normal',
         delivery_receipt: false,

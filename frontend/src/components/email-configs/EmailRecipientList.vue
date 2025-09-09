@@ -9,7 +9,7 @@
         v-model="recipient.email"
         @input="onEmailInputDebug"
         @blur="onFieldBlur"
-        placeholder="email@example.com or {{ workflow.data.email }}"
+        placeholder="email@example.com or {{ event.data.email }}"
         type="text"
         class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
@@ -88,11 +88,11 @@ const localRecipients = ref<EmailAddress[]>([...props.modelValue])
 const showSuggestions = ref(false)
 
 const commonVariables = [
-  { path: '{{ workflow.data.user_email }}', description: 'User email from workflow data' },
-  { path: '{{ workflow.data.admin_email }}', description: 'Admin email from workflow data' },
-  { path: '{{ workflow.data.email }}', description: 'Generic email from workflow data' },
-  { path: '{{ workflow.data.user_name }}', description: 'User name from workflow data' },
-  { path: '{{ workflow.metadata.created_by }}', description: 'Workflow creator' }
+  { path: '{{ event.data.user_email }}', description: 'User email from workflow data' },
+  { path: '{{ event.data.admin_email }}', description: 'Admin email from workflow data' },
+  { path: '{{ event.data.email }}', description: 'Generic email from workflow data' },
+  { path: '{{ event.data.user_name }}', description: 'User name from workflow data' },
+  { path: '{{ event.metadata.created_by }}', description: 'Workflow creator' }
 ]
 
 // Ensure at least one recipient if not allowing empty

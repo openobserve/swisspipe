@@ -45,8 +45,8 @@ This PRD outlines the implementation of an "Email" node type for SwissPipe workf
     },
     "to": [
       {
-        "email": "{{ workflow.data.user_email }}",
-        "name": "{{ workflow.data.user_name }}" // Optional
+        "email": "{{ event.data.user_email }}",
+        "name": "{{ event.data.user_name }}" // Optional
       },
       {
         "email": "admin@company.com",
@@ -64,15 +64,15 @@ This PRD outlines the implementation of an "Email" node type for SwissPipe workf
         "email": "audit@company.com"
       }
     ],
-    "subject": "Workflow {{ workflow.name }} completed - {{ workflow.status }}",
+    "subject": "Workflow {{ event.name }} completed - {{ event.status }}",
     "template_type": "html", // "html" or "text"
-    "body_template": "<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Status: {{ workflow.status }}</p><p>Data: {{ workflow.data  }}</p></body></html>",
-    "text_body_template": "Workflow Results\nStatus: {{ workflow.status }}\nData: {{ workflow.data  }}", // Optional fallback
+    "body_template": "<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Status: {{ event.status }}</p><p>Data: {{ event.data  }}</p></body></html>",
+    "text_body_template": "Workflow Results\nStatus: {{ event.status }}\nData: {{ event.data  }}", // Optional fallback
     "attachments": [ // Optional
       {
         "filename": "report.json",
         "content_type": "application/json",
-        "data": "{{ workflow.output  }}" // Base64 encoded or template
+        "data": "{{ event.output  }}" // Base64 encoded or template
       }
     ],
     "priority": "normal", // "low", "normal", "high"
@@ -723,7 +723,7 @@ const emailConfig = ref({
 const availableVariables = computed(() => [
   'workflow.name',
   'workflow.status', 
-  'workflow.data.*',
+  'event.data.*',
   'workflow.output.*',
   'node.previous_outputs.*'
 ])

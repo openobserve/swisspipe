@@ -231,14 +231,14 @@ function convertApiNodeConfigToVueFlowConfig(nodeType: any): NodeConfig {
         name: 'SwissPipe Workflow'
       },
       to: emailConfig.to || [{
-        email: '{{ workflow.data.user_email }}',
-        name: '{{ workflow.data.user_name }}'
+        email: '{{ event.data.user_email }}',
+        name: '{{ event.data.user_name }}'
       }],
       cc: emailConfig.cc || [],
       bcc: emailConfig.bcc || [],
-      subject: emailConfig.subject || 'Workflow {{ workflow.name }} completed',
+      subject: emailConfig.subject || 'Workflow {{ event.name }} completed',
       template_type: emailConfig.template_type || 'html',
-      body_template: emailConfig.body_template || '<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Status: {{ workflow.status }}</p><p>Data: {{ workflow.data  }}</p></body></html>',
+      body_template: emailConfig.body_template || '<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Status: {{ event.status }}</p><p>Data: {{ event.data  }}</p></body></html>',
       text_body_template: emailConfig.text_body_template,
       attachments: emailConfig.attachments || [],
       priority: emailConfig.priority ? emailConfig.priority.toLowerCase() : 'normal',
@@ -315,14 +315,14 @@ function convertNodeToApiType(node: { type: string; data: { config: any } }) {
               name: 'SwissPipe Workflow'
             },
             to: emailConfig.to || [{
-              email: '{{ workflow.data.user_email }}',
-              name: '{{ workflow.data.user_name }}'
+              email: '{{ event.data.user_email }}',
+              name: '{{ event.data.user_name }}'
             }],
             cc: emailConfig.cc || [],
             bcc: emailConfig.bcc || [],
-            subject: emailConfig.subject || 'Workflow {{ workflow.name }} completed',
+            subject: emailConfig.subject || 'Workflow {{ event.name }} completed',
             template_type: emailConfig.template_type || 'html',
-            body_template: emailConfig.body_template || '<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Status: {{ workflow.status }}</p><p>Data: {{ workflow.data  }}</p></body></html>',
+            body_template: emailConfig.body_template || '<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Status: {{ event.status }}</p><p>Data: {{ event.data  }}</p></body></html>',
             text_body_template: emailConfig.text_body_template,
             attachments: emailConfig.attachments || [],
             priority: emailConfig.priority ? emailConfig.priority.charAt(0).toUpperCase() + emailConfig.priority.slice(1).toLowerCase() : 'Normal',

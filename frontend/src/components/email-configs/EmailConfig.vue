@@ -82,7 +82,7 @@
             v-model="localConfig.subject"
             @input="onSubjectInput"
             @blur="onFieldBlur"
-            placeholder="Email subject with {{ workflow.name }} variables"
+            placeholder="Email subject with {{ event.name }} variables"
             class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>

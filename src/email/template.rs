@@ -104,7 +104,15 @@ impl TemplateEngine {
     ) -> Result<Value, EmailError> {
         let mut context = serde_json::Map::new();
         
-        // Add workflow data
+        // Add event data (consistent with condition/transformer nodes)
+        context.insert("event".to_string(), serde_json::json!({
+            "data": workflow_event.data,
+            "metadata": workflow_event.metadata,
+            "headers": workflow_event.headers,
+            "condition_results": workflow_event.condition_results,
+        }));
+        
+        // Add workflow data (legacy support)
         context.insert("workflow".to_string(), serde_json::json!({
             "id": execution_id,
             "data": workflow_event.data,

@@ -65,45 +65,25 @@ const showCopyNotification = ref(false)
 
 const variableCategories: VariableCategory[] = [
   {
-    name: 'Workflow Information',
-    variables: [
-      { 
-        path: '{{ workflow.name }}', 
-        description: 'Name of the workflow', 
-        example: 'Data Processing Pipeline' 
-      },
-      { 
-        path: '{{ workflow.id }}', 
-        description: 'Unique execution ID', 
-        example: 'exec-uuid-123-456' 
-      },
-      { 
-        path: '{{ workflow.status }}', 
-        description: 'Current workflow status', 
-        example: 'completed' 
-      }
-    ]
-  },
-  {
     name: 'Workflow Data',
     variables: [
       { 
-        path: '{{ workflow.data }}', 
+        path: '{{ event.data }}', 
         description: 'Raw workflow data object', 
         example: '{"user_id": 123}' 
       },
       { 
-        path: '{{ workflow.data  }}', 
+        path: '{{ event.data  }}', 
         description: 'Formatted JSON data', 
         example: '{\n  "user_id": 123\n}' 
       },
       { 
-        path: '{{ workflow.data.user_email }}', 
+        path: '{{ event.data.user_email }}', 
         description: 'User email from data', 
         example: 'user@example.com' 
       },
       { 
-        path: '{{ workflow.data.user_name }}', 
+        path: '{{ event.data.user_name }}', 
         description: 'User name from data', 
         example: 'John Doe' 
       }
@@ -113,20 +93,20 @@ const variableCategories: VariableCategory[] = [
     name: 'Workflow Metadata',
     variables: [
       { 
-        path: '{{ workflow.metadata }}', 
+        path: '{{ event.metadata }}', 
         description: 'Workflow metadata object' 
       },
       { 
-        path: '{{ workflow.metadata.created_by }}', 
+        path: '{{ event.metadata.created_by }}', 
         description: 'Who created the workflow', 
         example: 'admin@company.com' 
       },
       { 
-        path: '{{ workflow.headers }}', 
+        path: '{{ event.headers }}', 
         description: 'HTTP headers from trigger' 
       },
       { 
-        path: '{{ workflow.condition_results }}', 
+        path: '{{ event.condition_results }}', 
         description: 'Results from condition nodes' 
       }
     ]
@@ -160,7 +140,7 @@ const variableCategories: VariableCategory[] = [
     name: 'Template Helpers',
     variables: [
       { 
-        path: '{{ variable  }}', 
+        path: '{{ json variable  }}', 
         description: 'Format any variable as pretty JSON' 
       },
       { 
