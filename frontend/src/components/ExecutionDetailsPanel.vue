@@ -120,25 +120,25 @@
               <table class="min-w-full divide-y divide-slate-600">
                 <thead class="bg-slate-700/50">
                   <tr>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Node Name
                     </th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Status
                     </th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Created
                     </th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Started
                     </th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Completed
                     </th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Duration
                     </th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                       Error
                     </th>
                   </tr>
@@ -150,10 +150,10 @@
                     class="hover:bg-slate-700/30 transition-colors cursor-pointer"
                     @click="openStepModal(step)"
                   >
-                    <td class="px-4 py-3 text-sm font-medium text-white">
+                    <td class="px-4 py-2 text-sm font-medium text-white">
                       {{ step.node_name }}
                     </td>
-                    <td class="px-4 py-3 text-sm">
+                    <td class="px-4 py-2 text-sm">
                       <span 
                         class="px-2 py-1 text-xs leading-4 font-semibold rounded-full"
                         :class="getStepStatusColorClass(step.status)"
@@ -161,19 +161,19 @@
                         {{ step.status }}
                       </span>
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-200 font-mono">
+                    <td class="px-4 py-2 text-xs text-gray-200 font-mono">
                       {{ executionStore.formatTimestamp(step.created_at) }}
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-200 font-mono">
+                    <td class="px-4 py-2 text-xs text-gray-200 font-mono">
                       {{ step.started_at ? executionStore.formatTimestamp(step.started_at) : '-' }}
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-200 font-mono">
+                    <td class="px-4 py-2 text-xs text-gray-200 font-mono">
                       {{ step.completed_at ? executionStore.formatTimestamp(step.completed_at) : '-' }}
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-200 font-mono">
+                    <td class="px-4 py-2 text-xs text-gray-200 font-mono">
                       {{ step.started_at && step.completed_at ? executionStore.formatDuration(step.started_at, step.completed_at) : '-' }}
                     </td>
-                    <td class="px-4 py-3 text-xs text-red-300 max-w-md">
+                    <td class="px-4 py-2 text-xs text-red-300 max-w-md">
                       <div class="whitespace-pre-wrap break-words">{{ step.error_message || '-' }}</div>
                     </td>
                   </tr>
