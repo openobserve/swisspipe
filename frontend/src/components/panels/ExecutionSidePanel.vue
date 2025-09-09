@@ -182,7 +182,7 @@ const refreshing = ref(false)
 const totalPages = computed(() => Math.ceil(totalExecutions.value / pageSize))
 
 // Auto-refresh interval
-let refreshInterval: NodeJS.Timeout | null = null
+let refreshInterval: number | null = null
 
 onMounted(() => {
   fetchExecutions()

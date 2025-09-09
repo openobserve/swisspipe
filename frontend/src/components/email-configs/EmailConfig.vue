@@ -59,13 +59,13 @@
         <!-- CC Recipients -->
         <div>
           <label class="block text-sm font-medium text-gray-300 mb-2">CC Recipients (Optional)</label>
-          <EmailRecipientList v-model="localConfig.cc" />
+          <EmailRecipientList :model-value="localConfig.cc || []" @update:model-value="(val) => localConfig.cc = val" />
         </div>
 
         <!-- BCC Recipients -->
         <div>
           <label class="block text-sm font-medium text-gray-300 mb-2">BCC Recipients (Optional)</label>
-          <EmailRecipientList v-model="localConfig.bcc" />
+          <EmailRecipientList :model-value="localConfig.bcc || []" @update:model-value="(val) => localConfig.bcc = val" />
         </div>
       </div>
     </div>
@@ -213,7 +213,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch } from 'vue'
 import type { EmailConfig } from '../../types/nodes'
 import EmailRecipientList from './EmailRecipientList.vue'
 import EmailContentEditor from './EmailContentEditor.vue'

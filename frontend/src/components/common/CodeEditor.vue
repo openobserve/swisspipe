@@ -120,7 +120,7 @@ function initializeEditor() {
     // Enable all advanced features
     hover: { enabled: true },
     parameterHints: { enabled: true },
-    occurrencesHighlight: true,
+    occurrencesHighlight: 'off',
     selectionHighlight: true,
     links: true,
     colorDecorators: true,

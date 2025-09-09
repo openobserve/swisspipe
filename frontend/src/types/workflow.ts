@@ -50,7 +50,7 @@ export interface EdgeRequest {
   condition_result?: boolean
 }
 
-export type NodeType = TriggerNode | ConditionNode | TransformerNode | AppNode
+export type NodeType = TriggerNode | ConditionNode | TransformerNode | AppNode | EmailNode
 
 export interface TriggerNode {
   Trigger: {
@@ -81,6 +81,29 @@ export interface AppNode {
   }
 }
 
+export interface EmailNode {
+  Email: {
+    config: {
+      smtp_config: string
+      from: { email: string; name?: string }
+      to: { email: string; name?: string }[]
+      cc?: { email: string; name?: string }[]
+      bcc?: { email: string; name?: string }[]
+      subject: string
+      template_type: 'html' | 'text'
+      body_template: string
+      text_body_template?: string
+      attachments?: { filename: string; content_type: string; data: string }[]
+      priority: 'critical' | 'high' | 'normal' | 'low'
+      delivery_receipt: boolean
+      read_receipt: boolean
+      queue_if_rate_limited: boolean
+      max_queue_wait_minutes: number
+      bypass_rate_limit: boolean
+    }
+  }
+}
+
 export type AppType = 'Webhook' | { OpenObserve: { url: string, authorization_header: string } }
 
 export type FailureAction = 'Continue' | 'Stop' | 'Retry'
@@ -100,7 +123,7 @@ export interface WorkflowExecution {
   status: ExecutionStatus
   started_at: string
   completed_at?: string
-  result?: any
+  result?: unknown
   error?: string
 }
 
@@ -112,5 +135,5 @@ export interface ExecutionEvent {
   node_name: string
   status: ExecutionStatus
   timestamp: string
-  data?: any
+  data?: unknown
 }

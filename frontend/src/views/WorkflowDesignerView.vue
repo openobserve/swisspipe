@@ -176,7 +176,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useVueFlow } from '@vue-flow/core'
 import { VueFlow } from '@vue-flow/core'
@@ -330,7 +330,7 @@ function navigateBack() {
   router.push('/workflows')
 }
 
-function onNodeClick(event: any) {
+function onNodeClick(event: { node: { id: string } }) {
   // If we're in tracing mode and the node has execution data, show inspector
   if (tracingExecution.value && event.node.data.isTracing && event.node.data.executionStatus) {
     inspectedNode.value = event.node.data
@@ -344,7 +344,7 @@ function onNodeClick(event: any) {
   selectedEdgeId.value = null
 }
 
-function onEdgeClick(event: any) {
+function onEdgeClick(event: { edge: { id: string } }) {
   selectedEdgeId.value = event.edge.id
   // Clear node selection when edge is selected
   nodeStore.setSelectedNode(null)
@@ -356,7 +356,7 @@ function onPaneClick() {
   selectedEdgeId.value = null
 }
 
-function onConnect(params: any) {
+function onConnect(params: { source: string; target: string; sourceHandle?: string; targetHandle?: string }) {
   const edge = {
     id: `edge-${params.source}-${params.target}`,
     source: params.source,
@@ -372,10 +372,10 @@ function onNodesInitialized() {
   console.log('Nodes initialized')
 }
 
-function onNodesDelete(event: any) {
+function onNodesDelete(event: { nodes: { id: string; type: string }[] }) {
   // Prevent deletion of trigger nodes
   const nodesToDelete = event.nodes || []
-  const triggerNodes = nodesToDelete.filter((node: any) => node.type === 'trigger')
+  const triggerNodes = event.nodes.filter((node) => node.type === 'trigger')
   
   if (triggerNodes.length > 0) {
     console.warn('Cannot delete trigger nodes')
@@ -486,7 +486,7 @@ async function saveWorkflow() {
   }
 }
 
-function convertApiNodeTypeToVueFlowType(nodeType: any): 'trigger' | 'condition' | 'transformer' | 'app' | 'email' {
+function convertApiNodeTypeToVueFlowType(nodeType: unknown): 'trigger' | 'condition' | 'transformer' | 'app' | 'email' {
   if (nodeType.Trigger) return 'trigger'
   if (nodeType.Condition) return 'condition'
   if (nodeType.Transformer) return 'transformer'
@@ -495,7 +495,7 @@ function convertApiNodeTypeToVueFlowType(nodeType: any): 'trigger' | 'condition'
   return 'app' // fallback
 }
 
-function getNodeDescription(nodeType: any): string {
+function getNodeDescription(nodeType: unknown): string {
   if (nodeType.Trigger) return 'HTTP endpoint trigger'
   if (nodeType.Condition) return 'Conditional logic node'
   if (nodeType.Transformer) return 'Data transformation node'
@@ -504,7 +504,7 @@ function getNodeDescription(nodeType: any): string {
   return 'Unknown node type'
 }
 
-function convertApiNodeConfigToVueFlowConfig(nodeType: any): any {
+function convertApiNodeConfigToVueFlowConfig(nodeType: unknown): unknown {
   if (nodeType.Trigger) {
     return {
       type: 'trigger',
@@ -582,7 +582,7 @@ function convertApiNodeConfigToVueFlowConfig(nodeType: any): any {
   return {}
 }
 
-function convertNodeToApiType(node: any) {
+function convertNodeToApiType(node: { type: string; data: { config: unknown } }) {
   switch (node.type) {
     case 'trigger':
       return {
@@ -685,7 +685,7 @@ function toggleNodeLibrary() {
   showNodeLibrary.value = !showNodeLibrary.value
 }
 
-async function onTraceExecution(executionData: any) {
+async function onTraceExecution(executionData: unknown) {
   console.log('Tracing execution:', executionData)
   tracingExecution.value = executionData
   
@@ -738,8 +738,8 @@ function updateNodeExecutionStates() {
       // Clear execution state if no data
       node.data = {
         ...node.data,
-        executionStatus: null,
-        executionDuration: null,
+        executionStatus: undefined,
+        executionDuration: undefined,
         executionError: null,
         executionInput: null,
         executionOutput: null,
@@ -823,7 +823,7 @@ function clearExecutionTracing() {
   nodeStore.nodes.forEach((node: any) => {
     node.data = {
       ...node.data,
-      executionStatus: null,
+      executionStatus: undefined,
       executionDuration: null,
       executionError: null,
       executionInput: null,

@@ -17,7 +17,7 @@ import { computed } from 'vue'
 import JsonNode from './JsonNode.vue'
 
 interface Props {
-  data: any
+  data: unknown
   collapsed?: boolean
   theme?: 'light' | 'dark'
 }

@@ -66,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+// Vue imports not used in this component
 
 interface WebhookConfig {
   url: string
@@ -86,9 +86,9 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-function updateConfig(key: keyof WebhookConfig, value: any) {
+function updateConfig(key: keyof WebhookConfig, value: unknown) {
   const updated = { ...props.modelValue }
-  ;(updated as any)[key] = value
+  ;(updated as Record<string, unknown>)[key] = value
   emit('update:modelValue', updated)
 }
 

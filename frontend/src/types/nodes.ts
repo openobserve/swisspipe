@@ -1,4 +1,4 @@
-import type { Node, Edge } from '@vue-flow/core'
+import type { Edge } from '@vue-flow/core'
 
 export interface WorkflowNode {
   id: string
@@ -9,10 +9,16 @@ export interface WorkflowNode {
     description?: string
     config: NodeConfig
     status?: NodeStatus
+    isTracing?: boolean
+    executionStatus?: string
+    executionDuration?: number
+    executionError?: string
+    executionInput?: unknown
+    executionOutput?: unknown
   }
 }
 
-export interface WorkflowEdge extends Edge {
+export interface WorkflowEdge extends Omit<Edge, 'data'> {
   id: string
   source: string
   target: string

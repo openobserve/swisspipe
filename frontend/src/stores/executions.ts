@@ -41,8 +41,8 @@ export const useExecutionStore = defineStore('executions', () => {
     try {
       const response = await apiClient.getExecutions(50) // Get last 50 executions
       executions.value = response.executions
-    } catch (err: any) {
-      error.value = err.message || 'Failed to fetch executions'
+    } catch (err: unknown) {
+      error.value = (err as Error).message || 'Failed to fetch executions'
       console.error('Error fetching executions:', err)
     } finally {
       loading.value = false
@@ -54,8 +54,8 @@ export const useExecutionStore = defineStore('executions', () => {
       const execution = await apiClient.getExecution(executionId)
       selectedExecution.value = execution
       return execution
-    } catch (err: any) {
-      error.value = err.message || 'Failed to fetch execution details'
+    } catch (err: unknown) {
+      error.value = (err as Error).message || 'Failed to fetch execution details'
       console.error('Error fetching execution:', err)
       throw err
     }
@@ -66,8 +66,8 @@ export const useExecutionStore = defineStore('executions', () => {
       const response = await apiClient.getExecutionSteps(executionId)
       executionSteps.value = response.steps
       return response.steps
-    } catch (err: any) {
-      error.value = err.message || 'Failed to fetch execution steps'
+    } catch (err: unknown) {
+      error.value = (err as Error).message || 'Failed to fetch execution steps'
       console.error('Error fetching execution steps:', err)
       throw err
     }
@@ -78,8 +78,8 @@ export const useExecutionStore = defineStore('executions', () => {
       const response = await apiClient.getExecutionLogs(executionId)
       executionLogs.value = response.logs
       return response.logs
-    } catch (err: any) {
-      error.value = err.message || 'Failed to fetch execution logs'
+    } catch (err: unknown) {
+      error.value = (err as Error).message || 'Failed to fetch execution logs'
       console.error('Error fetching execution logs:', err)
       throw err
     }
@@ -96,8 +96,8 @@ export const useExecutionStore = defineStore('executions', () => {
       if (selectedExecution.value?.id === executionId) {
         selectedExecution.value.status = 'cancelled'
       }
-    } catch (err: any) {
-      error.value = err.message || 'Failed to cancel execution'
+    } catch (err: unknown) {
+      error.value = (err as Error).message || 'Failed to cancel execution'
       console.error('Error cancelling execution:', err)
       throw err
     }

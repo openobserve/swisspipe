@@ -25,7 +25,7 @@ export interface FilterParams {
 }
 
 export interface WorkflowFilters extends FilterParams {
-  // Additional workflow-specific filters
+  workflow_type?: string
 }
 
 export interface TableSortConfig {

@@ -1,5 +1,5 @@
-import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from 'axios'
-import type { ApiResponse, ApiError } from '../types/api'
+import axios, { type AxiosInstance, type AxiosResponse } from 'axios'
+import type { ApiError } from '../types/api'
 import type { Workflow, WorkflowListResponse, CreateWorkflowRequest } from '../types/workflow'
 import type { 
   WorkflowExecution, 
@@ -87,12 +87,12 @@ class ApiClient {
   }
 
   // Workflow execution endpoints
-  async executeWorkflow(workflowId: string, data: any): Promise<any> {
+  async executeWorkflow(workflowId: string, data: unknown): Promise<unknown> {
     const response = await this.client.post(`/api/v1/${workflowId}/ep`, data)
     return response.data
   }
 
-  async executeWorkflowArray(workflowId: string, data: any[]): Promise<any> {
+  async executeWorkflowArray(workflowId: string, data: unknown[]): Promise<unknown> {
     const response = await this.client.post(`/api/v1/${workflowId}/json_array`, data)
     return response.data
   }

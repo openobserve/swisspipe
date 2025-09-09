@@ -51,7 +51,7 @@ import { computed, ref } from 'vue'
 import { ChevronRightIcon } from '@heroicons/vue/24/outline'
 
 interface Props {
-  data: any
+  data: unknown
   path: string
   level: number
   objectKey?: string | number
@@ -72,12 +72,12 @@ const isArray = computed(() => {
 
 const hasChildren = computed(() => {
   if (!isObject.value) return false
-  return Object.keys(props.data).length > 0
+  return Object.keys(props.data as Record<string, unknown>).length > 0
 })
 
 const childrenCount = computed(() => {
   if (!isObject.value) return 0
-  return Object.keys(props.data).length
+  return Object.keys(props.data as Record<string, unknown>).length
 })
 
 const showKey = computed(() => {

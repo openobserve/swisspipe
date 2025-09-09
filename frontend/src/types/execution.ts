@@ -7,11 +7,12 @@ export interface WorkflowExecution {
   workflow_id: string
   status: ExecutionStatus
   current_node_name?: string
-  input_data?: any
-  output_data?: any
+  input_data?: unknown
+  output_data?: unknown
   error_message?: string
   started_at?: number
   completed_at?: number
+  duration_ms?: number
   created_at: number
   updated_at: number
 }
@@ -22,8 +23,8 @@ export interface ExecutionStep {
   node_id: string
   node_name: string
   status: StepStatus
-  input_data?: any
-  output_data?: any
+  input_data?: unknown
+  output_data?: unknown
   error_message?: string
   started_at?: number
   completed_at?: number
