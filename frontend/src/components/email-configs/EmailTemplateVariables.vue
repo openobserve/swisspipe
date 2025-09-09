@@ -93,7 +93,7 @@ const variableCategories: VariableCategory[] = [
         example: '{"user_id": 123}' 
       },
       { 
-        path: '{{ workflow.data | json }}', 
+        path: '{{ workflow.data  }}', 
         description: 'Formatted JSON data', 
         example: '{\n  "user_id": 123\n}' 
       },
@@ -160,7 +160,7 @@ const variableCategories: VariableCategory[] = [
     name: 'Template Helpers',
     variables: [
       { 
-        path: '{{ variable | json }}', 
+        path: '{{ variable  }}', 
         description: 'Format any variable as pretty JSON' 
       },
       { 

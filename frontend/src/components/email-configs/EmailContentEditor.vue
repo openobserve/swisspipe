@@ -80,7 +80,7 @@
 <body>
   <h1>{{ workflow.name }}</h1>
   <p>Status: {{ workflow.status }}</p>
-  <p>Data: {{ workflow.data | json }}</p>
+  <p>Data: {{ workflow.data  }}</p>
 </body>
 </html>"
             class="w-full px-3 py-2 bg-gray-700 border-0 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm resize-none"
@@ -150,7 +150,7 @@ const templateVariables = [
   { path: '{{ workflow.status }}', description: 'Execution status' },
   { path: '{{ workflow.id }}', description: 'Execution ID' },
   { path: '{{ workflow.data }}', description: 'Raw workflow data' },
-  { path: '{{ workflow.data | json }}', description: 'Formatted JSON data' },
+  { path: '{{ workflow.data  }}', description: 'Formatted JSON data' },
   { path: '{{ workflow.metadata }}', description: 'Workflow metadata' },
   { path: '{{ workflow.headers }}', description: 'HTTP headers' },
   { path: '{{ node.id }}', description: 'Current node ID' },

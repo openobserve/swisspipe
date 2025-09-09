@@ -66,13 +66,13 @@ This PRD outlines the implementation of an "Email" node type for SwissPipe workf
     ],
     "subject": "Workflow {{ workflow.name }} completed - {{ workflow.status }}",
     "template_type": "html", // "html" or "text"
-    "body_template": "<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Status: {{ workflow.status }}</p><p>Data: {{ workflow.data | json }}</p></body></html>",
-    "text_body_template": "Workflow Results\nStatus: {{ workflow.status }}\nData: {{ workflow.data | json }}", // Optional fallback
+    "body_template": "<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Status: {{ workflow.status }}</p><p>Data: {{ workflow.data  }}</p></body></html>",
+    "text_body_template": "Workflow Results\nStatus: {{ workflow.status }}\nData: {{ workflow.data  }}", // Optional fallback
     "attachments": [ // Optional
       {
         "filename": "report.json",
         "content_type": "application/json",
-        "data": "{{ workflow.output | json }}" // Base64 encoded or template
+        "data": "{{ workflow.output  }}" // Base64 encoded or template
       }
     ],
     "priority": "normal", // "low", "normal", "high"
