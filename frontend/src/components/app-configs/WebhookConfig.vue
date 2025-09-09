@@ -66,17 +66,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
 
 interface WebhookConfig {
   url: string
   method: string
   headers?: Record<string, string>
 }
-
-onMounted(() => {
-  console.log('WebhookConfig modelValue:', props.modelValue)
-})
 
 interface Props {
   modelValue: WebhookConfig
