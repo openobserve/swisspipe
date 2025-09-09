@@ -210,6 +210,55 @@ pub async fn create_workflow(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
 
+    // Fetch nodes
+    let nodes = nodes::Entity::find()
+        .filter(nodes::Column::WorkflowId.eq(&workflow_id))
+        .all(&*state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Fetch edges
+    let edges = edges::Entity::find()
+        .filter(edges::Column::WorkflowId.eq(&workflow_id))
+        .all(&*state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Convert nodes to response format
+    let node_responses: Vec<NodeResponse> = nodes
+        .into_iter()
+        .map(|node| {
+            let node_type: NodeType = serde_json::from_str(&node.config)
+                .unwrap_or(NodeType::App {
+                    app_type: AppType::Webhook,
+                    url: "".to_string(),
+                    method: HttpMethod::Get,
+                    timeout_seconds: 30,
+                    failure_action: FailureAction::Stop,
+                    retry_config: RetryConfig::default(),
+                    headers: std::collections::HashMap::new(),
+                });
+            NodeResponse {
+                id: node.id,
+                name: node.name,
+                node_type,
+                position_x: node.position_x,
+                position_y: node.position_y,
+            }
+        })
+        .collect();
+
+    // Convert edges to response format
+    let edge_responses: Vec<EdgeResponse> = edges
+        .into_iter()
+        .map(|edge| EdgeResponse {
+            id: edge.id,
+            from_node_name: edge.from_node_name,
+            to_node_name: edge.to_node_name,
+            condition_result: edge.condition_result,
+        })
+        .collect();
+
     let response = WorkflowResponse {
         id: workflow.id.clone(),
         name: workflow.name,
@@ -218,8 +267,8 @@ pub async fn create_workflow(
         endpoint_url: format!("/api/v1/{}/ep", workflow.id),
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
-        nodes: vec![], // Will be populated by subsequent GET request
-        edges: vec![], // Will be populated by subsequent GET request
+        nodes: node_responses,
+        edges: edge_responses,
     };
 
     Ok((StatusCode::CREATED, Json(response)))
@@ -411,6 +460,55 @@ pub async fn update_workflow(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
 
+    // Fetch nodes
+    let nodes = nodes::Entity::find()
+        .filter(nodes::Column::WorkflowId.eq(&id))
+        .all(&*state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Fetch edges
+    let edges = edges::Entity::find()
+        .filter(edges::Column::WorkflowId.eq(&id))
+        .all(&*state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Convert nodes to response format
+    let node_responses: Vec<NodeResponse> = nodes
+        .into_iter()
+        .map(|node| {
+            let node_type: NodeType = serde_json::from_str(&node.config)
+                .unwrap_or(NodeType::App {
+                    app_type: AppType::Webhook,
+                    url: "".to_string(),
+                    method: HttpMethod::Get,
+                    timeout_seconds: 30,
+                    failure_action: FailureAction::Stop,
+                    retry_config: RetryConfig::default(),
+                    headers: std::collections::HashMap::new(),
+                });
+            NodeResponse {
+                id: node.id,
+                name: node.name,
+                node_type,
+                position_x: node.position_x,
+                position_y: node.position_y,
+            }
+        })
+        .collect();
+
+    // Convert edges to response format
+    let edge_responses: Vec<EdgeResponse> = edges
+        .into_iter()
+        .map(|edge| EdgeResponse {
+            id: edge.id,
+            from_node_name: edge.from_node_name,
+            to_node_name: edge.to_node_name,
+            condition_result: edge.condition_result,
+        })
+        .collect();
+
     let response = WorkflowResponse {
         id: workflow.id.clone(),
         name: workflow.name,
@@ -419,8 +517,8 @@ pub async fn update_workflow(
         endpoint_url: format!("/api/v1/{}/ep", workflow.id),
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
-        nodes: vec![], // Will be populated by subsequent GET request
-        edges: vec![], // Will be populated by subsequent GET request
+        nodes: node_responses,
+        edges: edge_responses,
     };
 
     Ok(Json(response))
