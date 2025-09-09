@@ -15,12 +15,6 @@
           :class="getPriorityColor()"
           :title="`Priority: ${data.config.priority}`"
         ></div>
-        <!-- Queue indicator -->
-        <div
-          v-if="data.config?.queue_if_rate_limited"
-          class="w-2 h-2 rounded-full bg-orange-400"
-          title="Queue if rate limited"
-        ></div>
       </div>
     </div>
     
