@@ -31,6 +31,13 @@
           >
             Reset
           </button>
+          <button
+            @click="toggleExecutionsPanel"
+            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center space-x-2"
+          >
+            <ClockIcon class="h-4 w-4" />
+            <span>Executions</span>
+          </button>
         </div>
       </div>
     </header>
@@ -87,13 +94,24 @@
       </div>
 
       <!-- Properties Panel (slide out when node selected) -->
-
       <div
         v-if="nodeStore.selectedNode && nodeStore.selectedNodeData"
         class="w-[768px] border-l border-slate-700/50 flex-shrink-0 overflow-y-auto bg-transparent"
         style="background: none !important;"
       >
         <NodePropertiesPanel />
+      </div>
+
+      <!-- Executions Panel (slide out when executions button clicked) -->
+      <div
+        v-if="showExecutionsPanel"
+        class="w-[500px] border-l border-slate-700/50 flex-shrink-0 overflow-y-auto glass-medium"
+      >
+        <ExecutionSidePanel
+          :workflow-id="workflowId"
+          @close="closeExecutionsPanel"
+          @trace-execution="onTraceExecution"
+        />
       </div>
 
     </div>
@@ -127,6 +145,13 @@
         </ul>
       </div>
     </div>
+
+    <!-- Node Inspector Modal -->
+    <NodeInspector
+      :visible="showNodeInspector"
+      :node-data="inspectedNode"
+      @close="showNodeInspector = false"
+    />
   </div>
 </template>
 
@@ -137,17 +162,20 @@ import { useVueFlow } from '@vue-flow/core'
 import { VueFlow } from '@vue-flow/core'
 import { Controls } from '@vue-flow/controls'
 import { Background } from '@vue-flow/background'
-import { ArrowLeftIcon } from '@heroicons/vue/24/outline'
+import { ArrowLeftIcon, ClockIcon } from '@heroicons/vue/24/outline'
 import { useWorkflowStore } from '../stores/workflows'
 import { useNodeStore } from '../stores/nodes'
 import NodeLibraryPanel from '../components/panels/NodeLibraryPanel.vue'
 import NodePropertiesPanel from '../components/panels/NodePropertiesPanel.vue'
+import ExecutionSidePanel from '../components/panels/ExecutionSidePanel.vue'
+import NodeInspector from '../components/panels/NodeInspector.vue'
 import TriggerNode from '../components/nodes/TriggerNode.vue'
 import ConditionNode from '../components/nodes/ConditionNode.vue'
 import TransformerNode from '../components/nodes/TransformerNode.vue'
 import AppNode from '../components/nodes/AppNode.vue'
 import EmailNode from '../components/nodes/EmailNode.vue'
 import { DEFAULT_CONDITION_SCRIPT, DEFAULT_TRANSFORMER_SCRIPT } from '../constants/defaults'
+import { apiClient } from '../services/api'
 
 const router = useRouter()
 const route = useRoute()
@@ -159,6 +187,11 @@ const workflowId = route.params.id as string
 const workflowName = ref('')
 const saving = ref(false)
 const selectedEdgeId = ref<string | null>(null)
+const showExecutionsPanel = ref(false)
+const tracingExecution = ref<any>(null)
+const executionSteps = ref<any[]>([])
+const showNodeInspector = ref(false)
+const inspectedNode = ref<any>(null)
 
 // Removed nodeDataUpdateKey as it was causing performance issues with frequent re-renders
 
@@ -277,6 +310,14 @@ function navigateBack() {
 }
 
 function onNodeClick(event: any) {
+  // If we're in tracing mode and the node has execution data, show inspector
+  if (tracingExecution.value && event.node.data.isTracing && event.node.data.executionStatus) {
+    inspectedNode.value = event.node.data
+    showNodeInspector.value = true
+    return
+  }
+  
+  // Normal mode - select node for properties panel
   nodeStore.setSelectedNode(event.node.id)
   // Clear edge selection when node is selected
   selectedEdgeId.value = null
@@ -608,6 +649,181 @@ function convertNodeToApiType(node: any) {
 function resetWorkflow() {
   nodeStore.clearWorkflow()
   loadWorkflowData()
+}
+
+function toggleExecutionsPanel() {
+  showExecutionsPanel.value = !showExecutionsPanel.value
+}
+
+function closeExecutionsPanel() {
+  showExecutionsPanel.value = false
+  clearExecutionTracing()
+}
+
+async function onTraceExecution(executionData: any) {
+  console.log('Tracing execution:', executionData)
+  tracingExecution.value = executionData
+  
+  try {
+    // Fetch execution steps
+    const data = await apiClient.getExecutionSteps(executionData.id)
+    executionSteps.value = data.steps || []
+    
+    // Update node states based on execution steps
+    updateNodeExecutionStates()
+    
+    // Animate execution path
+    animateExecutionPath()
+  } catch (error) {
+    console.error('Failed to fetch execution steps:', error)
+  }
+}
+
+function updateNodeExecutionStates() {
+  // Create a map of node names to their execution status
+  const nodeExecutionMap = new Map()
+  
+  executionSteps.value.forEach(step => {
+    nodeExecutionMap.set(step.node_name, {
+      status: step.status,
+      duration: step.duration_ms,
+      error: step.error_message,
+      input: step.input_data,
+      output: step.output_data
+    })
+  })
+  
+  // Update each node's data with execution state
+  nodeStore.nodes.forEach(node => {
+    const nodeName = node.type === 'trigger' ? 'Start' : node.data.label
+    const executionData = nodeExecutionMap.get(nodeName)
+    
+    if (executionData) {
+      // Update node data with execution state
+      node.data = {
+        ...node.data,
+        executionStatus: executionData.status,
+        executionDuration: executionData.duration,
+        executionError: executionData.error,
+        executionInput: executionData.input,
+        executionOutput: executionData.output,
+        isTracing: true
+      }
+    } else {
+      // Clear execution state if no data
+      node.data = {
+        ...node.data,
+        executionStatus: null,
+        executionDuration: null,
+        executionError: null,
+        executionInput: null,
+        executionOutput: null,
+        isTracing: true
+      }
+    }
+  })
+  
+  // Update edge styles for execution path highlighting
+  updateEdgeExecutionStyles()
+  
+  // Vue reactivity will handle the update automatically
+}
+
+function updateEdgeExecutionStyles() {
+  // Get the execution path from the steps
+  const executedNodeNames = new Set(executionSteps.value.map(step => step.node_name))
+  
+  // Update all edges to show execution path highlighting
+  nodeStore.edges.forEach((edge: any) => {
+    // Find source and target nodes
+    const sourceNode = nodeStore.nodes.find(n => n.id === edge.source)
+    const targetNode = nodeStore.nodes.find(n => n.id === edge.target)
+    
+    if (sourceNode && targetNode) {
+      const sourceName = sourceNode.type === 'trigger' ? 'Start' : sourceNode.data.label
+      const targetName = targetNode.type === 'trigger' ? 'Start' : targetNode.data.label
+      
+      // Check if both nodes were executed (part of execution path)
+      const isExecutionPath = executedNodeNames.has(sourceName) && executedNodeNames.has(targetName)
+      
+      if (isExecutionPath) {
+        // Highlight execution path edges
+        edge.style = {
+          ...edge.style,
+          strokeWidth: 4,
+          stroke: '#3b82f6', // Blue color for execution path
+          strokeDasharray: '0', // Remove any dashed pattern
+          opacity: 1,
+          transition: 'all 0.3s ease'
+        }
+        edge.markerEnd = {
+          type: 'arrowclosed',
+          color: '#3b82f6',
+          width: 20,
+          height: 20
+        }
+      } else {
+        // Dim non-execution edges
+        edge.style = {
+          ...edge.style,
+          strokeWidth: 1,
+          stroke: '#6b7280', // Gray color for non-execution paths
+          opacity: 0.3,
+          transition: 'all 0.3s ease'
+        }
+        edge.markerEnd = {
+          type: 'arrowclosed',
+          color: '#6b7280',
+          width: 15,
+          height: 15
+        }
+      }
+    }
+  })
+}
+
+function animateExecutionPath() {
+  // TODO: Add animation to show execution flow
+  // This could highlight edges in sequence to show the path taken
+  console.log('Animating execution path with steps:', executionSteps.value)
+}
+
+function clearExecutionTracing() {
+  tracingExecution.value = null
+  executionSteps.value = []
+  showNodeInspector.value = false
+  inspectedNode.value = null
+  
+  // Clear execution state from all nodes
+  nodeStore.nodes.forEach((node: any) => {
+    node.data = {
+      ...node.data,
+      executionStatus: null,
+      executionDuration: null,
+      executionError: null,
+      executionInput: null,
+      executionOutput: null,
+      isTracing: false
+    }
+  })
+  
+  // Reset edge styles to default
+  nodeStore.edges.forEach((edge: any) => {
+    edge.style = {
+      strokeWidth: 2,
+      stroke: '#6b7280',
+      opacity: 1,
+      transition: 'all 0.3s ease'
+    }
+    edge.markerEnd = {
+      type: 'arrowclosed',
+      color: '#6b7280',
+      width: 15,
+      height: 15
+    }
+  })
+  
+  // Vue reactivity will handle the update automatically
 }
 
 function handleKeyDown(event: KeyboardEvent) {

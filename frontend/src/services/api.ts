@@ -98,10 +98,12 @@ class ApiClient {
   }
 
   // Execution management endpoints
-  async getExecutions(limit?: number, offset?: number): Promise<ExecutionListResponse> {
+  async getExecutions(limit?: number, offset?: number, workflowId?: string, status?: string): Promise<ExecutionListResponse> {
     const params = new URLSearchParams()
     if (limit) params.append('limit', limit.toString())
     if (offset) params.append('offset', offset.toString())
+    if (workflowId) params.append('workflow_id', workflowId)
+    if (status) params.append('status', status)
     
     const response = await this.client.get<ExecutionListResponse>(`/executions?${params}`)
     return response.data
@@ -126,12 +128,14 @@ class ApiClient {
     await this.client.post(`/executions/${executionId}/cancel`)
   }
 
-  async getExecutionsByWorkflow(workflowId: string, limit?: number, offset?: number): Promise<ExecutionListResponse> {
+  async getExecutionsByWorkflow(workflowId: string, limit?: number, offset?: number, status?: string): Promise<ExecutionListResponse> {
     const params = new URLSearchParams()
+    params.append('workflow_id', workflowId)
     if (limit) params.append('limit', limit.toString())
     if (offset) params.append('offset', offset.toString())
+    if (status) params.append('status', status)
     
-    const response = await this.client.get<ExecutionListResponse>(`/executions/by_workflow/${workflowId}?${params}`)
+    const response = await this.client.get<ExecutionListResponse>(`/executions?${params}`)
     return response.data
   }
 }

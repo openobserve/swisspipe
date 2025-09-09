@@ -232,52 +232,6 @@ impl ExecutionService {
         Ok(())
     }
 
-    /// Get executions by workflow ID
-    pub async fn get_executions_by_workflow(
-        &self,
-        workflow_id: &str,
-        limit: Option<u64>,
-        offset: Option<u64>,
-    ) -> Result<Vec<workflow_executions::Model>> {
-        let mut query = workflow_executions::Entity::find()
-            .filter(workflow_executions::Column::WorkflowId.eq(workflow_id));
-
-        if let Some(limit) = limit {
-            query = query.limit(limit);
-        }
-
-        if let Some(offset) = offset {
-            query = query.offset(offset);
-        }
-
-        let executions = query.all(self.db.as_ref()).await?;
-        Ok(executions)
-    }
-
-    /// Get recent executions across all workflows
-    pub async fn get_recent_executions(
-        &self,
-        limit: Option<u64>,
-        offset: Option<u64>,
-    ) -> Result<Vec<workflow_executions::Model>> {
-        let mut query = workflow_executions::Entity::find()
-            .order_by_desc(workflow_executions::Column::CreatedAt);
-
-        if let Some(limit) = limit {
-            query = query.limit(limit);
-        } else {
-            // Default to 50 if no limit specified
-            query = query.limit(50);
-        }
-
-        if let Some(offset) = offset {
-            query = query.offset(offset);
-        }
-
-        let executions = query.all(self.db.as_ref()).await?;
-        Ok(executions)
-    }
-
     /// Cancel execution
     pub async fn cancel_execution(&self, execution_id: &str) -> Result<()> {
         validation::validate_execution_id(execution_id)?;
@@ -306,5 +260,66 @@ impl ExecutionService {
 
         tracing::info!("Cancelled execution {}", execution_id);
         Ok(())
+    }
+
+    /// Get executions by workflow with optional status filter
+    pub async fn get_executions_by_workflow_filtered(
+        &self,
+        workflow_id: &str,
+        status: Option<&str>,
+        limit: Option<u64>,
+        offset: Option<u64>,
+    ) -> Result<Vec<workflow_executions::Model>> {
+        let mut query = workflow_executions::Entity::find()
+            .filter(workflow_executions::Column::WorkflowId.eq(workflow_id));
+
+        // Add status filter if provided
+        if let Some(status_filter) = status {
+            query = query.filter(workflow_executions::Column::Status.eq(status_filter));
+        }
+
+        // Add ordering
+        query = query.order_by_desc(workflow_executions::Column::CreatedAt);
+
+        if let Some(limit) = limit {
+            query = query.limit(limit);
+        }
+
+        if let Some(offset) = offset {
+            query = query.offset(offset);
+        }
+
+        let executions = query.all(self.db.as_ref()).await?;
+        Ok(executions)
+    }
+
+    /// Get recent executions with optional status filter
+    pub async fn get_recent_executions_filtered(
+        &self,
+        status: Option<&str>,
+        limit: Option<u64>,
+        offset: Option<u64>,
+    ) -> Result<Vec<workflow_executions::Model>> {
+        let mut query = workflow_executions::Entity::find()
+            .order_by_desc(workflow_executions::Column::CreatedAt);
+
+        // Add status filter if provided
+        if let Some(status_filter) = status {
+            query = query.filter(workflow_executions::Column::Status.eq(status_filter));
+        }
+
+        if let Some(limit) = limit {
+            query = query.limit(limit);
+        } else {
+            // Default to 50 if no limit specified
+            query = query.limit(50);
+        }
+
+        if let Some(offset) = offset {
+            query = query.offset(offset);
+        }
+
+        let executions = query.all(self.db.as_ref()).await?;
+        Ok(executions)
     }
 }

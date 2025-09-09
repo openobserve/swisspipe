@@ -17,6 +17,8 @@ use crate::{
 pub struct GetExecutionsQuery {
     pub limit: Option<u64>,
     pub offset: Option<u64>,
+    pub workflow_id: Option<String>,
+    pub status: Option<String>,
 }
 
 pub fn routes() -> Router<AppState> {
@@ -26,7 +28,6 @@ pub fn routes() -> Router<AppState> {
         .route("/:execution_id/status", get(get_execution_status))
         .route("/:execution_id/logs", get(get_execution_logs))
         .route("/:execution_id/steps", get(get_execution_steps))
-        .route("/by_workflow/:workflow_id", get(get_executions_by_workflow))
         .route("/:execution_id/cancel", axum::routing::post(cancel_execution))
         .route("/stats", get(get_worker_pool_stats))
 }
@@ -107,47 +108,6 @@ pub async fn get_execution_steps(
     })))
 }
 
-/// Get executions by workflow ID
-pub async fn get_executions_by_workflow(
-    State(state): State<AppState>,
-    Path(workflow_id): Path<String>,
-    Query(params): Query<GetExecutionsQuery>,
-) -> std::result::Result<Json<Value>, StatusCode> {
-    let execution_service = ExecutionService::new(state.db.clone());
-    
-    let executions = execution_service
-        .get_executions_by_workflow(&workflow_id, params.limit, params.offset)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to get executions by workflow: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    let executions_json: Vec<Value> = executions
-        .into_iter()
-        .map(|exec| {
-            serde_json::json!({
-                "id": exec.id,
-                "workflow_id": exec.workflow_id,
-                "status": exec.status,
-                "current_node_name": exec.current_node_name,
-                "input_data": exec.input_data.and_then(|d| serde_json::from_str::<Value>(&d).ok()),
-                "output_data": exec.output_data.and_then(|d| serde_json::from_str::<Value>(&d).ok()),
-                "error_message": exec.error_message,
-                "started_at": exec.started_at,
-                "completed_at": exec.completed_at,
-                "created_at": exec.created_at,
-                "updated_at": exec.updated_at
-            })
-        })
-        .collect();
-
-    Ok(Json(serde_json::json!({
-        "workflow_id": workflow_id,
-        "executions": executions_json,
-        "count": executions_json.len()
-    })))
-}
 
 /// Cancel an execution
 pub async fn cancel_execution(
@@ -294,17 +254,46 @@ pub async fn get_all_executions(
 ) -> std::result::Result<Json<Value>, StatusCode> {
     let execution_service = ExecutionService::new(state.db.clone());
     
-    let executions = execution_service
-        .get_recent_executions(params.limit, params.offset)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to get all executions: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let workflow_id_clone = params.workflow_id.clone();
+    let status_clone = params.status.clone();
+    let executions = if let Some(ref workflow_id) = params.workflow_id {
+        // Filter by specific workflow ID
+        execution_service
+            .get_executions_by_workflow_filtered(
+                workflow_id, 
+                params.status.as_deref(), 
+                params.limit, 
+                params.offset
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get executions by workflow: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+    } else {
+        // Get all recent executions
+        execution_service
+            .get_recent_executions_filtered(
+                params.status.as_deref(), 
+                params.limit, 
+                params.offset
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get all executions: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+    };
 
     let executions_json: Vec<Value> = executions
         .into_iter()
         .map(|exec| {
+            let duration_ms = if let (Some(started), Some(completed)) = (exec.started_at, exec.completed_at) {
+                Some((completed - started) / 1000) // Convert microseconds to milliseconds
+            } else {
+                None
+            };
+
             serde_json::json!({
                 "id": exec.id,
                 "workflow_id": exec.workflow_id,
@@ -315,6 +304,7 @@ pub async fn get_all_executions(
                 "error_message": exec.error_message,
                 "started_at": exec.started_at,
                 "completed_at": exec.completed_at,
+                "duration_ms": duration_ms,
                 "created_at": exec.created_at,
                 "updated_at": exec.updated_at
             })
@@ -323,6 +313,8 @@ pub async fn get_all_executions(
 
     Ok(Json(serde_json::json!({
         "executions": executions_json,
-        "count": executions_json.len()
+        "count": executions_json.len(),
+        "workflow_id": workflow_id_clone,
+        "status": status_clone
     })))
 }
