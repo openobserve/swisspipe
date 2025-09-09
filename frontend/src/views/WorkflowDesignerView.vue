@@ -32,6 +32,14 @@
             Reset
           </button>
           <button
+            @click="toggleNodeLibrary"
+            class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center space-x-2"
+            :title="showNodeLibrary ? 'Hide Node Library' : 'Show Node Library'"
+          >
+            <Squares2X2Icon class="h-4 w-4" />
+            <span>{{ showNodeLibrary ? 'Hide' : 'Show' }} Nodes</span>
+          </button>
+          <button
             @click="toggleExecutionsPanel"
             class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center space-x-2"
           >
@@ -45,9 +53,21 @@
     <!-- Main Content -->
     <div class="flex flex-1 overflow-hidden">
       <!-- Node Library Panel -->
-      <div class="w-80 glass-medium border-r border-slate-700/50 flex-shrink-0 overflow-y-auto">
-        <NodeLibraryPanel />
-      </div>
+      <Transition
+        enter-active-class="transition-all duration-300 ease-out"
+        leave-active-class="transition-all duration-300 ease-in"
+        enter-from-class="w-0 opacity-0"
+        enter-to-class="w-80 opacity-100"
+        leave-from-class="w-80 opacity-100"
+        leave-to-class="w-0 opacity-0"
+      >
+        <div 
+          v-if="showNodeLibrary"
+          class="w-80 glass-medium border-r border-slate-700/50 flex-shrink-0 overflow-y-auto"
+        >
+          <NodeLibraryPanel />
+        </div>
+      </Transition>
 
       <!-- Canvas Area -->
       <div
@@ -162,7 +182,7 @@ import { useVueFlow } from '@vue-flow/core'
 import { VueFlow } from '@vue-flow/core'
 import { Controls } from '@vue-flow/controls'
 import { Background } from '@vue-flow/background'
-import { ArrowLeftIcon, ClockIcon } from '@heroicons/vue/24/outline'
+import { ArrowLeftIcon, ClockIcon, Squares2X2Icon } from '@heroicons/vue/24/outline'
 import { useWorkflowStore } from '../stores/workflows'
 import { useNodeStore } from '../stores/nodes'
 import NodeLibraryPanel from '../components/panels/NodeLibraryPanel.vue'
@@ -188,6 +208,7 @@ const workflowName = ref('')
 const saving = ref(false)
 const selectedEdgeId = ref<string | null>(null)
 const showExecutionsPanel = ref(false)
+const showNodeLibrary = ref(true)
 const tracingExecution = ref<any>(null)
 const executionSteps = ref<any[]>([])
 const showNodeInspector = ref(false)
@@ -658,6 +679,10 @@ function toggleExecutionsPanel() {
 function closeExecutionsPanel() {
   showExecutionsPanel.value = false
   clearExecutionTracing()
+}
+
+function toggleNodeLibrary() {
+  showNodeLibrary.value = !showNodeLibrary.value
 }
 
 async function onTraceExecution(executionData: any) {
