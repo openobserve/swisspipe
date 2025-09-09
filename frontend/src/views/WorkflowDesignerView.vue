@@ -37,7 +37,7 @@
             :title="showNodeLibrary ? 'Hide Node Library' : 'Show Node Library'"
           >
             <Squares2X2Icon class="h-4 w-4" />
-            <span>{{ showNodeLibrary ? 'Hide' : 'Show' }} Nodes</span>
+            <span>{{ showNodeLibrary ? 'Hide' : 'Show' }} Node Library</span>
           </button>
           <button
             @click="toggleExecutionsPanel"
