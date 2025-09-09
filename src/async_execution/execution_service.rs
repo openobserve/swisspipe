@@ -70,6 +70,11 @@ impl ExecutionService {
         execution.insert(self.db.as_ref()).await?;
 
         // Create job queue entry
+        let max_retries = std::env::var("SP_WORKFLOW_MAX_RETRIES")
+            .ok()
+            .and_then(|v| v.parse::<i32>().ok())
+            .unwrap_or(0);
+            
         let job = job_queue::ActiveModel {
             id: Set(Uuid::now_v7().to_string()),
             execution_id: Set(execution_id.clone()),
@@ -77,7 +82,7 @@ impl ExecutionService {
             scheduled_at: Set(now),
             claimed_at: Set(None),
             claimed_by: Set(None),
-            max_retries: Set(3),
+            max_retries: Set(max_retries),
             retry_count: Set(0),
             status: Set(JobStatus::Pending.to_string()),
             error_message: Set(None),

@@ -40,11 +40,16 @@ impl Related<super::workflow_executions::Entity> for Entity {
 impl ActiveModelBehavior for ActiveModel {
     fn new() -> Self {
         let now = chrono::Utc::now().timestamp_micros();
+        let max_retries = std::env::var("SP_WORKFLOW_MAX_RETRIES")
+            .ok()
+            .and_then(|v| v.parse::<i32>().ok())
+            .unwrap_or(0);
+            
         Self {
             id: Set(Uuid::now_v7().to_string()),
             priority: Set(0),
             scheduled_at: Set(now),
-            max_retries: Set(3),
+            max_retries: Set(max_retries),
             retry_count: Set(0),
             status: Set("pending".to_string()),
             created_at: Set(now),

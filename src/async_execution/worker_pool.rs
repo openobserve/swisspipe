@@ -603,6 +603,11 @@ impl WorkerPool {
                 
             if existing_job.is_none() {
                 // Create new job for recovered execution
+                let max_retries = std::env::var("SP_WORKFLOW_MAX_RETRIES")
+                    .ok()
+                    .and_then(|v| v.parse::<i32>().ok())
+                    .unwrap_or(0);
+                    
                 let job = crate::database::job_queue::ActiveModel {
                     id: Set(uuid::Uuid::now_v7().to_string()),
                     execution_id: Set(execution.id.clone()),
@@ -610,7 +615,7 @@ impl WorkerPool {
                     scheduled_at: Set(chrono::Utc::now().timestamp_micros()),
                     claimed_at: Set(None),
                     claimed_by: Set(None),
-                    max_retries: Set(3),
+                    max_retries: Set(max_retries),
                     retry_count: Set(0),
                     status: Set("pending".to_string()),
                     error_message: Set(Some("Recovered from crash".to_string())),

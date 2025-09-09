@@ -26,6 +26,12 @@
             {{ saving ? 'Saving...' : 'Save' }}
           </button>
           <button
+            @click="showJsonView"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+          >
+            JSON View
+          </button>
+          <button
             @click="resetWorkflow"
             class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
           >
@@ -172,11 +178,18 @@
       :node-data="inspectedNode"
       @close="handleCloseInspector"
     />
+
+    <!-- JSON View Modal -->
+    <JsonViewModal
+      :visible="showJsonModal"
+      :json-data="workflowJson"
+      @close="handleCloseJsonView"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch } from 'vue'
+import { onMounted, onUnmounted, watch, ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { VueFlow } from '@vue-flow/core'
 import { Controls } from '@vue-flow/controls'
@@ -188,6 +201,7 @@ import NodeLibraryPanel from '../components/panels/NodeLibraryPanel.vue'
 import NodePropertiesPanel from '../components/panels/NodePropertiesPanel.vue'
 import ExecutionSidePanel from '../components/panels/ExecutionSidePanel.vue'
 import NodeInspector from '../components/panels/NodeInspector.vue'
+import JsonViewModal from '../components/common/JsonViewModal.vue'
 import TriggerNode from '../components/nodes/TriggerNode.vue'
 import ConditionNode from '../components/nodes/ConditionNode.vue'
 import TransformerNode from '../components/nodes/TransformerNode.vue'
@@ -201,6 +215,9 @@ import { usePanelState } from '../composables/usePanelState'
 const route = useRoute()
 const workflowStore = useWorkflowStore()
 const nodeStore = useNodeStore()
+
+// JSON view state
+const showJsonModal = ref(false)
 
 // Composables
 const {
@@ -240,6 +257,27 @@ const {
   onDrop,
   handleKeyDown
 } = useVueFlowInteraction()
+
+// Computed properties
+const workflowJson = computed(() => {
+  return {
+    id: workflowId.value,
+    name: workflowName.value,
+    nodes: nodeStore.nodes.map(node => ({
+      id: node.id,
+      type: node.type,
+      position: node.position,
+      data: node.data
+    })),
+    edges: nodeStore.edges.map(edge => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      sourceHandle: edge.sourceHandle,
+      targetHandle: edge.targetHandle
+    }))
+  }
+})
 
 onMounted(async () => {
   nodeStore.clearWorkflow()
@@ -300,6 +338,14 @@ function handleNodeClick(event: any) {
 
 function handleCloseInspector() {
   showNodeInspector.value = false
+}
+
+function showJsonView() {
+  showJsonModal.value = true
+}
+
+function handleCloseJsonView() {
+  showJsonModal.value = false
 }
 
 </script>
