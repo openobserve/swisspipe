@@ -28,7 +28,10 @@ pub enum Relation {
         to = "super::entities::Column::Id"
     )]
     Workflow,
-    #[sea_orm(has_many = "super::workflow_execution_steps::Entity")]
+    #[sea_orm(
+        has_many = "super::workflow_execution_steps::Entity",
+        on_delete = "Cascade"
+    )]
     WorkflowExecutionSteps,
     #[sea_orm(has_many = "super::job_queue::Entity")]
     JobQueue,

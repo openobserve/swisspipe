@@ -103,48 +103,28 @@ impl CleanupService {
     async fn perform_cleanup(&self) -> Result<(u64, u64)> {
         tracing::debug!("Performing cleanup to keep last {} executions per workflow", self.retention_count);
 
-        // First delete execution steps (they have foreign key to executions)
-        let deleted_steps = self.delete_old_execution_steps_by_count().await?;
-
-        // Then delete executions
-        let deleted_executions = self.delete_old_executions_by_count().await?;
-
-        Ok((deleted_executions, deleted_steps))
-    }
-
-    /// Delete old execution steps based on count per workflow
-    async fn delete_old_execution_steps_by_count(&self) -> Result<u64> {
-        // First get all executions that should be deleted
+        // Get executions to delete (to count steps before deletion)
         let executions_to_delete = self.get_executions_to_delete().await?;
         
         if executions_to_delete.is_empty() {
-            return Ok(0);
+            return Ok((0, 0));
         }
 
-        // Delete steps for those executions
-        let result: DeleteResult = workflow_execution_steps::Entity::delete_many()
-            .filter(workflow_execution_steps::Column::ExecutionId.is_in(executions_to_delete))
-            .exec(self.db.as_ref())
+        // Count steps that will be cascade deleted (for logging purposes)
+        let steps_count = workflow_execution_steps::Entity::find()
+            .filter(workflow_execution_steps::Column::ExecutionId.is_in(executions_to_delete.clone()))
+            .count(self.db.as_ref())
             .await?;
 
-        Ok(result.rows_affected)
-    }
-
-    /// Delete old executions based on count per workflow
-    async fn delete_old_executions_by_count(&self) -> Result<u64> {
-        let executions_to_delete = self.get_executions_to_delete().await?;
-        
-        if executions_to_delete.is_empty() {
-            return Ok(0);
-        }
-
+        // Delete executions - cascade delete will automatically remove related steps
         let result: DeleteResult = workflow_executions::Entity::delete_many()
             .filter(workflow_executions::Column::Id.is_in(executions_to_delete))
             .exec(self.db.as_ref())
             .await?;
 
-        Ok(result.rows_affected)
+        Ok((result.rows_affected, steps_count))
     }
+
 
     /// Get list of execution IDs that should be deleted (keeping last N per workflow)
     async fn get_executions_to_delete(&self) -> Result<Vec<String>> {

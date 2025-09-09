@@ -25,7 +25,8 @@ pub enum Relation {
     #[sea_orm(
         belongs_to = "super::workflow_executions::Entity",
         from = "Column::ExecutionId",
-        to = "super::workflow_executions::Column::Id"
+        to = "super::workflow_executions::Column::Id",
+        on_delete = "Cascade"
     )]
     WorkflowExecution,
     #[sea_orm(
