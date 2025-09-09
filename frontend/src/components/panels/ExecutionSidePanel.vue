@@ -3,12 +3,23 @@
     <!-- Header -->
     <div class="px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
       <h2 class="text-lg font-semibold text-gray-200">Executions</h2>
-      <button
-        @click="$emit('close')"
-        class="text-gray-400 hover:text-gray-200 transition-colors"
-      >
-        <XMarkIcon class="h-6 w-6" />
-      </button>
+      <div class="flex items-center space-x-2">
+        <button
+          @click="refreshExecutions"
+          :disabled="loading"
+          class="text-gray-400 hover:text-gray-200 transition-colors p-1 rounded"
+          :class="{ 'animate-spin': refreshing }"
+          title="Refresh executions"
+        >
+          <ArrowPathIcon class="h-5 w-5" />
+        </button>
+        <button
+          @click="$emit('close')"
+          class="text-gray-400 hover:text-gray-200 transition-colors"
+        >
+          <XMarkIcon class="h-6 w-6" />
+        </button>
+      </div>
     </div>
 
     <!-- Filter Controls -->
@@ -134,7 +145,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { XMarkIcon } from '@heroicons/vue/24/outline'
+import { XMarkIcon, ArrowPathIcon } from '@heroicons/vue/24/outline'
 import StatusBadge from '../common/StatusBadge.vue'
 import { apiClient } from '../../services/api'
 
@@ -165,6 +176,7 @@ const totalExecutions = ref(0)
 const pageSize = 20
 const autoRefresh = ref(true)
 const statusFilter = ref<string>('')
+const refreshing = ref(false)
 
 // Computed
 const totalPages = computed(() => Math.ceil(totalExecutions.value / pageSize))
@@ -268,5 +280,17 @@ function clearFilter() {
   statusFilter.value = ''
   currentPage.value = 1
   fetchExecutions()
+}
+
+async function refreshExecutions() {
+  refreshing.value = true
+  try {
+    await fetchExecutions()
+  } finally {
+    // Keep spinning animation for at least 500ms for visual feedback
+    setTimeout(() => {
+      refreshing.value = false
+    }, 500)
+  }
 }
 </script>
