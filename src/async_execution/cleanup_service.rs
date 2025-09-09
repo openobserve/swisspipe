@@ -1,24 +1,24 @@
 use crate::database::{workflow_executions, workflow_execution_steps};
 use crate::workflow::errors::Result;
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, PaginatorTrait};
+use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, PaginatorTrait, DeleteResult};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
 
 pub struct CleanupService {
     db: Arc<DatabaseConnection>,
-    retention_hours: u64,
+    retention_count: u64,
     cleanup_interval_minutes: u64,
     is_running: std::sync::atomic::AtomicBool,
 }
 
 impl CleanupService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
-        // Get retention period from environment variable, default to 1 hour
-        let retention_hours = std::env::var("SP_EXECUTION_RETENTION_HOURS")
+        // Get retention count from environment variable, default to 100
+        let retention_count = std::env::var("SP_EXECUTION_RETENTION_COUNT")
             .ok()
             .and_then(|s| s.parse().ok())
-            .unwrap_or(1);
+            .unwrap_or(100);
 
         // Get cleanup interval from environment variable, default to 1 minute
         let cleanup_interval_minutes = std::env::var("SP_CLEANUP_INTERVAL_MINUTES")
@@ -27,14 +27,14 @@ impl CleanupService {
             .unwrap_or(1);
 
         tracing::info!(
-            "CleanupService configured: retention_hours={}, cleanup_interval_minutes={}",
-            retention_hours,
+            "CleanupService configured: retention_count={}, cleanup_interval_minutes={}",
+            retention_count,
             cleanup_interval_minutes
         );
 
         Self {
             db,
-            retention_hours,
+            retention_count,
             cleanup_interval_minutes,
             is_running: std::sync::atomic::AtomicBool::new(false),
         }
@@ -101,64 +101,97 @@ impl CleanupService {
 
     /// Perform the actual cleanup of old records
     async fn perform_cleanup(&self) -> Result<(u64, u64)> {
-        let cutoff_time = self.calculate_cutoff_time();
-        
-        tracing::debug!("Performing cleanup for records older than timestamp: {}", cutoff_time);
+        tracing::debug!("Performing cleanup to keep last {} executions per workflow", self.retention_count);
 
         // First delete execution steps (they have foreign key to executions)
-        let deleted_steps = self.delete_old_execution_steps(cutoff_time).await?;
+        let deleted_steps = self.delete_old_execution_steps_by_count().await?;
 
         // Then delete executions
-        let deleted_executions = self.delete_old_executions(cutoff_time).await?;
+        let deleted_executions = self.delete_old_executions_by_count().await?;
 
         Ok((deleted_executions, deleted_steps))
     }
 
-    /// Calculate the cutoff timestamp for cleanup (retention period ago)
-    fn calculate_cutoff_time(&self) -> i64 {
-        let retention_microseconds = self.retention_hours * 60 * 60 * 1_000_000; // Convert hours to microseconds
-        let now = chrono::Utc::now().timestamp_micros();
-        now - retention_microseconds as i64
-    }
+    /// Delete old execution steps based on count per workflow
+    async fn delete_old_execution_steps_by_count(&self) -> Result<u64> {
+        // First get all executions that should be deleted
+        let executions_to_delete = self.get_executions_to_delete().await?;
+        
+        if executions_to_delete.is_empty() {
+            return Ok(0);
+        }
 
-    /// Delete old execution steps
-    async fn delete_old_execution_steps(&self, cutoff_time: i64) -> Result<u64> {
-        use sea_orm::DeleteResult;
-
+        // Delete steps for those executions
         let result: DeleteResult = workflow_execution_steps::Entity::delete_many()
-            .filter(workflow_execution_steps::Column::CreatedAt.lt(cutoff_time))
+            .filter(workflow_execution_steps::Column::ExecutionId.is_in(executions_to_delete))
             .exec(self.db.as_ref())
             .await?;
 
         Ok(result.rows_affected)
     }
 
-    /// Delete old executions
-    async fn delete_old_executions(&self, cutoff_time: i64) -> Result<u64> {
-        use sea_orm::DeleteResult;
+    /// Delete old executions based on count per workflow
+    async fn delete_old_executions_by_count(&self) -> Result<u64> {
+        let executions_to_delete = self.get_executions_to_delete().await?;
+        
+        if executions_to_delete.is_empty() {
+            return Ok(0);
+        }
 
         let result: DeleteResult = workflow_executions::Entity::delete_many()
-            .filter(workflow_executions::Column::CreatedAt.lt(cutoff_time))
+            .filter(workflow_executions::Column::Id.is_in(executions_to_delete))
             .exec(self.db.as_ref())
             .await?;
 
         Ok(result.rows_affected)
+    }
+
+    /// Get list of execution IDs that should be deleted (keeping last N per workflow)
+    async fn get_executions_to_delete(&self) -> Result<Vec<String>> {
+        use sea_orm::{Statement, ConnectionTrait, DatabaseBackend};
+        
+        // SQL to find executions to delete - keeps last N executions per workflow
+        // We use a window function to rank executions by created_at within each workflow
+        let sql = format!(
+            r#"
+            SELECT id FROM (
+                SELECT id,
+                       ROW_NUMBER() OVER (PARTITION BY workflow_id ORDER BY created_at DESC) as row_num
+                FROM workflow_executions
+            ) ranked
+            WHERE row_num > {}
+            "#,
+            self.retention_count
+        );
+        
+        let statement = Statement::from_string(DatabaseBackend::Sqlite, sql);
+        let query_result = self.db.query_all(statement).await?;
+        
+        let mut executions_to_delete = Vec::new();
+        for row in query_result {
+            if let Ok(id) = row.try_get_by_index::<String>(0) {
+                executions_to_delete.push(id);
+            }
+        }
+        
+        Ok(executions_to_delete)
     }
 
     /// Get cleanup statistics (for monitoring endpoints)
     pub async fn get_cleanup_stats(&self) -> Result<CleanupStats> {
-        let cutoff_time = self.calculate_cutoff_time();
+        // Count executions that would be cleaned up (old executions beyond retention count)
+        let executions_to_delete = self.get_executions_to_delete().await?;
+        let old_executions = executions_to_delete.len() as u64;
 
-        // Count records that would be cleaned up
-        let old_executions = workflow_executions::Entity::find()
-            .filter(workflow_executions::Column::CreatedAt.lt(cutoff_time))
-            .count(self.db.as_ref())
-            .await?;
-
-        let old_steps = workflow_execution_steps::Entity::find()
-            .filter(workflow_execution_steps::Column::CreatedAt.lt(cutoff_time))
-            .count(self.db.as_ref())
-            .await?;
+        // Count steps that would be deleted (steps belonging to old executions)
+        let old_steps = if executions_to_delete.is_empty() {
+            0
+        } else {
+            workflow_execution_steps::Entity::find()
+                .filter(workflow_execution_steps::Column::ExecutionId.is_in(executions_to_delete))
+                .count(self.db.as_ref())
+                .await?
+        };
 
         // Count total records
         let total_executions = workflow_executions::Entity::find()
@@ -170,10 +203,9 @@ impl CleanupService {
             .await?;
 
         Ok(CleanupStats {
-            retention_hours: self.retention_hours,
+            retention_count: self.retention_count,
             cleanup_interval_minutes: self.cleanup_interval_minutes,
             is_running: self.is_running.load(std::sync::atomic::Ordering::SeqCst),
-            cutoff_timestamp: cutoff_time,
             old_executions,
             old_steps,
             total_executions,
@@ -186,7 +218,7 @@ impl Clone for CleanupService {
     fn clone(&self) -> Self {
         Self {
             db: self.db.clone(),
-            retention_hours: self.retention_hours,
+            retention_count: self.retention_count,
             cleanup_interval_minutes: self.cleanup_interval_minutes,
             is_running: std::sync::atomic::AtomicBool::new(
                 self.is_running.load(std::sync::atomic::Ordering::SeqCst)
@@ -197,10 +229,9 @@ impl Clone for CleanupService {
 
 #[derive(Debug, serde::Serialize)]
 pub struct CleanupStats {
-    pub retention_hours: u64,
+    pub retention_count: u64,
     pub cleanup_interval_minutes: u64,
     pub is_running: bool,
-    pub cutoff_timestamp: i64,
     pub old_executions: u64,
     pub old_steps: u64,
     pub total_executions: u64,
@@ -212,34 +243,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_cutoff_time_calculation() {
-        // Set a known retention period
+    fn test_retention_count_configuration() {
+        // Set a known retention count
         let db = Arc::new(sea_orm::DatabaseConnection::default()); // Mock for testing
         
-        // Test with 2 hours retention
-        std::env::set_var("SP_EXECUTION_RETENTION_HOURS", "2");
+        // Test with 50 executions retention
+        std::env::set_var("SP_EXECUTION_RETENTION_COUNT", "50");
         let service = CleanupService::new(db);
         
-        assert_eq!(service.retention_hours, 2);
-        
-        let cutoff = service.calculate_cutoff_time();
-        let now = chrono::Utc::now().timestamp_micros();
-        let expected_cutoff = now - (2 * 60 * 60 * 1_000_000);
-        
-        // Allow for small timing differences (within 1 second)
-        assert!((cutoff - expected_cutoff).abs() < 1_000_000);
+        assert_eq!(service.retention_count, 50);
     }
 
     #[test]
     fn test_default_configuration() {
         // Clear environment variables
-        std::env::remove_var("SP_EXECUTION_RETENTION_HOURS");
+        std::env::remove_var("SP_EXECUTION_RETENTION_COUNT");
         std::env::remove_var("SP_CLEANUP_INTERVAL_MINUTES");
         
         let db = Arc::new(sea_orm::DatabaseConnection::default()); // Mock for testing
         let service = CleanupService::new(db);
         
-        assert_eq!(service.retention_hours, 1);
+        assert_eq!(service.retention_count, 100);
         assert_eq!(service.cleanup_interval_minutes, 1);
     }
 }
