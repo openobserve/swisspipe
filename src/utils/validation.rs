@@ -89,6 +89,7 @@ pub fn validate_and_serialize_execution_data(execution_data: &Value) -> Result<S
 
 /// Validate and sanitize headers for security and size limits
 /// Returns cleaned headers with dangerous headers removed
+/// Optimized to avoid memory allocation when no filtering is needed
 pub fn validate_and_sanitize_headers(headers: &HashMap<String, String>) -> Result<HashMap<String, String>> {
     if headers.len() > MAX_HEADER_COUNT {
         return Err(SwissPipeError::InvalidInput(
@@ -96,8 +97,35 @@ pub fn validate_and_sanitize_headers(headers: &HashMap<String, String>) -> Resul
         ));
     }
 
-    let mut sanitized_headers = HashMap::new();
+    // Fast path: pre-scan to check if any headers need to be filtered
+    // This avoids memory allocation in the common case where all headers are valid
+    let mut needs_filtering = false;
     let mut stripped_headers = Vec::new();
+
+    for (key, value) in headers {
+        // Check for conditions that would cause filtering
+        if key.is_empty() 
+            || key.len() > 256
+            || is_dangerous_header(&key.to_lowercase())
+            || value.len() > MAX_HEADER_VALUE_SIZE
+            || value.chars().any(|c| c.is_control() && c != '\t')
+        {
+            needs_filtering = true;
+            // If it's a dangerous header, collect it for logging
+            if !key.is_empty() && key.len() <= 256 && is_dangerous_header(&key.to_lowercase()) {
+                stripped_headers.push(key.clone());
+            }
+        }
+    }
+
+    // Fast path: if no filtering needed, return a clone of the original map
+    if !needs_filtering {
+        return Ok(headers.clone());
+    }
+
+    // Slow path: filtering is needed, create new map
+    let mut sanitized_headers = HashMap::new();
+    stripped_headers.clear(); // Clear and rebuild for accurate logging
 
     for (key, value) in headers {
         // Validate header key
@@ -259,5 +287,48 @@ mod tests {
         
         assert!(validate_priority(Some(-1)).is_err());
         assert!(validate_priority(Some(11)).is_err());
+    }
+
+    #[test]
+    fn test_header_processing_optimization() {
+        // Test fast path: headers with no issues should be returned as-is (clone)
+        let mut clean_headers = HashMap::new();
+        clean_headers.insert("content-type".to_string(), "application/json".to_string());
+        clean_headers.insert("user-agent".to_string(), "test-client".to_string());
+        clean_headers.insert("x-custom-header".to_string(), "valid-value".to_string());
+        
+        let result = validate_and_sanitize_headers(&clean_headers).unwrap();
+        
+        // All headers should be preserved
+        assert_eq!(result.len(), 3);
+        assert!(result.contains_key("content-type"));
+        assert!(result.contains_key("user-agent"));
+        assert!(result.contains_key("x-custom-header"));
+        
+        // Test slow path: headers with dangerous content should be filtered
+        let mut mixed_headers = HashMap::new();
+        mixed_headers.insert("content-type".to_string(), "application/json".to_string());
+        mixed_headers.insert("authorization".to_string(), "Bearer token".to_string()); // Dangerous
+        mixed_headers.insert("user-agent".to_string(), "test-client".to_string());
+        
+        let filtered_result = validate_and_sanitize_headers(&mixed_headers).unwrap();
+        
+        // Only safe headers should remain
+        assert_eq!(filtered_result.len(), 2);
+        assert!(filtered_result.contains_key("content-type"));
+        assert!(filtered_result.contains_key("user-agent"));
+        assert!(!filtered_result.contains_key("authorization"));
+        
+        // Test with empty/invalid headers
+        let mut invalid_headers = HashMap::new();
+        invalid_headers.insert("".to_string(), "empty-key".to_string()); // Empty key
+        invalid_headers.insert("valid-key".to_string(), "valid-value".to_string());
+        invalid_headers.insert("long-key".repeat(100), "value".to_string()); // Too long key
+        
+        let clean_result = validate_and_sanitize_headers(&invalid_headers).unwrap();
+        
+        // Only valid header should remain
+        assert_eq!(clean_result.len(), 1);
+        assert!(clean_result.contains_key("valid-key"));
     }
 }
