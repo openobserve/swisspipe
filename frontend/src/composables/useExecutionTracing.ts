@@ -11,7 +11,6 @@ export function useExecutionTracing() {
   const inspectedNode = ref<any>(null)
 
   async function onTraceExecution(executionData: any) {
-    console.log('Tracing execution:', executionData)
     tracingExecution.value = executionData
     
     try {
