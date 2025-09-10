@@ -7,6 +7,7 @@ pub mod workflow_execution_steps;
 pub mod job_queue;
 pub mod email_queue;
 pub mod email_audit_log;
+pub mod scheduled_delays;
 
 use sea_orm::{Database, DatabaseConnection, DbErr};
 use sea_orm_migration::MigratorTrait;

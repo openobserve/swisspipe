@@ -173,6 +173,39 @@
           @update:modelValue="updateNodeData"
         />
       </div>
+
+      <!-- Delay Node Configuration -->
+      <div v-if="selectedNodeData.type === 'delay'">
+        <h3 class="text-sm font-semibold text-gray-300 mb-3">Delay Configuration</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Duration</label>
+            <input
+              v-model.number="localNodeData.config.duration"
+              @blur="updateNodeData"
+              type="number"
+              min="1"
+              class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Unit</label>
+            <select
+              v-model="localNodeData.config.unit"
+              @change="updateNodeData"
+              class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="Seconds">Seconds</option>
+              <option value="Minutes">Minutes</option>
+              <option value="Hours">Hours</option>
+              <option value="Days">Days</option>
+            </select>
+          </div>
+          <div class="text-sm text-gray-400">
+            The workflow will pause for {{ localNodeData.config.duration }} {{ localNodeData.config.unit.toLowerCase() }} before continuing.
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Actions -->

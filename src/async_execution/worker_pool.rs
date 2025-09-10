@@ -1,4 +1,4 @@
-use crate::async_execution::{ExecutionService, JobManager};
+use crate::async_execution::{ExecutionService, JobManager, DelayScheduler};
 use crate::database::{
     workflow_executions::ExecutionStatus,
     workflow_execution_steps::StepStatus,
@@ -27,6 +27,7 @@ pub struct WorkerPool {
     workers: Arc<RwLock<Vec<Worker>>>,
     is_running: Arc<AtomicBool>,
     processed_jobs: Arc<AtomicU64>,
+    delay_scheduler: Arc<RwLock<Option<Arc<DelayScheduler>>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -85,6 +86,7 @@ impl WorkerPool {
             workers: Arc::new(RwLock::new(Vec::new())),
             is_running: Arc::new(AtomicBool::new(false)),
             processed_jobs: Arc::new(AtomicU64::new(0)),
+            delay_scheduler: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -121,7 +123,7 @@ impl WorkerPool {
         let steps = self.execution_service.get_execution_steps(execution_id).await?;
         let completed_steps: std::collections::HashMap<String, _> = steps
             .into_iter()
-            .filter(|step| matches!(step.status.as_str(), "completed" | "skipped"))
+            .filter(|step| matches!(step.status.as_str(), "completed" | "skipped" | "cancelled"))
             .map(|step| (step.node_name.clone(), step))
             .collect();
         
@@ -172,7 +174,7 @@ impl WorkerPool {
                     .await?;
                 
                 // Execute the node
-                match self.execute_node_with_tracking(execution_id, node, current_event).await {
+                match self.execute_node_with_tracking(execution_id, workflow, node, current_event).await {
                     Ok(result_event) => {
                         // Mark step as completed
                         let output_data = serde_json::to_value(&result_event).ok();
@@ -180,6 +182,12 @@ impl WorkerPool {
                             .update_execution_step(&step_id, StepStatus::Completed, output_data, None)
                             .await?;
                         current_event = result_event;
+                    }
+                    Err(SwissPipeError::DelayScheduled(delay_id)) => {
+                        // DelayScheduled - keep step as running during delay period
+                        // Step will be marked completed when delay finishes and workflow resumes
+                        tracing::info!("Delay scheduled with ID: {} for step {}", delay_id, step_id);
+                        return Err(SwissPipeError::DelayScheduled(delay_id));
                     }
                     Err(e) => {
                         // Mark step as failed
@@ -208,11 +216,13 @@ impl WorkerPool {
                         let event_clone = current_event.clone();
                         let execution_service = self.execution_service.clone();
                         let workflow_engine = self.workflow_engine.clone();
+                        let delay_scheduler = self.delay_scheduler.clone();
                         
                         let handle = tokio::spawn(async move {
                             let worker_pool = WorkerPoolForBranch {
                                 execution_service,
                                 workflow_engine,
+                                delay_scheduler,
                             };
                             
                             tracing::debug!("Starting parallel branch execution for node: {}", next_node_name);
@@ -259,6 +269,7 @@ impl WorkerPool {
     async fn execute_node_with_tracking(
         &self,
         execution_id: &str,
+        workflow: &Workflow,
         node: &crate::workflow::models::Node,
         mut event: WorkflowEvent,
     ) -> Result<WorkflowEvent> {
@@ -330,6 +341,69 @@ impl WorkerPool {
                         tracing::error!("Email node '{}' failed: {}", node.name, e);
                         Err(SwissPipeError::Generic(format!("Email node failed: {e}")))
                     }
+                }
+            }
+            NodeType::Delay { duration, unit } => {
+                use crate::workflow::models::DelayUnit;
+                use chrono::Duration as ChronoDuration;
+                
+                // Convert delay duration to chrono Duration
+                let delay_duration = match unit {
+                    DelayUnit::Seconds => ChronoDuration::seconds(*duration as i64),
+                    DelayUnit::Minutes => ChronoDuration::minutes(*duration as i64),
+                    DelayUnit::Hours => ChronoDuration::hours(*duration as i64),
+                    DelayUnit::Days => ChronoDuration::days(*duration as i64),
+                };
+                
+                tracing::info!("Delay node '{}' scheduling delay for {} {:?}", 
+                    node.name, duration, unit);
+                
+                // Get DelayScheduler from WorkerPool
+                if let Some(delay_scheduler) = self.get_delay_scheduler().await {
+                    // Find next node to continue execution
+                    let next_nodes = self.get_next_nodes(workflow, &node.name, &event)?;
+                    if let Some(next_node_name) = next_nodes.first() {
+                        // Schedule the delay and pause execution
+                        match delay_scheduler.schedule_delay(
+                            execution_id.to_string(),
+                            node.name.clone(),
+                            next_node_name.clone(),
+                            delay_duration,
+                            event.clone(),
+                        ).await {
+                            Ok(delay_id) => {
+                                tracing::info!(
+                                    "Delay node '{}' scheduled with ID '{}' - execution will resume at '{}'",
+                                    node.name, delay_id, next_node_name
+                                );
+                                
+                                // Return a special signal to pause workflow execution here
+                                // The workflow will be resumed by the scheduler
+                                Err(SwissPipeError::DelayScheduled(delay_id))
+                            }
+                            Err(e) => {
+                                tracing::error!("Failed to schedule delay for node '{}': {}", node.name, e);
+                                Err(e)
+                            }
+                        }
+                    } else {
+                        tracing::warn!("Delay node '{}' has no next nodes - delay will be ignored", node.name);
+                        Ok(event)
+                    }
+                } else {
+                    tracing::error!("DelayScheduler not available - falling back to blocking delay");
+                    // Fallback to old blocking behavior if scheduler is not available
+                    use tokio::time::{sleep, Duration};
+                    let delay_ms = match unit {
+                        DelayUnit::Seconds => duration.saturating_mul(1000),
+                        DelayUnit::Minutes => duration.saturating_mul(60).saturating_mul(1000),
+                        DelayUnit::Hours => duration.saturating_mul(60).saturating_mul(60).saturating_mul(1000),
+                        DelayUnit::Days => duration.saturating_mul(24).saturating_mul(60).saturating_mul(60).saturating_mul(1000),
+                    };
+                    // No artificial delay limit since DelayScheduler supports unlimited duration
+                    sleep(Duration::from_millis(delay_ms)).await;
+                    tracing::debug!("Delay node '{}' completed (blocking fallback)", node.name);
+                    Ok(event)
                 }
             }
         }
@@ -554,7 +628,29 @@ impl WorkerPool {
         // Update worker status
         self.update_worker_status(worker_id, WorkerStatus::Busy, Some(job.id.clone())).await;
 
-        // Mark job as processing
+        // Check if execution was cancelled BEFORE marking job as processing
+        match self.execution_service.get_execution(&job.execution_id).await {
+            Ok(Some(execution)) => {
+                if execution.status == "cancelled" {
+                    tracing::info!("Skipping job {} - execution {} was cancelled", job.id, job.execution_id);
+                    // Mark job as failed with cancellation message (job is still in claimed state)
+                    if let Err(e) = self.job_manager.fail_job(&job.id, "Execution was cancelled".to_string()).await {
+                        tracing::error!("Failed to mark cancelled job {} as failed: {}", job.id, e);
+                    }
+                    return Ok(true);
+                }
+            }
+            Ok(None) => {
+                tracing::warn!("Execution {} not found for job {}", job.execution_id, job.id);
+                // Continue processing - might be a race condition
+            }
+            Err(e) => {
+                tracing::error!("Failed to check execution status for job {}: {}", job.id, e);
+                // Continue processing - don't fail job due to status check error
+            }
+        }
+
+        // Mark job as processing (only if execution is not cancelled)
         if let Err(e) = self.job_manager.start_job_processing(&job.id).await {
             tracing::error!("Failed to mark job {} as processing: {}", job.id, e);
             return Ok(true);
@@ -571,6 +667,15 @@ impl WorkerPool {
                 }
                 self.processed_jobs.fetch_add(1, Ordering::SeqCst);
                 tracing::info!("Worker {} completed job {}", worker_id, job.id);
+            }
+            Err(SwissPipeError::DelayScheduled(delay_id)) => {
+                // DelayScheduled is a successful operation, not a failure
+                if let Err(e) = self.job_manager.complete_job(&job.id).await {
+                    tracing::error!("Failed to mark delayed job {} as completed: {}", job.id, e);
+                }
+                self.processed_jobs.fetch_add(1, Ordering::SeqCst);
+                tracing::info!("Worker {} successfully scheduled delay {} for job {}", 
+                    worker_id, delay_id, job.id);
             }
             Err(e) => {
                 tracing::error!("Worker {} failed job {}: {}", worker_id, job.id, e);
@@ -659,6 +764,7 @@ impl WorkerPool {
                     retry_count: Set(0),
                     status: Set("pending".to_string()),
                     error_message: Set(Some("Recovered from crash".to_string())),
+                    payload: Set(None), // Regular workflow execution, no special payload
                     created_at: Set(chrono::Utc::now().timestamp_micros()),
                     updated_at: Set(chrono::Utc::now().timestamp_micros()),
                 };
@@ -674,6 +780,27 @@ impl WorkerPool {
     }
 
     async fn execute_workflow_job(&self, job: &crate::database::job_queue::Model) -> Result<()> {
+        // Check for special job payloads (e.g., workflow_resume from DelayScheduler)
+        if let Some(payload_json) = &job.payload {
+            match serde_json::from_str::<serde_json::Value>(payload_json) {
+                Ok(payload) => {
+                    if let Some(job_type) = payload.get("type").and_then(|v| v.as_str()) {
+                        if job_type == "workflow_resume" {
+                            // Handle workflow resumption after delay
+                            return self.handle_workflow_resume_job(payload).await;
+                        }
+                        // Unknown job type - log warning and proceed with regular execution
+                        tracing::warn!("Unknown job type '{}' in payload for job {}", job_type, job.id);
+                    }
+                }
+                Err(e) => {
+                    // Invalid payload JSON - log error and proceed with regular execution
+                    tracing::error!("Failed to parse job payload for job {}: {}", job.id, e);
+                }
+            }
+        }
+
+        // Regular workflow execution
         // Get the execution details
         let execution = self.execution_service
             .get_execution(&job.execution_id)
@@ -741,6 +868,11 @@ impl WorkerPool {
                 tracing::info!("Successfully executed workflow for execution {}", job.execution_id);
                 Ok(())
             }
+            Err(SwissPipeError::DelayScheduled(delay_id)) => {
+                // DelayScheduled - keep execution as running during delay period
+                tracing::info!("Workflow execution {} paused for delay {}", job.execution_id, delay_id);
+                Ok(()) // Return success since delay was scheduled successfully
+            }
             Err(e) => {
                 // Update execution as failed
                 self.execution_service
@@ -791,6 +923,7 @@ impl WorkerPool {
 struct WorkerPoolForBranch {
     execution_service: Arc<ExecutionService>,
     workflow_engine: Arc<crate::workflow::engine::WorkflowEngine>,
+    delay_scheduler: Arc<RwLock<Option<Arc<DelayScheduler>>>>,
 }
 
 impl WorkerPoolForBranch {
@@ -837,7 +970,7 @@ impl WorkerPoolForBranch {
                 .await?;
             
             // Execute the node
-            match self.execute_node_static(execution_id, node, event).await {
+            match self.execute_node_static(execution_id, workflow, node, event).await {
                 Ok(result_event) => {
                     // Mark step as completed
                     let output_data = serde_json::to_value(&result_event).ok();
@@ -846,6 +979,12 @@ impl WorkerPoolForBranch {
                         .await?;
                     
                     event = result_event;
+                }
+                Err(SwissPipeError::DelayScheduled(delay_id)) => {
+                    // DelayScheduled - keep step as running during delay period
+                    // Step will be marked completed when delay finishes and workflow resumes
+                    tracing::info!("Delay scheduled with ID: {} for step {}", delay_id, step_id);
+                    return Err(SwissPipeError::DelayScheduled(delay_id));
                 }
                 Err(e) => {
                     // Mark step as failed
@@ -890,6 +1029,7 @@ impl WorkerPoolForBranch {
     async fn execute_node_static(
         &self,
         execution_id: &str,
+        workflow: &Workflow,
         node: &crate::workflow::models::Node,
         mut event: WorkflowEvent,
     ) -> Result<WorkflowEvent> {
@@ -946,6 +1086,69 @@ impl WorkerPoolForBranch {
                     }
                 }
             }
+            NodeType::Delay { duration, unit } => {
+                use crate::workflow::models::DelayUnit;
+                use chrono::Duration as ChronoDuration;
+                
+                // Convert delay duration to chrono Duration
+                let delay_duration = match unit {
+                    DelayUnit::Seconds => ChronoDuration::seconds(*duration as i64),
+                    DelayUnit::Minutes => ChronoDuration::minutes(*duration as i64),
+                    DelayUnit::Hours => ChronoDuration::hours(*duration as i64),
+                    DelayUnit::Days => ChronoDuration::days(*duration as i64),
+                };
+                
+                tracing::info!("Delay node '{}' scheduling delay for {} {:?}", 
+                    node.name, duration, unit);
+                
+                // Get DelayScheduler from WorkerPool
+                if let Some(delay_scheduler) = self.get_delay_scheduler().await {
+                    // Find next node to continue execution
+                    let next_nodes = self.get_next_nodes_static(workflow, &node.name, &event)?;
+                    if let Some(next_node_name) = next_nodes.first() {
+                        // Schedule the delay and pause execution
+                        match delay_scheduler.schedule_delay(
+                            execution_id.to_string(),
+                            node.name.clone(),
+                            next_node_name.clone(),
+                            delay_duration,
+                            event.clone(),
+                        ).await {
+                            Ok(delay_id) => {
+                                tracing::info!(
+                                    "Delay node '{}' scheduled with ID '{}' - execution will resume at '{}'",
+                                    node.name, delay_id, next_node_name
+                                );
+                                
+                                // Return a special signal to pause workflow execution here
+                                // The workflow will be resumed by the scheduler
+                                Err(SwissPipeError::DelayScheduled(delay_id))
+                            }
+                            Err(e) => {
+                                tracing::error!("Failed to schedule delay for node '{}': {}", node.name, e);
+                                Err(e)
+                            }
+                        }
+                    } else {
+                        tracing::warn!("Delay node '{}' has no next nodes - delay will be ignored", node.name);
+                        Ok(event)
+                    }
+                } else {
+                    tracing::error!("DelayScheduler not available - falling back to blocking delay");
+                    // Fallback to old blocking behavior if scheduler is not available
+                    use tokio::time::{sleep, Duration};
+                    let delay_ms = match unit {
+                        DelayUnit::Seconds => duration.saturating_mul(1000),
+                        DelayUnit::Minutes => duration.saturating_mul(60).saturating_mul(1000),
+                        DelayUnit::Hours => duration.saturating_mul(60).saturating_mul(60).saturating_mul(1000),
+                        DelayUnit::Days => duration.saturating_mul(24).saturating_mul(60).saturating_mul(60).saturating_mul(1000),
+                    };
+                    // No artificial delay limit since DelayScheduler supports unlimited duration
+                    sleep(Duration::from_millis(delay_ms)).await;
+                    tracing::debug!("Delay node '{}' completed (blocking fallback)", node.name);
+                    Ok(event)
+                }
+            }
         }
     }
     
@@ -975,6 +1178,179 @@ impl WorkerPoolForBranch {
         }
         
         Ok(next_nodes)
+    }
+
+    
+    /// Get the delay scheduler  
+    async fn get_delay_scheduler(&self) -> Option<Arc<DelayScheduler>> {
+        let delay_scheduler = self.delay_scheduler.read().await;
+        delay_scheduler.clone()
+    }
+}
+
+impl WorkerPool {
+    /// Set the delay scheduler (called after initialization)
+    pub async fn set_delay_scheduler(&self, scheduler: Arc<DelayScheduler>) {
+        let mut delay_scheduler = self.delay_scheduler.write().await;
+        *delay_scheduler = Some(scheduler);
+    }
+
+    /// Get the delay scheduler
+    async fn get_delay_scheduler(&self) -> Option<Arc<DelayScheduler>> {
+        let delay_scheduler = self.delay_scheduler.read().await;
+        delay_scheduler.clone()
+    }
+
+    /// Get the job manager
+    pub fn get_job_manager(&self) -> Arc<JobManager> {
+        self.job_manager.clone()
+    }
+
+    /// Cancel execution comprehensively including scheduled delays
+    pub async fn cancel_execution_with_delays(&self, execution_id: &str) -> Result<()> {
+        tracing::info!("Starting comprehensive execution cancellation with delays for: {}", execution_id);
+        
+        // First, cancel via execution service (jobs, steps, execution status)
+        self.execution_service.cancel_execution(execution_id).await?;
+        
+        // Then, cancel any scheduled delays
+        let delay_scheduler = self.delay_scheduler.read().await;
+        if let Some(scheduler) = delay_scheduler.as_ref() {
+            match scheduler.cancel_delays_for_execution(execution_id).await {
+                Ok(cancelled_count) => {
+                    if cancelled_count > 0 {
+                        tracing::info!("Cancelled {} scheduled delays for execution {}", cancelled_count, execution_id);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to cancel delays for execution {}: {}", execution_id, e);
+                    // Don't fail the entire cancellation if delay cancellation fails
+                }
+            }
+        } else {
+            tracing::warn!("DelayScheduler not available for cancelling delays in execution {}", execution_id);
+        }
+        
+        tracing::info!("Completed comprehensive execution cancellation for: {}", execution_id);
+        Ok(())
+    }
+
+    /// Handle workflow resumption job from DelayScheduler
+    async fn handle_workflow_resume_job(&self, payload: serde_json::Value) -> Result<()> {
+        // Extract payload data
+        let execution_id = payload.get("execution_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| SwissPipeError::Generic("Missing execution_id in workflow_resume payload".to_string()))?;
+        
+        let current_node_name = payload.get("current_node_name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| SwissPipeError::Generic("Missing current_node_name in workflow_resume payload".to_string()))?;
+        
+        let next_node_name = payload.get("next_node_name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| SwissPipeError::Generic("Missing next_node_name in workflow_resume payload".to_string()))?;
+        
+        let delay_id = payload.get("delay_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| SwissPipeError::Generic("Missing delay_id in workflow_resume payload".to_string()))?;
+        
+        let workflow_state: WorkflowEvent = serde_json::from_value(
+            payload.get("workflow_state")
+                .ok_or_else(|| SwissPipeError::Generic("Missing workflow_state in workflow_resume payload".to_string()))?
+                .clone()
+        ).map_err(|e| SwissPipeError::Generic(format!("Failed to deserialize workflow state from resume payload: {e}")))?;
+
+        // Mark the delay step as completed now that the delay has finished
+        let steps = self.execution_service.get_execution_steps(execution_id).await?;
+        if let Some(delay_step) = steps.iter().find(|s| s.node_name == current_node_name && s.status == "running") {
+            let output_data = serde_json::json!({
+                "delay_completed": true,
+                "delay_id": delay_id,
+                "delayed_for_ms": "delay_completed"  // Could calculate actual delay time if needed
+            });
+            self.execution_service
+                .update_execution_step(&delay_step.id, StepStatus::Completed, Some(serde_json::to_value(&output_data).unwrap()), None)
+                .await?;
+            tracing::info!("Marked delay step '{}' as completed after delay {}", current_node_name, delay_id);
+        } else {
+            tracing::warn!("Could not find running delay step '{}' for execution '{}'", current_node_name, execution_id);
+        }
+
+        tracing::info!(
+            "Resuming workflow execution '{}' from node '{}' after delay {}",
+            execution_id, next_node_name, delay_id
+        );
+
+        // Resume execution from the specified node (execute_workflow_from_node handles execution status updates)
+        match self.execute_workflow_from_node(execution_id.to_string(), next_node_name.to_string(), workflow_state).await {
+            Ok(()) => {
+                // Update execution as completed
+                self.execution_service
+                    .update_execution_status(
+                        execution_id,
+                        ExecutionStatus::Completed,
+                        None,
+                        None,
+                    )
+                    .await?;
+                tracing::info!("Successfully resumed and completed workflow execution {}", execution_id);
+                Ok(())
+            }
+            Err(SwissPipeError::DelayScheduled(_delay_id)) => {
+                // Another delay was encountered - this is normal
+                tracing::info!("Workflow execution {} paused again for another delay", execution_id);
+                Ok(())
+            }
+            Err(e) => {
+                // Update execution as failed
+                self.execution_service
+                    .update_execution_status(
+                        execution_id,
+                        ExecutionStatus::Failed,
+                        None,
+                        Some(e.to_string()),
+                    )
+                    .await?;
+                tracing::error!("Failed to resume workflow execution {}: {}", execution_id, e);
+                Err(e)
+            }
+        }
+    }
+
+    /// Execute workflow from a specific node - used for resuming after delays
+    pub async fn execute_workflow_from_node(
+        &self,
+        execution_id: String,
+        start_node_name: String, 
+        event: WorkflowEvent,
+    ) -> Result<()> {
+        // Get the workflow from the execution record
+        let execution_record = self.execution_service
+            .get_execution(&execution_id)
+            .await?
+            .ok_or_else(|| SwissPipeError::Generic(format!("Execution not found: {execution_id}")))?;
+
+        let workflow = self.workflow_engine
+            .get_workflow(&execution_record.workflow_id)
+            .await?
+            .ok_or_else(|| SwissPipeError::Generic(format!("Workflow not found: {}", execution_record.workflow_id)))?;
+
+        // Create a worker pool instance for branch execution
+        let worker_pool_for_branch = WorkerPoolForBranch {
+            execution_service: Arc::clone(&self.execution_service),
+            workflow_engine: Arc::clone(&self.workflow_engine),
+            delay_scheduler: Arc::clone(&self.delay_scheduler),
+        };
+
+        // Execute from the specified node
+        worker_pool_for_branch.execute_branch_static(
+            &execution_id,
+            &workflow,
+            start_node_name,
+            event,
+        ).await?;
+
+        Ok(())
     }
 
 }

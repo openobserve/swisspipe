@@ -83,6 +83,14 @@ impl WorkflowEngine {
         })
     }
     
+    pub async fn get_workflow(&self, workflow_id: &str) -> Result<Option<Workflow>> {
+        match self.load_workflow(workflow_id).await {
+            Ok(workflow) => Ok(Some(workflow)),
+            Err(SwissPipeError::WorkflowNotFound(_)) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+    
     pub async fn execute_workflow(&self, workflow: &Workflow, event: WorkflowEvent) -> Result<WorkflowEvent> {
         let mut current_event = event;
         let mut current_node_name = workflow.start_node_name.clone();
@@ -185,6 +193,29 @@ impl WorkflowEngine {
                         Err(SwissPipeError::Generic(format!("Email node failed: {e}")))
                     }
                 }
+            }
+            NodeType::Delay { duration, unit } => {
+                use crate::workflow::models::DelayUnit;
+                use tokio::time::{sleep, Duration};
+                
+                // Convert delay duration to milliseconds
+                let delay_ms = match unit {
+                    DelayUnit::Seconds => duration * 1000,
+                    DelayUnit::Minutes => duration * 60 * 1000,
+                    DelayUnit::Hours => duration * 60 * 60 * 1000,
+                    DelayUnit::Days => duration * 24 * 60 * 60 * 1000,
+                };
+                
+                tracing::info!("Delay node '{}' waiting for {} {:?} ({} ms)", 
+                    node.name, duration, unit, delay_ms);
+                
+                // Execute the delay
+                sleep(Duration::from_millis(delay_ms)).await;
+                
+                tracing::debug!("Delay node '{}' completed", node.name);
+                
+                // Delay nodes pass through the original event unchanged
+                Ok(event)
             }
         }
     }

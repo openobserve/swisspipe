@@ -90,6 +90,7 @@ impl ExecutionService {
             retry_count: Set(0),
             status: Set(JobStatus::Pending.to_string()),
             error_message: Set(None),
+            payload: Set(None), // Regular workflow execution, no special payload
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -132,12 +133,27 @@ impl ExecutionService {
         current_node_name: Option<String>,
         error_message: Option<String>,
     ) -> Result<()> {
-        let mut execution: workflow_executions::ActiveModel = workflow_executions::Entity::find_by_id(execution_id)
-            .one(self.db.as_ref())
-            .await?
-            .ok_or_else(|| SwissPipeError::WorkflowNotFound(execution_id.to_string()))?
-            .into();
+        self.update_execution_status_with_txn(self.db.as_ref(), execution_id, status, current_node_name, error_message).await
+    }
 
+    /// Update execution status with transaction support
+    async fn update_execution_status_with_txn<C>(
+        &self,
+        conn: &C,
+        execution_id: &str,
+        status: ExecutionStatus,
+        current_node_name: Option<String>,
+        error_message: Option<String>,
+    ) -> Result<()>
+    where
+        C: sea_orm::ConnectionTrait,
+    {
+        let current_execution = workflow_executions::Entity::find_by_id(execution_id)
+            .one(conn)
+            .await?
+            .ok_or_else(|| SwissPipeError::WorkflowNotFound(execution_id.to_string()))?;
+
+        let mut execution: workflow_executions::ActiveModel = current_execution.clone().into();
         execution.status = Set(status.to_string());
         execution.current_node_name = Set(current_node_name);
         execution.error_message = Set(error_message);
@@ -145,13 +161,7 @@ impl ExecutionService {
         let now = chrono::Utc::now().timestamp_micros();
         match status {
             ExecutionStatus::Running => {
-                // Always set started_at when changing to Running status if it's currently None
-                // We need to check the actual database value, not the ActiveModel state
-                let current_execution = workflow_executions::Entity::find_by_id(execution_id)
-                    .one(self.db.as_ref())
-                    .await?
-                    .ok_or_else(|| SwissPipeError::WorkflowNotFound(execution_id.to_string()))?;
-                
+                // Set started_at when changing to Running status if it's currently None
                 if current_execution.started_at.is_none() {
                     execution.started_at = Set(Some(now));
                     tracing::info!("Setting started_at for execution {} at {}", execution_id, now);
@@ -163,7 +173,7 @@ impl ExecutionService {
             _ => {}
         }
 
-        execution.update(self.db.as_ref()).await?;
+        execution.update(conn).await?;
         tracing::info!("Updated execution {} status to {}", execution_id, status);
 
         Ok(())
@@ -232,7 +242,7 @@ impl ExecutionService {
                     tracing::debug!("Setting started_at for step {} at {}", step_id, now);
                 }
             }
-            StepStatus::Completed | StepStatus::Failed | StepStatus::Skipped => {
+            StepStatus::Completed | StepStatus::Failed | StepStatus::Skipped | StepStatus::Cancelled => {
                 step.completed_at = Set(Some(now));
             }
             _ => {}
@@ -244,33 +254,70 @@ impl ExecutionService {
         Ok(())
     }
 
-    /// Cancel execution
+    /// Cancel execution comprehensively - cancel jobs, steps (delays handled at WorkerPool level)
     pub async fn cancel_execution(&self, execution_id: &str) -> Result<()> {
         validation::validate_execution_id(execution_id)?;
         
-        // Update execution status
-        self.update_execution_status(
+        tracing::info!("Starting comprehensive cancellation for execution {}", execution_id);
+        
+        // Use transaction for atomicity
+        let txn = self.db.begin().await?;
+        
+        // Update execution status first (using transaction)
+        self.update_execution_status_with_txn(
+            &txn,
             execution_id,
             ExecutionStatus::Cancelled,
             None,
             Some("Execution cancelled by user".to_string()),
         ).await?;
 
-        // Update any pending job to cancelled status
-        let job = job_queue::Entity::find()
+        // Cancel ALL jobs for this execution (pending, claimed, processing)
+        let jobs = job_queue::Entity::find()
             .filter(job_queue::Column::ExecutionId.eq(execution_id))
-            .filter(job_queue::Column::Status.eq(JobStatus::Pending.to_string()))
-            .one(self.db.as_ref())
+            .filter(job_queue::Column::Status.ne(JobStatus::Completed.to_string()))
+            .filter(job_queue::Column::Status.ne(JobStatus::Failed.to_string()))
+            .filter(job_queue::Column::Status.ne(JobStatus::DeadLetter.to_string()))
+            .all(&txn)
             .await?;
 
-        if let Some(job_model) = job {
+        let mut cancelled_jobs = 0;
+        for job_model in jobs {
             let mut job: job_queue::ActiveModel = job_model.into();
             job.status = Set(JobStatus::Failed.to_string());
-            job.error_message = Set(Some("Execution cancelled".to_string()));
-            job.update(self.db.as_ref()).await?;
+            job.error_message = Set(Some("Execution cancelled by user".to_string()));
+            job.update(&txn).await?;
+            cancelled_jobs += 1;
         }
 
-        tracing::info!("Cancelled execution {}", execution_id);
+        // Mark all active steps (running or pending) as cancelled
+        let active_steps = workflow_execution_steps::Entity::find()
+            .filter(workflow_execution_steps::Column::ExecutionId.eq(execution_id))
+            .filter(workflow_execution_steps::Column::Status.is_in(["running", "pending"]))
+            .all(&txn)
+            .await?;
+        
+        let mut cancelled_steps = 0;
+        for step_model in active_steps {
+            let mut step: workflow_execution_steps::ActiveModel = step_model.into();
+            step.status = Set(StepStatus::Cancelled.to_string());
+            step.error_message = Set(Some("Step cancelled by user".to_string()));
+            step.completed_at = Set(Some(chrono::Utc::now().timestamp_micros()));
+            step.update(&txn).await?;
+            cancelled_steps += 1;
+        }
+        
+        txn.commit().await?;
+        
+        if cancelled_jobs > 0 {
+            tracing::info!("Cancelled {} jobs for execution {}", cancelled_jobs, execution_id);
+        }
+        if cancelled_steps > 0 {
+            tracing::info!("Marked {} running steps as cancelled for execution {}", cancelled_steps, execution_id);
+        }
+
+        tracing::info!("Completed comprehensive cancellation for execution {} (jobs: {}, steps: {})", 
+            execution_id, cancelled_jobs, cancelled_steps);
         Ok(())
     }
 

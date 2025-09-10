@@ -11,7 +11,7 @@ pub struct Model {
     pub execution_id: String,
     pub node_id: String,
     pub node_name: String,
-    pub status: String, // 'pending', 'running', 'completed', 'failed', 'skipped'
+    pub status: String, // 'pending', 'running', 'completed', 'failed', 'skipped', 'cancelled'
     pub input_data: Option<String>, // JSON
     pub output_data: Option<String>, // JSON
     pub error_message: Option<String>,
@@ -68,6 +68,7 @@ pub enum StepStatus {
     Completed,
     Failed,
     Skipped,
+    Cancelled,
 }
 
 impl std::fmt::Display for StepStatus {
@@ -78,6 +79,7 @@ impl std::fmt::Display for StepStatus {
             StepStatus::Completed => write!(f, "completed"),
             StepStatus::Failed => write!(f, "failed"),
             StepStatus::Skipped => write!(f, "skipped"),
+            StepStatus::Cancelled => write!(f, "cancelled"),
         }
     }
 }
@@ -90,6 +92,7 @@ impl From<String> for StepStatus {
             "completed" => StepStatus::Completed,
             "failed" => StepStatus::Failed,
             "skipped" => StepStatus::Skipped,
+            "cancelled" => StepStatus::Cancelled,
             _ => StepStatus::Pending,
         }
     }

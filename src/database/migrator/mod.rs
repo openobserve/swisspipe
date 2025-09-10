@@ -8,6 +8,8 @@ mod m20240908_000002_create_workflow_execution_steps_table;
 mod m20240908_000003_create_job_queue_table;
 mod m20241208_000001_create_email_queue_table;
 mod m20241208_000002_create_email_audit_log_table;
+mod m20241210_000001_create_scheduled_delays_table;
+mod m20241210_000002_add_job_queue_payload;
 
 pub struct Migrator;
 
@@ -23,6 +25,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20240908_000003_create_job_queue_table::Migration),
             Box::new(m20241208_000001_create_email_queue_table::Migration),
             Box::new(m20241208_000002_create_email_audit_log_table::Migration),
+            Box::new(m20241210_000001_create_scheduled_delays_table::Migration),
+            Box::new(m20241210_000002_add_job_queue_payload::Migration),
         ]
     }
 }

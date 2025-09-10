@@ -109,15 +109,14 @@ pub async fn get_execution_steps(
 }
 
 
-/// Cancel an execution
+/// Cancel an execution comprehensively including scheduled delays
 pub async fn cancel_execution(
     State(state): State<AppState>,
     Path(execution_id): Path<String>,
 ) -> std::result::Result<Json<Value>, StatusCode> {
-    let execution_service = ExecutionService::new(state.db.clone());
-    
-    execution_service
-        .cancel_execution(&execution_id)
+    // Use comprehensive cancellation through WorkerPool to include delay cancellation
+    state.worker_pool
+        .cancel_execution_with_delays(&execution_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to cancel execution: {}", e);

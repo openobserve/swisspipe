@@ -34,6 +34,9 @@ pub enum SwissPipeError {
     
     #[error("Generic error: {0}")]
     Generic(String),
+    
+    #[error("Workflow execution delayed - scheduled with ID: {0}")]
+    DelayScheduled(String),
 }
 
 #[derive(Debug, Error)]

@@ -107,7 +107,7 @@ const transformerNodes = computed(() =>
 )
 
 const logicNodes = computed(() => 
-  nodeStore.nodeTypes.filter(type => type.type === 'condition')
+  nodeStore.nodeTypes.filter(type => type.type === 'condition' || type.type === 'delay')
 )
 
 const appNodes = computed(() => 

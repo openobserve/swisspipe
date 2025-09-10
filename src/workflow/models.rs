@@ -55,6 +55,14 @@ pub enum FailureAction {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DelayUnit {
+    Seconds,
+    Minutes,
+    Hours,
+    Days,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum NodeType {
     Trigger { 
         methods: Vec<HttpMethod> 
@@ -76,6 +84,10 @@ pub enum NodeType {
     },
     Email {
         config: crate::email::EmailConfig,
+    },
+    Delay {
+        duration: u64,
+        unit: DelayUnit,
     },
 }
 

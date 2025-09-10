@@ -32,3 +32,4 @@ html-escape = "0.2"
 governor = "0.6"
 tokio-util = { version = "0.7", features = ["time"] }
 futures = "0.3"
+# tokio-cron-scheduler = "0.10"  # Causing stack overflow - disabled

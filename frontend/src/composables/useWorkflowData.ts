@@ -157,12 +157,13 @@ export function useWorkflowData() {
   }
 }
 
-function convertApiNodeTypeToVueFlowType(nodeType: any): 'trigger' | 'condition' | 'transformer' | 'app' | 'email' {
+function convertApiNodeTypeToVueFlowType(nodeType: any): 'trigger' | 'condition' | 'transformer' | 'app' | 'email' | 'delay' {
   if (nodeType.Trigger) return 'trigger'
   if (nodeType.Condition) return 'condition'
   if (nodeType.Transformer) return 'transformer'
   if (nodeType.App) return 'app'
   if (nodeType.Email) return 'email'
+  if (nodeType.Delay) return 'delay'
   return 'app'
 }
 
@@ -172,6 +173,7 @@ function getNodeDescription(nodeType: any): string {
   if (nodeType.Transformer) return 'Data transformation node'
   if (nodeType.App) return 'External application node'
   if (nodeType.Email) return 'Email notification node'
+  if (nodeType.Delay) return 'Workflow execution delay'
   return 'Unknown node type'
 }
 
@@ -247,6 +249,13 @@ function convertApiNodeConfigToVueFlowConfig(nodeType: any): NodeConfig {
       queue_if_rate_limited: emailConfig.queue_if_rate_limited !== undefined ? emailConfig.queue_if_rate_limited : true,
       max_queue_wait_minutes: emailConfig.max_queue_wait_minutes || 60,
       bypass_rate_limit: emailConfig.bypass_rate_limit || false
+    }
+  }
+  if (nodeType.Delay) {
+    return {
+      type: 'delay' as const,
+      duration: nodeType.Delay.duration || 5,
+      unit: nodeType.Delay.unit || 'Seconds'
     }
   }
   return {
@@ -332,6 +341,14 @@ function convertNodeToApiType(node: { type: string; data: { config: any } }) {
             max_queue_wait_minutes: emailConfig.max_queue_wait_minutes || 60,
             bypass_rate_limit: emailConfig.bypass_rate_limit || false
           }
+        }
+      }
+    case 'delay':
+      const delayConfig = node.data.config as any
+      return {
+        Delay: {
+          duration: delayConfig.duration || 5,
+          unit: delayConfig.unit || 'Seconds'
         }
       }
     default:

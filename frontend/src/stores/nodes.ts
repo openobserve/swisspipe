@@ -105,6 +105,18 @@ export const useNodeStore = defineStore('nodes', () => {
         max_queue_wait_minutes: 60,
         bypass_rate_limit: false
       }
+    },
+    {
+      type: 'delay',
+      label: 'Delay',
+      description: 'Pause workflow execution for a specified duration',
+      color: '#6b7280',
+      icon: 'clock',
+      defaultConfig: {
+        type: 'delay',
+        duration: 5,
+        unit: 'Seconds'
+      }
     }
   ])
 

@@ -120,6 +120,7 @@ impl ResumptionService {
                 retry_count: Set(0), // Reset retry count for resumed execution
                 status: Set(JobStatus::Pending.to_string()),
                 error_message: Set(None),
+                payload: Set(None), // Regular workflow resumption, no special payload
                 created_at: Set(now),
                 updated_at: Set(now),
             };

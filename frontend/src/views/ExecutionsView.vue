@@ -114,9 +114,6 @@
                   <div class="text-sm font-medium text-white font-mono">
                     {{ execution.id }}
                   </div>
-                  <div class="text-xs text-gray-400">
-                    {{ executionStore.formatTimestamp(execution.created_at) }}
-                  </div>
                 </td>
                 <td class="px-6 py-4">
                   <div class="text-sm text-gray-300 font-mono">{{ execution.workflow_id }}</div>

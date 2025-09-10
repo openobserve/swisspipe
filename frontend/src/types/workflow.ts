@@ -50,7 +50,7 @@ export interface EdgeRequest {
   condition_result?: boolean
 }
 
-export type NodeType = TriggerNode | ConditionNode | TransformerNode | AppNode | EmailNode
+export type NodeType = TriggerNode | ConditionNode | TransformerNode | AppNode | EmailNode | DelayNode
 
 export interface TriggerNode {
   Trigger: {
@@ -103,6 +103,15 @@ export interface EmailNode {
     }
   }
 }
+
+export interface DelayNode {
+  Delay: {
+    duration: number
+    unit: DelayUnit
+  }
+}
+
+export type DelayUnit = 'Seconds' | 'Minutes' | 'Hours' | 'Days'
 
 export type AppType = 'Webhook' | { OpenObserve: { url: string, authorization_header: string } }
 

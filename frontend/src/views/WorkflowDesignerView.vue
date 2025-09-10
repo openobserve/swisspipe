@@ -116,6 +116,9 @@
           <template #node-email="{ data }">
             <EmailNode :data="data" />
           </template>
+          <template #node-delay="{ data }">
+            <DelayNode :data="data" />
+          </template>
         </VueFlow>
       </div>
 
@@ -207,6 +210,7 @@ import ConditionNode from '../components/nodes/ConditionNode.vue'
 import TransformerNode from '../components/nodes/TransformerNode.vue'
 import AppNode from '../components/nodes/AppNode.vue'
 import EmailNode from '../components/nodes/EmailNode.vue'
+import DelayNode from '../components/nodes/DelayNode.vue'
 import { useWorkflowData } from '../composables/useWorkflowData'
 import { useExecutionTracing } from '../composables/useExecutionTracing'
 import { useVueFlowInteraction } from '../composables/useVueFlowInteraction'

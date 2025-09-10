@@ -17,6 +17,7 @@ pub struct Model {
     pub retry_count: i32,
     pub status: String, // 'pending', 'claimed', 'processing', 'completed', 'failed', 'dead_letter'
     pub error_message: Option<String>,
+    pub payload: Option<String>, // JSON payload for special job types
     pub created_at: i64, // Unix epoch microseconds
     pub updated_at: i64, // Unix epoch microseconds
 }
@@ -52,6 +53,7 @@ impl ActiveModelBehavior for ActiveModel {
             max_retries: Set(max_retries),
             retry_count: Set(0),
             status: Set("pending".to_string()),
+            payload: Set(None),
             created_at: Set(now),
             updated_at: Set(now),
             ..ActiveModelTrait::default()

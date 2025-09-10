@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn test_default_configuration() {
-        // Clear environment variables
+        // Clear environment variables to ensure clean state
         std::env::remove_var("SP_EXECUTION_RETENTION_COUNT");
         std::env::remove_var("SP_CLEANUP_INTERVAL_MINUTES");
         
@@ -251,5 +251,9 @@ mod tests {
         
         assert_eq!(service.retention_count, 100);
         assert_eq!(service.cleanup_interval_minutes, 1);
+        
+        // Ensure environment is clean after test
+        std::env::remove_var("SP_EXECUTION_RETENTION_COUNT");
+        std::env::remove_var("SP_CLEANUP_INTERVAL_MINUTES");
     }
 }

@@ -17,7 +17,7 @@ use cache::WorkflowCache;
 use config::Config;
 use database::establish_connection;
 use workflow::engine::WorkflowEngine;
-use async_execution::{WorkerPool, CleanupService, ResumptionService};
+use async_execution::{WorkerPool, CleanupService, ResumptionService, DelayScheduler};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -27,6 +27,7 @@ pub struct AppState {
     pub worker_pool: Arc<WorkerPool>,
     pub cleanup_service: Arc<CleanupService>,
     pub workflow_cache: Arc<WorkflowCache>,
+    pub delay_scheduler: Arc<DelayScheduler>,
 }
 
 #[tokio::main]
@@ -158,6 +159,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    // Initialize DelayScheduler with tokio timer implementation
+    tracing::info!("Initializing DelayScheduler...");
+    let delay_scheduler = Arc::new(DelayScheduler::new(worker_pool.get_job_manager(), db.clone()).await
+        .map_err(|e| {
+            tracing::error!("Failed to initialize DelayScheduler: {}", e);
+            e
+        })?);
+    
+    // Restore scheduled delays from database
+    match delay_scheduler.restore_from_database().await {
+        Ok(count) => {
+            if count > 0 {
+                tracing::info!("Restored {} scheduled delays from database", count);
+            } else {
+                tracing::info!("No scheduled delays to restore");
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to restore scheduled delays: {}", e);
+            // Don't fail startup, just log the error
+        }
+    }
+    
+    // Link DelayScheduler with WorkerPool
+    tracing::info!("Linking DelayScheduler with WorkerPool...");
+    worker_pool.set_delay_scheduler(delay_scheduler.clone()).await;
+
     // Store port before moving config into Arc
     let port = config.port;
     
@@ -169,6 +197,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         worker_pool: worker_pool.clone(),
         cleanup_service: cleanup_service.clone(),
         workflow_cache: workflow_cache.clone(),
+        delay_scheduler: delay_scheduler.clone(),
     };
 
     // Build application

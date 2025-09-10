@@ -29,11 +29,11 @@ export interface WorkflowEdge extends Omit<Edge, 'data'> {
   }
 }
 
-export type NodeTypeString = 'trigger' | 'condition' | 'transformer' | 'app' | 'email'
+export type NodeTypeString = 'trigger' | 'condition' | 'transformer' | 'app' | 'email' | 'delay'
 
 export type NodeStatus = 'ready' | 'running' | 'completed' | 'error'
 
-export type NodeConfig = TriggerConfig | ConditionConfig | TransformerConfig | AppConfig | EmailConfig
+export type NodeConfig = TriggerConfig | ConditionConfig | TransformerConfig | AppConfig | EmailConfig | DelayConfig
 
 export interface TriggerConfig {
   type: 'trigger'
@@ -88,6 +88,14 @@ export interface EmailConfig {
   max_queue_wait_minutes: number
   bypass_rate_limit: boolean
 }
+
+export interface DelayConfig {
+  type: 'delay'
+  duration: number
+  unit: DelayUnit
+}
+
+export type DelayUnit = 'Seconds' | 'Minutes' | 'Hours' | 'Days'
 
 export interface EmailAddress {
   email: string
