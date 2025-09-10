@@ -1,7 +1,7 @@
 <template>
-  <div class="min-h-screen text-gray-100">
+  <div class="h-screen flex flex-col text-gray-100">
     <!-- Header -->
-    <header class="glass-dark border-b border-slate-700/50">
+    <header class="glass-dark border-b border-slate-700/50 flex-shrink-0">
       <div class="px-6 py-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-4">
@@ -36,9 +36,9 @@
     </header>
 
     <!-- Main Content -->
-    <main class="p-6">
+    <main class="flex-1 flex flex-col p-6 min-h-0">
       <!-- Search and Filters -->
-      <div class="mb-6 flex items-center justify-between">
+      <div class="mb-6 flex items-center justify-between flex-shrink-0">
         <div class="flex items-center space-x-4">
           <div class="relative">
             <input
@@ -56,7 +56,7 @@
       </div>
 
       <!-- Executions Table -->
-      <div class="glass-medium rounded-lg shadow-2xl overflow-hidden">
+      <div class="glass-medium rounded-lg shadow-2xl overflow-hidden flex-1 flex flex-col min-h-0">
         <div v-if="executionStore.loading" class="p-8 text-center">
           <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto"></div>
           <p class="mt-2 text-gray-400">Loading executions...</p>
@@ -76,7 +76,7 @@
           <p class="text-gray-400">No executions found</p>
         </div>
 
-        <div v-else class="overflow-x-auto">
+        <div v-else class="flex-1 overflow-x-auto overflow-y-auto">
           <table class="min-w-full divide-y divide-slate-600">
             <thead class="glass-dark">
               <tr>
