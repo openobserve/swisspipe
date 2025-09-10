@@ -22,6 +22,7 @@ pub struct Model {
     pub max_wait_minutes: i32,
     pub retry_count: i32,
     pub max_retries: i32,
+    pub retry_delay_seconds: i32,
     pub error_message: Option<String>,
     pub created_at: i64, // Unix epoch microseconds
     pub updated_at: i64, // Unix epoch microseconds

@@ -145,6 +145,7 @@ pub enum EmailQueue {
     MaxWaitMinutes,
     RetryCount,
     MaxRetries,
+    RetryDelaySeconds,
     ErrorMessage,
     CreatedAt,
     UpdatedAt,

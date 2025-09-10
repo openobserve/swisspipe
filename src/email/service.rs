@@ -361,6 +361,7 @@ impl EmailService {
             max_wait_minutes: Set(email_config.max_queue_wait_minutes as i32),
             retry_count: Set(0),
             max_retries: Set(3),
+            retry_delay_seconds: Set(30),
             error_message: Set(None),
             created_at: Set(now),
             updated_at: Set(now),
@@ -436,23 +437,37 @@ impl EmailService {
     
     pub async fn process_email_queue(&self) -> Result<u32, EmailError> {
         use crate::database::{email_queue, email_queue::Entity as EmailQueue};
+        use sea_orm::TransactionTrait;
+        
+        // Use transaction for atomic queue operations
+        let txn = self.db.begin().await?;
         
         // Get next email from queue (ordered by priority and queue time)
+        // Only process emails that are ready (not scheduled for future or scheduled time has passed)
+        let now = chrono::Utc::now().timestamp_micros();
         let queued_email = EmailQueue::find()
             .filter(email_queue::Column::Status.eq("queued"))
+            .filter(
+                email_queue::Column::ScheduledAt.is_null()
+                    .or(email_queue::Column::ScheduledAt.lte(now))
+            )
             .order_by_desc(email_queue::Column::Priority)
             .order_by_asc(email_queue::Column::QueuedAt)
-            .one(&*self.db)
+            .one(&txn)
             .await?;
         
         if let Some(email) = queued_email {
             // Check rate limiter
             if self.rate_limiter.check().is_err() {
+                txn.rollback().await?;
                 return Ok(0); // No emails processed due to rate limiting
             }
             
-            // Mark as processing
-            self.mark_email_processing(&email.id).await?;
+            // Mark as processing within transaction
+            self.mark_email_processing_with_txn(&txn, &email.id).await?;
+            
+            // Commit the status change before attempting to send
+            txn.commit().await?;
             
             // Deserialize email config and template context
             let email_config: EmailConfig = serde_json::from_str(&email.email_config)?;
@@ -469,14 +484,30 @@ impl EmailService {
                 condition_results: HashMap::new(),
             };
             
-            // Send the email
-            match self.send_email_message(&email.smtp_config, &self.template_engine.render_email(
+            // Render email message
+            let execution_id = email.execution_id.as_deref().unwrap_or_default();
+            let node_id = email.node_id.as_deref().unwrap_or_default();
+            let email_message = self.template_engine.render_email(
                 &email_config,
                 &workflow_event,
-                &email.execution_id.unwrap_or_default(),
-                &email.node_id.unwrap_or_default(),
-            )?).await {
+                execution_id,
+                node_id,
+            )?;
+            
+            // Send the email
+            match self.send_email_message(&email.smtp_config, &email_message).await {
                 Ok(result) => {
+                    // Log audit entry for queued email processing
+                    if let Err(audit_error) = self.log_email_audit(
+                        execution_id,
+                        node_id,
+                        &email.smtp_config,
+                        &email_message,
+                        &result,
+                    ).await {
+                        tracing::warn!("Failed to log email audit for queued email {}: {}", email.id, audit_error);
+                    }
+                    
                     if result.success {
                         self.mark_email_sent(&email.id, result.message_id.as_deref()).await?;
                     } else {
@@ -490,17 +521,22 @@ impl EmailService {
             
             Ok(1)
         } else {
+            txn.rollback().await?;
             Ok(0)
         }
     }
     
-    async fn mark_email_processing(&self, email_id: &str) -> Result<(), EmailError> {
+    
+    async fn mark_email_processing_with_txn<C>(&self, conn: &C, email_id: &str) -> Result<(), EmailError> 
+    where
+        C: sea_orm::ConnectionTrait,
+    {
         use crate::database::{email_queue, email_queue::Entity as EmailQueue};
         
         let now = chrono::Utc::now().timestamp_micros();
         
         let email = EmailQueue::find_by_id(email_id.to_string())
-            .one(&*self.db)
+            .one(conn)
             .await?
             .ok_or_else(|| EmailError::validation("Email not found in queue"))?;
         
@@ -509,7 +545,7 @@ impl EmailService {
         active_model.processed_at = Set(Some(now));
         active_model.updated_at = Set(now);
         
-        active_model.update(&*self.db).await?;
+        active_model.update(conn).await?;
         Ok(())
     }
     
@@ -542,12 +578,35 @@ impl EmailService {
             .await?
             .ok_or_else(|| EmailError::validation("Email not found in queue"))?;
         
-        let retry_count = email.retry_count;
-        let mut active_model: email_queue::ActiveModel = email.into();
-        active_model.status = Set("failed".to_string());
-        active_model.error_message = Set(Some(error.to_string()));
-        active_model.retry_count = Set(retry_count + 1);
-        active_model.updated_at = Set(now);
+        let new_retry_count = email.retry_count + 1;
+        let mut active_model: email_queue::ActiveModel = email.clone().into();
+        
+        // Check if we should retry or mark as permanently failed
+        if new_retry_count <= email.max_retries {
+            // Schedule for retry with exponential backoff
+            let retry_delay_seconds = email.retry_delay_seconds * (2_i32.pow((new_retry_count - 1) as u32));
+            let retry_delay_microseconds = retry_delay_seconds as i64 * 1_000_000;
+            let scheduled_at = now + retry_delay_microseconds;
+            
+            active_model.status = Set("queued".to_string()); // Back to queued for retry
+            active_model.scheduled_at = Set(Some(scheduled_at)); // Schedule retry
+            active_model.retry_count = Set(new_retry_count);
+            active_model.error_message = Set(Some(format!("Retry {}/{}: {}", new_retry_count, email.max_retries, error)));
+            active_model.processed_at = Set(None); // Reset processed timestamp
+            active_model.updated_at = Set(now);
+            
+            tracing::info!("Scheduling email {} for retry {}/{} in {} seconds", 
+                          email_id, new_retry_count, email.max_retries, retry_delay_seconds);
+        } else {
+            // Max retries exceeded, mark as permanently failed
+            active_model.status = Set("failed".to_string());
+            active_model.error_message = Set(Some(format!("Max retries ({}) exceeded. Last error: {}", email.max_retries, error)));
+            active_model.retry_count = Set(new_retry_count);
+            active_model.updated_at = Set(now);
+            
+            tracing::warn!("Email {} permanently failed after {} retries: {}", 
+                          email_id, email.max_retries, error);
+        }
         
         active_model.update(&*self.db).await?;
         Ok(())
@@ -559,14 +618,43 @@ impl EmailService {
         
         let now = chrono::Utc::now().timestamp_micros();
         
-        // Delete emails that have been in queue longer than their max wait time
-        let result: DeleteResult = EmailQueue::delete_many()
+        // Find emails that have exceeded their individual max_wait_minutes
+        let expired_emails = EmailQueue::find()
             .filter(email_queue::Column::Status.eq("queued"))
-            .filter(email_queue::Column::QueuedAt.lt(now - (60 * 1_000_000))) // 60 minutes ago in microseconds
+            .all(&*self.db)
+            .await?;
+        
+        let mut expired_count = 0;
+        
+        for email in expired_emails {
+            let max_wait_microseconds = email.max_wait_minutes as i64 * 60 * 1_000_000;
+            let deadline = email.queued_at + max_wait_microseconds;
+            
+            if now > deadline {
+                // Mark as expired instead of deleting immediately
+                let mut active_model: email_queue::ActiveModel = email.into();
+                active_model.status = Set("expired".to_string());
+                active_model.updated_at = Set(now);
+                
+                match active_model.update(&*self.db).await {
+                    Ok(_) => expired_count += 1,
+                    Err(e) => tracing::warn!("Failed to mark email as expired: {}", e),
+                }
+            }
+        }
+        
+        // Optionally delete expired emails older than a certain threshold (e.g., 7 days)
+        let deletion_threshold = now - (7 * 24 * 60 * 60 * 1_000_000); // 7 days ago
+        let result: DeleteResult = EmailQueue::delete_many()
+            .filter(email_queue::Column::Status.eq("expired"))
+            .filter(email_queue::Column::UpdatedAt.lt(deletion_threshold))
             .exec(&*self.db)
             .await?;
         
-        Ok(result.rows_affected as u32)
+        tracing::info!("Marked {} emails as expired, deleted {} old expired emails", 
+                      expired_count, result.rows_affected);
+        
+        Ok(expired_count)
     }
     
     pub async fn get_queue_stats(&self) -> Result<EmailQueueStats, EmailError> {
