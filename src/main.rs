@@ -17,7 +17,7 @@ use cache::WorkflowCache;
 use config::Config;
 use database::establish_connection;
 use workflow::engine::WorkflowEngine;
-use async_execution::{WorkerPool, CleanupService};
+use async_execution::{WorkerPool, CleanupService, ResumptionService};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -78,6 +78,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Starting cleanup service...");
     let _cleanup_handle = cleanup_service.start().await;
     tracing::info!("Cleanup service started successfully");
+
+    // Resume interrupted workflows on startup
+    let resumption_service = ResumptionService::new(db.clone());
+    match resumption_service.resume_interrupted_executions().await {
+        Ok(count) => {
+            if count > 0 {
+                tracing::info!("Resumed {} interrupted workflow executions", count);
+            } else {
+                tracing::info!("No interrupted executions to resume");
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to resume interrupted executions: {}", e);
+            // Don't fail startup, just log the error
+        }
+    }
+
+    // Also clean up any stale jobs (jobs claimed but worker no longer running)
+    match resumption_service.cleanup_stale_jobs(10).await { // 10 minutes timeout
+        Ok(count) => {
+            if count > 0 {
+                tracing::info!("Reset {} stale jobs to pending", count);
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to cleanup stale jobs: {}", e);
+        }
+    }
 
     // Initialize and start email queue processor
     let email_service = engine.email_service.clone();

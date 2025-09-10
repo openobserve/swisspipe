@@ -89,6 +89,7 @@ impl WorkerPool {
     }
 
     /// Execute workflow with step-by-step tracking
+    /// Supports resumption from a specific node if execution.current_node_name is set
     async fn execute_workflow_with_tracking(
         &self,
         execution_id: &str,
@@ -96,8 +97,33 @@ impl WorkerPool {
         event: WorkflowEvent,
     ) -> Result<WorkflowEvent> {
         let mut current_event = event;
-        let mut current_node_name = workflow.start_node_name.clone();
+        
+        // Check if we're resuming from a specific node
+        let execution = self.execution_service
+            .get_execution(execution_id)
+            .await?
+            .ok_or_else(|| SwissPipeError::WorkflowNotFound(execution_id.to_string()))?;
+
+        let is_resuming = execution.current_node_name.is_some();
+        let mut current_node_name = execution.current_node_name
+            .unwrap_or_else(|| workflow.start_node_name.clone());
+
+        // If resuming from a specific node, log it
+        if is_resuming {
+            tracing::info!("Resuming execution {} from node '{}'", execution_id, current_node_name);
+        } else {
+            tracing::debug!("Starting execution {} from beginning at node '{}'", execution_id, current_node_name);
+        }
+
         let mut visited = std::collections::HashSet::new();
+        
+        // Get existing completed steps to avoid re-executing them
+        let steps = self.execution_service.get_execution_steps(execution_id).await?;
+        let completed_steps: std::collections::HashMap<String, _> = steps
+            .into_iter()
+            .filter(|step| matches!(step.status.as_str(), "completed" | "skipped"))
+            .map(|step| (step.node_name.clone(), step))
+            .collect();
         
         // Build node lookup for efficiency
         let node_map: std::collections::HashMap<String, &crate::workflow::models::Node> = workflow.nodes
@@ -116,38 +142,52 @@ impl WorkerPool {
                 .get(&current_node_name)
                 .ok_or_else(|| SwissPipeError::NodeNotFound(current_node_name.clone()))?;
             
-            // Create execution step
-            let input_data = serde_json::to_value(&current_event).ok();
-            let step_id = self.execution_service
-                .create_execution_step(
-                    execution_id.to_string(),
-                    node.id.clone(),
-                    node.name.clone(),
-                    input_data,
-                )
-                .await?;
-            
-            // Mark step as running
-            self.execution_service
-                .update_execution_step(&step_id, StepStatus::Running, None, None)
-                .await?;
-            
-            // Execute the node
-            match self.execute_node_with_tracking(execution_id, node, current_event).await {
-                Ok(result_event) => {
-                    // Mark step as completed
-                    let output_data = serde_json::to_value(&result_event).ok();
-                    self.execution_service
-                        .update_execution_step(&step_id, StepStatus::Completed, output_data, None)
-                        .await?;
-                    current_event = result_event;
+            // Check if this step was already completed (resumption case)
+            if let Some(completed_step) = completed_steps.get(&current_node_name) {
+                tracing::debug!("Skipping already completed step '{}' for execution {}", current_node_name, execution_id);
+                
+                // Use the output data from the completed step as the current event
+                if let Some(output_data_str) = &completed_step.output_data {
+                    if let Ok(output_value) = serde_json::from_str::<WorkflowEvent>(output_data_str) {
+                        current_event = output_value;
+                    } else {
+                        tracing::warn!("Failed to parse output data for completed step '{}', using current event", current_node_name);
+                    }
                 }
-                Err(e) => {
-                    // Mark step as failed
-                    self.execution_service
-                        .update_execution_step(&step_id, StepStatus::Failed, None, Some(e.to_string()))
-                        .await?;
-                    return Err(e);
+            } else {
+                // Create and execute the step as normal
+                let input_data = serde_json::to_value(&current_event).ok();
+                let step_id = self.execution_service
+                    .create_execution_step(
+                        execution_id.to_string(),
+                        node.id.clone(),
+                        node.name.clone(),
+                        input_data,
+                    )
+                    .await?;
+                
+                // Mark step as running
+                self.execution_service
+                    .update_execution_step(&step_id, StepStatus::Running, None, None)
+                    .await?;
+                
+                // Execute the node
+                match self.execute_node_with_tracking(execution_id, node, current_event).await {
+                    Ok(result_event) => {
+                        // Mark step as completed
+                        let output_data = serde_json::to_value(&result_event).ok();
+                        self.execution_service
+                            .update_execution_step(&step_id, StepStatus::Completed, output_data, None)
+                            .await?;
+                        current_event = result_event;
+                    }
+                    Err(e) => {
+                        // Mark step as failed
+                        self.execution_service
+                            .update_execution_step(&step_id, StepStatus::Failed, None, Some(e.to_string()))
+                            .await?;
+                        return Err(e);
+                    }
                 }
             }
             
@@ -936,6 +976,7 @@ impl WorkerPoolForBranch {
         
         Ok(next_nodes)
     }
+
 }
 
 #[derive(Debug, serde::Serialize)]
