@@ -106,11 +106,11 @@
                 @click="navigateToDesigner(workflow.id)"
               >
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="text-sm font-medium text-white">{{ event.name }}</div>
+                  <div class="text-sm font-medium text-white">{{ workflow.name }}</div>
                 </td>
                 <td class="px-6 py-4">
                   <div class="text-sm text-gray-300 max-w-xs truncate">
-                    {{ event.description || 'No description' }}
+                    {{ workflow.description || 'No description' }}
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
