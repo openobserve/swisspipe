@@ -643,18 +643,44 @@ impl EmailService {
             }
         }
         
-        // Optionally delete expired emails older than a certain threshold (e.g., 7 days)
-        let deletion_threshold = now - (7 * 24 * 60 * 60 * 1_000_000); // 7 days ago
-        let result: DeleteResult = EmailQueue::delete_many()
+        // Delete old emails by status with different retention periods
+        let seven_days_ago = now - (7 * 24 * 60 * 60 * 1_000_000); // 7 days ago
+        let thirty_days_ago = now - (30 * 24 * 60 * 60 * 1_000_000); // 30 days ago
+        
+        // TEMPORARY: For testing cleanup, use 1 minute retention for sent emails
+        let one_minute_ago = now - (60 * 1_000_000); // 1 minute ago (for testing only)
+        
+        // Delete old expired emails (7 days retention)
+        let expired_deleted: DeleteResult = EmailQueue::delete_many()
             .filter(email_queue::Column::Status.eq("expired"))
-            .filter(email_queue::Column::UpdatedAt.lt(deletion_threshold))
+            .filter(email_queue::Column::UpdatedAt.lt(seven_days_ago))
             .exec(&*self.db)
             .await?;
         
-        tracing::info!("Marked {} emails as expired, deleted {} old expired emails", 
-                      expired_count, result.rows_affected);
+        // Delete old sent emails (30 days retention for operational cleanup)
+        // TEMPORARY: Using 1 minute for testing cleanup functionality
+        let sent_deleted: DeleteResult = EmailQueue::delete_many()
+            .filter(email_queue::Column::Status.eq("sent"))
+            .filter(email_queue::Column::SentAt.lt(one_minute_ago))
+            .exec(&*self.db)
+            .await?;
         
-        Ok(expired_count)
+        // Delete old failed emails (30 days retention)
+        let failed_deleted: DeleteResult = EmailQueue::delete_many()
+            .filter(email_queue::Column::Status.eq("failed"))
+            .filter(email_queue::Column::UpdatedAt.lt(thirty_days_ago))
+            .exec(&*self.db)
+            .await?;
+        
+        tracing::info!(
+            "Email cleanup completed - Marked {} as expired, Deleted: {} expired, {} sent, {} failed", 
+            expired_count, 
+            expired_deleted.rows_affected, 
+            sent_deleted.rows_affected, 
+            failed_deleted.rows_affected
+        );
+        
+        Ok(expired_count + sent_deleted.rows_affected as u32 + failed_deleted.rows_affected as u32)
     }
     
     pub async fn get_queue_stats(&self) -> Result<EmailQueueStats, EmailError> {
