@@ -78,7 +78,7 @@
 
         <div v-else class="flex-1 overflow-x-auto overflow-y-auto">
           <table class="min-w-full divide-y divide-slate-600">
-            <thead class="glass-dark">
+            <thead class="sticky top-0 z-10 bg-slate-900">
               <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                   Execution ID
