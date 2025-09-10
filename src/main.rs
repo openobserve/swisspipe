@@ -1,5 +1,6 @@
 mod api;
 mod auth;
+mod cache;
 mod config;
 mod database;
 mod utils;
@@ -12,6 +13,7 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 
+use cache::WorkflowCache;
 use config::Config;
 use database::establish_connection;
 use workflow::engine::WorkflowEngine;
@@ -24,6 +26,7 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub worker_pool: Arc<WorkerPool>,
     pub cleanup_service: Arc<CleanupService>,
+    pub workflow_cache: Arc<WorkflowCache>,
 }
 
 #[tokio::main]
@@ -47,6 +50,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize workflow engine
     let engine = Arc::new(WorkflowEngine::new(db.clone())?);
+
+    // Initialize workflow cache (5 minute default TTL)
+    let workflow_cache = Arc::new(WorkflowCache::new(Some(300)));
 
     // Initialize worker pool
     let worker_pool = Arc::new(WorkerPool::new(
@@ -108,6 +114,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    // Start workflow cache cleanup task
+    let cache_cleanup = workflow_cache.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300)); // 5 minutes
+        tracing::info!("Workflow cache cleanup task started");
+        
+        loop {
+            interval.tick().await;
+            
+            match cache_cleanup.cleanup_expired().await {
+                0 => {}, // No entries cleaned, no need to log
+                count => tracing::debug!("Cleaned up {} expired workflow cache entries", count),
+            }
+        }
+    });
+
     // Store port before moving config into Arc
     let port = config.port;
     
@@ -118,6 +140,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config: Arc::new(config),
         worker_pool: worker_pool.clone(),
         cleanup_service: cleanup_service.clone(),
+        workflow_cache: workflow_cache.clone(),
     };
 
     // Build application

@@ -85,20 +85,38 @@ async fn execute_workflow_async(
 ) -> std::result::Result<(StatusCode, Json<Value>), StatusCode> {
     tracing::info!("Executing workflow: {}", workflow_id);
     
-    // Verify workflow exists
-    let _workflow = state
-        .engine
-        .load_workflow(workflow_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to load workflow {}: {}", workflow_id, e);
-            match e {
-                crate::workflow::errors::SwissPipeError::WorkflowNotFound(_) => StatusCode::NOT_FOUND,
-                _ => StatusCode::INTERNAL_SERVER_ERROR,
-            }
-        })?;
+    // Try to get workflow from cache first
+    let cached_workflow = state.workflow_cache.get(workflow_id).await;
+    
+    let start_node_name = if let Some(cached) = cached_workflow {
+        // Use cached workflow metadata
+        tracing::debug!("Using cached workflow metadata for {}", workflow_id);
+        cached.start_node_name
+    } else {
+        // Cache miss - load from database and cache the result
+        tracing::debug!("Cache miss - loading workflow {} from database", workflow_id);
+        let workflow = state
+            .engine
+            .load_workflow(workflow_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to load workflow {}: {}", workflow_id, e);
+                match e {
+                    crate::workflow::errors::SwissPipeError::WorkflowNotFound(_) => StatusCode::NOT_FOUND,
+                    _ => StatusCode::INTERNAL_SERVER_ERROR,
+                }
+            })?;
 
-    tracing::info!("Workflow {} loaded successfully", workflow_id);
+        let start_node = workflow.start_node_name.clone();
+        
+        // Cache the workflow metadata for future requests
+        state.workflow_cache.put(workflow_id.to_string(), start_node.clone()).await;
+        tracing::debug!("Cached workflow metadata for {}", workflow_id);
+        
+        start_node
+    };
+
+    tracing::info!("Workflow {} validated successfully (start_node: {})", workflow_id, start_node_name);
 
     // Create execution service
     let execution_service = ExecutionService::new(state.db.clone());

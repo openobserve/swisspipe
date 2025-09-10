@@ -263,13 +263,16 @@ pub async fn create_workflow(
         id: workflow.id.clone(),
         name: workflow.name,
         description: workflow.description,
-        start_node_name: workflow.start_node_name,
+        start_node_name: workflow.start_node_name.clone(),
         endpoint_url: format!("/api/v1/{}/ep", workflow.id),
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
         nodes: node_responses,
         edges: edge_responses,
     };
+
+    // Cache the newly created workflow metadata for performance
+    state.workflow_cache.put(workflow_id.clone(), workflow.start_node_name).await;
 
     Ok((StatusCode::CREATED, Json(response)))
 }
@@ -337,13 +340,16 @@ pub async fn get_workflow(
         id: workflow.id.clone(),
         name: workflow.name,
         description: workflow.description,
-        start_node_name: workflow.start_node_name,
+        start_node_name: workflow.start_node_name.clone(),
         endpoint_url: format!("/api/v1/{}/ep", workflow.id),
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
         nodes: node_responses,
         edges: edge_responses,
     };
+
+    // Update cache with current workflow metadata
+    state.workflow_cache.put(id.clone(), workflow.start_node_name).await;
 
     Ok(Json(response))
 }
@@ -513,13 +519,17 @@ pub async fn update_workflow(
         id: workflow.id.clone(),
         name: workflow.name,
         description: workflow.description,
-        start_node_name: workflow.start_node_name,
+        start_node_name: workflow.start_node_name.clone(),
         endpoint_url: format!("/api/v1/{}/ep", workflow.id),
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
         nodes: node_responses,
         edges: edge_responses,
     };
+
+    // Invalidate cache since workflow was updated, then cache new version
+    state.workflow_cache.invalidate(&id).await;
+    state.workflow_cache.put(id.clone(), workflow.start_node_name).await;
 
     Ok(Json(response))
 }
@@ -536,6 +546,9 @@ pub async fn delete_workflow(
     if result.rows_affected == 0 {
         return Err(StatusCode::NOT_FOUND);
     }
+
+    // Invalidate cache for deleted workflow
+    state.workflow_cache.invalidate(&id).await;
 
     Ok(StatusCode::NO_CONTENT)
 }
