@@ -33,24 +33,25 @@ impl ExecutionService {
         headers: std::collections::HashMap<String, String>,
         priority: Option<i32>,
     ) -> Result<String> {
-        // Validate all inputs for security and constraints
+        // Validate basic inputs first
         validation::validate_workflow_id(&workflow_id)?;
-        validation::validate_input_data(&input_data)?;
+        validation::validate_priority(priority)?;
         
         // Sanitize headers by removing dangerous ones instead of rejecting the request
         let sanitized_headers = validation::validate_and_sanitize_headers(&headers)?;
         
-        validation::validate_priority(priority)?;
-        
         let execution_id = Uuid::now_v7().to_string();
         let now = chrono::Utc::now().timestamp_micros();
 
-        // Wrap input data and sanitized headers together to preserve headers
+        // Create complete execution data structure
         let execution_data = serde_json::json!({
             "data": input_data,
             "headers": sanitized_headers,
             "metadata": {}
         });
+        
+        // Validate and serialize execution data once (eliminates duplicate serialization)
+        let serialized_execution_data = validation::validate_and_serialize_execution_data(&execution_data)?;
 
         // Create execution and job records in a single transaction
         let max_retries = std::env::var("SP_WORKFLOW_MAX_RETRIES")
@@ -66,7 +67,7 @@ impl ExecutionService {
             workflow_id: Set(workflow_id),
             status: Set(ExecutionStatus::Pending.to_string()),
             current_node_name: Set(None),
-            input_data: Set(Some(serde_json::to_string(&execution_data)?)),
+            input_data: Set(Some(serialized_execution_data)),
             output_data: Set(None),
             error_message: Set(None),
             started_at: Set(None),

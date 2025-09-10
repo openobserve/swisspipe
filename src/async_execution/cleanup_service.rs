@@ -224,7 +224,10 @@ mod tests {
 
     #[test]
     fn test_retention_count_configuration() {
-        // Set a known retention count
+        // Clear environment variables first to ensure clean state
+        std::env::remove_var("SP_EXECUTION_RETENTION_COUNT");
+        std::env::remove_var("SP_CLEANUP_INTERVAL_MINUTES");
+        
         let db = Arc::new(sea_orm::DatabaseConnection::default()); // Mock for testing
         
         // Test with 50 executions retention
@@ -232,6 +235,9 @@ mod tests {
         let service = CleanupService::new(db);
         
         assert_eq!(service.retention_count, 50);
+        
+        // Clean up after test
+        std::env::remove_var("SP_EXECUTION_RETENTION_COUNT");
     }
 
     #[test]

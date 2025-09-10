@@ -66,23 +66,25 @@ pub fn validate_workflow_id(workflow_id: &str) -> Result<()> {
     Ok(())
 }
 
-/// Validate input data size and structure
-pub fn validate_input_data(input_data: &Value) -> Result<()> {
-    // Check serialized size
-    let serialized = serde_json::to_string(input_data)
-        .map_err(|e| SwissPipeError::InvalidInput(format!("Invalid JSON input data: {e}")))?;
+/// Validate execution data (complete structure) and return serialized string for reuse
+/// This validates the final execution data structure to catch oversized payloads
+pub fn validate_and_serialize_execution_data(execution_data: &Value) -> Result<String> {
+    // Serialize the complete execution data once
+    let serialized = serde_json::to_string(execution_data)
+        .map_err(|e| SwissPipeError::InvalidInput(format!("Invalid execution data: {e}")))?;
     
-    if serialized.len() > MAX_INPUT_DATA_SIZE {
+    // Check size of complete execution data (input + headers + metadata)
+    if serialized.len() > MAX_INPUT_DATA_SIZE * 2 { // Allow more space for headers/metadata
         return Err(SwissPipeError::InvalidInput(
-            format!("Input data too large: {} bytes (max: {} bytes)", 
-                serialized.len(), MAX_INPUT_DATA_SIZE)
+            format!("Execution data too large: {} bytes (max: {} bytes)", 
+                serialized.len(), MAX_INPUT_DATA_SIZE * 2)
         ));
     }
 
-    // Validate depth to prevent deeply nested objects that could cause stack overflow
-    validate_json_depth(input_data, 0, 10)?;
+    // Validate depth of the complete structure
+    validate_json_depth(execution_data, 0, 10)?;
     
-    Ok(())
+    Ok(serialized)
 }
 
 /// Validate and sanitize headers for security and size limits
@@ -198,7 +200,6 @@ pub fn validate_execution_id(execution_id: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
     #[test]
     fn test_validate_workflow_id() {
@@ -209,19 +210,6 @@ mod tests {
         assert!(validate_workflow_id("invalid-uuid").is_err());
         assert!(validate_workflow_id("").is_err());
     }
-
-    #[test]
-    fn test_validate_input_data_size() {
-        // Valid small data
-        let small_data = json!({"key": "value"});
-        assert!(validate_input_data(&small_data).is_ok());
-
-        // Large data (would need actual large data to test size limit)
-        // This is just a conceptual test
-        let valid_data = json!({"data": "valid"});
-        assert!(validate_input_data(&valid_data).is_ok());
-    }
-
 
     #[test]
     fn test_sanitize_headers() {
