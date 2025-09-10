@@ -9,7 +9,7 @@ use crate::workflow::{
 };
 use sea_orm::{
     ActiveModelTrait, DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, Set,
-    QuerySelect, QueryOrder,
+    QuerySelect, QueryOrder, TransactionTrait,
 };
 use serde_json::Value;
 use std::sync::Arc;
@@ -52,6 +52,14 @@ impl ExecutionService {
             "metadata": {}
         });
 
+        // Create execution and job records in a single transaction
+        let max_retries = std::env::var("SP_WORKFLOW_MAX_RETRIES")
+            .ok()
+            .and_then(|v| v.parse::<i32>().ok())
+            .unwrap_or(0);
+
+        let txn = self.db.begin().await?;
+
         // Create workflow execution record
         let execution = workflow_executions::ActiveModel {
             id: Set(execution_id.clone()),
@@ -67,14 +75,9 @@ impl ExecutionService {
             updated_at: Set(now),
         };
 
-        execution.insert(self.db.as_ref()).await?;
+        execution.insert(&txn).await?;
 
         // Create job queue entry
-        let max_retries = std::env::var("SP_WORKFLOW_MAX_RETRIES")
-            .ok()
-            .and_then(|v| v.parse::<i32>().ok())
-            .unwrap_or(0);
-            
         let job = job_queue::ActiveModel {
             id: Set(Uuid::now_v7().to_string()),
             execution_id: Set(execution_id.clone()),
@@ -90,7 +93,10 @@ impl ExecutionService {
             updated_at: Set(now),
         };
 
-        job.insert(self.db.as_ref()).await?;
+        job.insert(&txn).await?;
+
+        // Commit the transaction - both records are created atomically
+        txn.commit().await?;
 
         tracing::info!("Created execution {} with job queued", execution_id);
         Ok(execution_id)
