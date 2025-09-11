@@ -23,12 +23,23 @@
               </router-link>
             </nav>
           </div>
-          <button
-            @click="showCreateModal = true"
-            class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-          >
-            Create Workflow
-          </button>
+          <div class="flex items-center space-x-4">
+            <span class="text-sm text-gray-300">
+              Welcome, {{ authStore.user?.username }}
+            </span>
+            <button
+              @click="showCreateModal = true"
+              class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+            >
+              Create Workflow
+            </button>
+            <button
+              @click="handleLogout"
+              class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
     </header>
@@ -214,10 +225,12 @@ import {
   TrashIcon
 } from '@heroicons/vue/24/outline'
 import { useWorkflowStore } from '../stores/workflows'
+import { useAuthStore } from '../stores/auth'
 import type { Workflow } from '../types/workflow'
 
 const router = useRouter()
 const workflowStore = useWorkflowStore()
+const authStore = useAuthStore()
 
 const showCreateModal = ref(false)
 const creating = ref(false)
@@ -284,5 +297,10 @@ function duplicateWorkflow(workflow: Workflow) {
 function showDeleteModal(workflow: Workflow) {
   console.log('Delete workflow:', workflow)
   // TODO: Implement delete modal
+}
+
+function handleLogout() {
+  authStore.logout()
+  router.push('/login')
 }
 </script>

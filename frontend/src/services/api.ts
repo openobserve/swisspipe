@@ -13,7 +13,7 @@ class ApiClient {
 
   constructor() {
     this.client = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3700',
+      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3701',
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json'
@@ -27,17 +27,24 @@ class ApiClient {
     // Request interceptor for auth
     this.client.interceptors.request.use(
       (config) => {
-
         // Add Basic Auth for management endpoints
         if (!config.url?.includes('/api/v1/')) {
-          const username = import.meta.env.VITE_API_USERNAME
-          const password = import.meta.env.VITE_API_PASSWORD
+          // Try to get credentials from localStorage first (from auth store)
+          const storedCredentials = localStorage.getItem('auth_credentials')
           
-          if (username && password) {
-            const token = btoa(`${username}:${password}`)
-            config.headers.Authorization = `Basic ${token}`
+          if (storedCredentials) {
+            config.headers.Authorization = `Basic ${storedCredentials}`
           } else {
-            console.warn('API credentials not configured. Set VITE_API_USERNAME and VITE_API_PASSWORD environment variables.')
+            // Fallback to environment variables
+            const username = import.meta.env.VITE_API_USERNAME
+            const password = import.meta.env.VITE_API_PASSWORD
+            
+            if (username && password) {
+              const token = btoa(`${username}:${password}`)
+              config.headers.Authorization = `Basic ${token}`
+            } else {
+              console.warn('API credentials not configured. Either log in or set VITE_API_USERNAME and VITE_API_PASSWORD environment variables.')
+            }
           }
         }
         return config

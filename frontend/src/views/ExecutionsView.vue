@@ -23,14 +23,25 @@
               </router-link>
             </nav>
           </div>
-          <button
-            @click="executionStore.fetchExecutions()"
-            class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-            :disabled="executionStore.loading"
-          >
-            <ArrowPathIcon v-if="executionStore.loading" class="h-4 w-4 animate-spin" />
-            <span v-else>Refresh</span>
-          </button>
+          <div class="flex items-center space-x-4">
+            <span class="text-sm text-gray-300">
+              Welcome, {{ authStore.user?.username }}
+            </span>
+            <button
+              @click="executionStore.fetchExecutions()"
+              class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+              :disabled="executionStore.loading"
+            >
+              <ArrowPathIcon v-if="executionStore.loading" class="h-4 w-4 animate-spin" />
+              <span v-else>Refresh</span>
+            </button>
+            <button
+              @click="handleLogout"
+              class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
     </header>
@@ -168,6 +179,7 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   MagnifyingGlassIcon,
   EyeIcon,
@@ -175,10 +187,13 @@ import {
   ArrowPathIcon
 } from '@heroicons/vue/24/outline'
 import { useExecutionStore } from '../stores/executions'
+import { useAuthStore } from '../stores/auth'
 import ExecutionDetailsPanel from '../components/ExecutionDetailsPanel.vue'
 import type { WorkflowExecution, ExecutionStatus } from '../types/execution'
 
+const router = useRouter()
 const executionStore = useExecutionStore()
+const authStore = useAuthStore()
 
 onMounted(() => {
   executionStore.fetchExecutions()
@@ -207,5 +222,10 @@ async function cancelExecution(execution: WorkflowExecution) {
   } catch (error) {
     console.error('Failed to cancel execution:', error)
   }
+}
+
+function handleLogout() {
+  authStore.logout()
+  router.push('/login')
 }
 </script>

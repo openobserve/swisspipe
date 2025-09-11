@@ -52,6 +52,17 @@
             <ClockIcon class="h-4 w-4" />
             <span>Executions</span>
           </button>
+          <div class="flex items-center space-x-3 ml-4 border-l border-gray-600 pl-4">
+            <span class="text-sm text-gray-300">
+              {{ authStore.user?.username }}
+            </span>
+            <button
+              @click="handleLogout"
+              class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
     </header>
@@ -193,13 +204,14 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, watch, ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { VueFlow } from '@vue-flow/core'
 import { Controls } from '@vue-flow/controls'
 import { Background } from '@vue-flow/background'
 import { ArrowLeftIcon, ClockIcon, Squares2X2Icon } from '@heroicons/vue/24/outline'
 import { useWorkflowStore } from '../stores/workflows'
 import { useNodeStore } from '../stores/nodes'
+import { useAuthStore } from '../stores/auth'
 import NodeLibraryPanel from '../components/panels/NodeLibraryPanel.vue'
 import NodePropertiesPanel from '../components/panels/NodePropertiesPanel.vue'
 import ExecutionSidePanel from '../components/panels/ExecutionSidePanel.vue'
@@ -217,8 +229,10 @@ import { useVueFlowInteraction } from '../composables/useVueFlowInteraction'
 import { usePanelState } from '../composables/usePanelState'
 
 const route = useRoute()
+const router = useRouter()
 const workflowStore = useWorkflowStore()
 const nodeStore = useNodeStore()
+const authStore = useAuthStore()
 
 // JSON view state
 const showJsonModal = ref(false)
@@ -350,6 +364,11 @@ function showJsonView() {
 
 function handleCloseJsonView() {
   showJsonModal.value = false
+}
+
+function handleLogout() {
+  authStore.logout()
+  router.push('/login')
 }
 
 </script>
