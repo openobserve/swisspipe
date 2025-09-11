@@ -231,8 +231,14 @@ impl InputSyncService {
         let mut merged_headers = HashMap::new();
         let mut merged_condition_results = HashMap::new();
 
+        // Add metadata about the merge operation for traceability  
+        merged_metadata.insert("merge_info".to_string(), "multiple_inputs_merged".to_string());
+        merged_metadata.insert("input_count".to_string(), inputs.len().to_string());
+        merged_metadata.insert("merge_timestamp".to_string(), chrono::Utc::now().to_rfc3339());
+
         // Create structured merge to avoid any potential key collisions
-        // Instead of flattening with prefixes, create nested structure
+        // Each input is preserved under its own input_N key
+        // This ensures every node's complete output is available to the receiving node
         for (index, input) in inputs.iter().enumerate() {
             let input_key = format!("input_{index}");
             

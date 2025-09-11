@@ -98,8 +98,21 @@ pub trait InputCoordination {
                 merge_strategy,
             ).await? {
                 InputSyncResult::Ready(merged_inputs) => {
+                    // Log the inputs being merged for debugging
+                    tracing::debug!(
+                        "Node '{}' merging {} inputs using strategy {:?}",
+                        node_name, merged_inputs.len(), merge_strategy
+                    );
+                    
                     // Merge the inputs based on strategy
                     let merged_event = InputSyncService::merge_inputs(merged_inputs, merge_strategy)?;
+                    
+                    tracing::debug!(
+                        "Node '{}' merged inputs into event with data keys: {:?}",
+                        node_name,
+                        merged_event.data.as_object().map(|obj| obj.keys().collect::<Vec<_>>()).unwrap_or_default()
+                    );
+                    
                     Ok((true, merged_event))
                 }
                 InputSyncResult::Waiting => {

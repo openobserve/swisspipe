@@ -199,13 +199,23 @@ impl WorkerPool {
                     .await?;
                 
                 // Execute the node
-                match self.execute_node_with_tracking(execution_id, workflow, node, current_event).await {
+                match self.execute_node_with_tracking(execution_id, workflow, node, current_event.clone()).await {
                     Ok(result_event) => {
                         // Mark step as completed
                         let output_data = serde_json::to_value(&result_event).ok();
                         self.execution_service
                             .update_execution_step(&step_id, StepStatus::Completed, output_data, None)
                             .await?;
+                        
+                        // Log the input → output transformation for debugging
+                        tracing::debug!(
+                            "Node '{}' transformed input → output: input_data_size={}, output_data_size={}",
+                            current_node_name,
+                            serde_json::to_string(&current_event).map(|s| s.len()).unwrap_or(0),
+                            serde_json::to_string(&result_event).map(|s| s.len()).unwrap_or(0)
+                        );
+                        
+                        // Ensure the output carries forward all necessary context
                         current_event = result_event;
                     }
                     Err(SwissPipeError::DelayScheduled(delay_id)) => {
