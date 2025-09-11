@@ -67,4 +67,5 @@ pub enum Nodes {
     PositionX,
     PositionY,
     CreatedAt,
+    InputMergeStrategy,
 }

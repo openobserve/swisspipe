@@ -125,3 +125,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Workflow data managed through Pinia stores
 - Node library with predefined templates
 - Real-time execution status updates
+
+## Frontend Development Patterns
+
+### Vue 3 Composition API Architecture
+- All components use `<script setup>` with TypeScript
+- Business logic extracted into focused composables in `src/composables/`
+- Shared utilities in `src/utils/` for comparison, error handling, and debug logging
+
+### Component Architecture Patterns
+- **v-model first**: Prefer v-model over manual event handlers for data binding
+- **Deep cloning**: Use `deepClone()` from `src/utils/comparison.ts` to prevent shared object references between node instances
+- **Composable pattern**: Extract complex component logic into reusable composables
+- **Type safety**: All components have proper TypeScript interfaces for props/emits
+
+### Email Configuration System
+- Email nodes use computed properties to ensure array fields (to/cc/bcc) are never undefined
+- Deep cloning prevents data sharing between multiple email nodes in workflows
+- Reactive watchers handle form updates without manual event handlers
+- Validation and error handling through dedicated utilities
+
+### Performance Optimization
+- Efficient object comparison using `emailConfigEqual()` and `shallowArrayEqual()` 
+- Avoid JSON.stringify for performance-critical comparisons
+- Deep watchers only where necessary, prefer computed properties
+- Debug logging stripped from production builds
+
+### Data Flow Architecture
+- Pinia stores for workflow and node state management
+- Props flow down, events emit up with proper TypeScript typing
+- Local state management in composables with validation
+- Real-time updates through reactive watchers
+
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.

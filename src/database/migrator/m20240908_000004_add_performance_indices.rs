@@ -13,6 +13,7 @@ impl MigrationTrait for Migration {
                     .name("idx_workflow_executions_status")
                     .table(WorkflowExecutions::Table)
                     .col(WorkflowExecutions::Status)
+                    .if_not_exists()
                     .to_owned(),
             )
             .await?;
@@ -23,6 +24,7 @@ impl MigrationTrait for Migration {
                     .name("idx_workflow_executions_workflow_id")
                     .table(WorkflowExecutions::Table)
                     .col(WorkflowExecutions::WorkflowId)
+                    .if_not_exists()
                     .to_owned(),
             )
             .await?;
@@ -33,6 +35,7 @@ impl MigrationTrait for Migration {
                     .name("idx_workflow_executions_created_at")
                     .table(WorkflowExecutions::Table)
                     .col(WorkflowExecutions::CreatedAt)
+                    .if_not_exists()
                     .to_owned(),
             )
             .await?;
@@ -44,6 +47,7 @@ impl MigrationTrait for Migration {
                     .name("idx_execution_steps_execution_id")
                     .table(WorkflowExecutionSteps::Table)
                     .col(WorkflowExecutionSteps::ExecutionId)
+                    .if_not_exists()
                     .to_owned(),
             )
             .await?;
@@ -54,6 +58,7 @@ impl MigrationTrait for Migration {
                     .name("idx_execution_steps_status")
                     .table(WorkflowExecutionSteps::Table)
                     .col(WorkflowExecutionSteps::Status)
+                    .if_not_exists()
                     .to_owned(),
             )
             .await?;
@@ -68,6 +73,7 @@ impl MigrationTrait for Migration {
                     .col(JobQueue::Status)
                     .col(JobQueue::Priority)
                     .col(JobQueue::ScheduledAt)
+                    .if_not_exists()
                     .to_owned(),
             )
             .await?;
@@ -78,6 +84,7 @@ impl MigrationTrait for Migration {
                     .name("idx_job_queue_claimed_by")
                     .table(JobQueue::Table)
                     .col(JobQueue::ClaimedBy)
+                    .if_not_exists()
                     .to_owned(),
             )
             .await?;
@@ -88,6 +95,7 @@ impl MigrationTrait for Migration {
                     .name("idx_job_queue_execution_id")
                     .table(JobQueue::Table)
                     .col(JobQueue::ExecutionId)
+                    .if_not_exists()
                     .to_owned(),
             )
             .await?;
@@ -98,6 +106,7 @@ impl MigrationTrait for Migration {
                     .name("idx_job_queue_claimed_at")
                     .table(JobQueue::Table)
                     .col(JobQueue::ClaimedAt)
+                    .if_not_exists()
                     .to_owned(),
             )
             .await?;
@@ -109,6 +118,7 @@ impl MigrationTrait for Migration {
                     .table(JobQueue::Table)
                     .col(JobQueue::RetryCount)
                     .col(JobQueue::Status)
+                    .if_not_exists()
                     .to_owned(),
             )
             .await?;

@@ -15,6 +15,7 @@ pub struct Model {
     pub position_x: f64,
     pub position_y: f64,
     pub created_at: ChronoDateTimeUtc,
+    pub input_merge_strategy: Option<String>, // JSON serialized InputMergeStrategy
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
