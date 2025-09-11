@@ -466,38 +466,19 @@ pub async fn update_workflow(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Get existing nodes and edges
+    // Get existing nodes for comparison
     let existing_nodes = nodes::Entity::find()
         .filter(nodes::Column::WorkflowId.eq(&id))
         .all(&*state.db)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
 
-    let existing_edges = edges::Entity::find()
-        .filter(edges::Column::WorkflowId.eq(&id))
-        .all(&*state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    // Create maps for efficient lookups - use node ID as primary key, name as fallback
-    let mut existing_nodes_by_id: std::collections::HashMap<String, nodes::Model> = 
-        existing_nodes.iter().map(|n| (n.id.clone(), n.clone())).collect();
-    let mut existing_nodes_by_name: std::collections::HashMap<String, nodes::Model> = 
-        existing_nodes.into_iter().map(|n| (n.name.clone(), n)).collect();
-    let mut existing_edges_map: std::collections::HashMap<String, edges::Model> = 
-        existing_edges.into_iter().map(|e| {
-            let key = format!("{}_{}_{:?}", e.from_node_name, e.to_node_name, e.condition_result);
-            (key, e)
-        }).collect();
-
-    // Update or create nodes
-    let mut processed_node_ids = std::collections::HashSet::new();
-    let mut processed_node_names = std::collections::HashSet::new();
+    // Simplified node processing: update if ID exists, create if no ID, then delete nodes not in request
     let mut node_id_to_name_mapping = std::collections::HashMap::new();
+    let mut request_node_ids = std::collections::HashSet::new();
     
     for node_req in request.nodes {
-        processed_node_names.insert(node_req.name.clone());
-        
         let node_config = serde_json::to_string(&node_req.node_type)
             .map_err(|_| StatusCode::BAD_REQUEST)?;
         
@@ -511,33 +492,48 @@ pub async fn update_workflow(
             NodeType::Delay { .. } => "delay".to_string(),
         };
         
-        // Try to find existing node by ID first, then by name
-        let existing_node = if let Some(node_id) = &node_req.id {
-            processed_node_ids.insert(node_id.clone());
-            existing_nodes_by_id.remove(node_id)
-        } else {
-            existing_nodes_by_name.remove(&node_req.name)
-        };
-
-        if let Some(existing_node) = existing_node {
-            // Update existing node
-            let node_id = existing_node.id.clone();
+        if let Some(node_id) = &node_req.id {
+            // Node has ID -> update existing node
+            request_node_ids.insert(node_id.clone());
             node_id_to_name_mapping.insert(node_req.name.clone(), node_id.clone());
             
-            let mut node_model: nodes::ActiveModel = existing_node.into();
-            node_model.name = Set(node_req.name.clone()); // Allow name updates
-            node_model.node_type = Set(node_type_str);
-            node_model.config = Set(node_config);
-            node_model.position_x = Set(node_req.position_x.unwrap_or(100.0));
-            node_model.position_y = Set(node_req.position_y.unwrap_or(100.0));
-            
-            node_model
-                .update(&*state.db)
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            // Find and update the existing node
+            if let Some(existing_node) = existing_nodes.iter().find(|n| &n.id == node_id) {
+                let mut node_model: nodes::ActiveModel = existing_node.clone().into();
+                node_model.name = Set(node_req.name.clone());
+                node_model.node_type = Set(node_type_str);
+                node_model.config = Set(node_config);
+                node_model.position_x = Set(node_req.position_x.unwrap_or(100.0));
+                node_model.position_y = Set(node_req.position_y.unwrap_or(100.0));
+                
+                node_model
+                    .update(&*state.db)
+                    .await
+                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            } else {
+                // Node ID not found, treat as new node but use the provided ID
+                node_id_to_name_mapping.insert(node_req.name.clone(), node_id.clone());
+                
+                let node_model = nodes::ActiveModel {
+                    id: Set(node_id.clone()),
+                    workflow_id: Set(id.clone()),
+                    name: Set(node_req.name.clone()),
+                    node_type: Set(node_type_str),
+                    config: Set(node_config),
+                    position_x: Set(node_req.position_x.unwrap_or(100.0)),
+                    position_y: Set(node_req.position_y.unwrap_or(100.0)),
+                    ..Default::default()
+                };
+
+                node_model
+                    .insert(&*state.db)
+                    .await
+                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            }
         } else {
-            // Create new node
+            // No ID -> create new node
             let new_node_id = Uuid::new_v4().to_string();
+            request_node_ids.insert(new_node_id.clone());
             node_id_to_name_mapping.insert(node_req.name.clone(), new_node_id.clone());
             
             let node_model = nodes::ActiveModel {
@@ -558,18 +554,10 @@ pub async fn update_workflow(
         }
     }
 
-    // Delete nodes that are no longer present (not processed by ID or name)
-    for (_, remaining_node) in existing_nodes_by_id {
-        if !processed_node_ids.contains(&remaining_node.id) && !processed_node_names.contains(&remaining_node.name) {
-            nodes::Entity::delete_by_id(&remaining_node.id)
-                .exec(&*state.db)
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        }
-    }
-    for (_, remaining_node) in existing_nodes_by_name {
-        if !processed_node_names.contains(&remaining_node.name) {
-            nodes::Entity::delete_by_id(&remaining_node.id)
+    // Delete nodes not in the request (set difference)
+    for existing_node in &existing_nodes {
+        if !request_node_ids.contains(&existing_node.id) {
+            nodes::Entity::delete_by_id(&existing_node.id)
                 .exec(&*state.db)
                 .await
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -585,63 +573,38 @@ pub async fn update_workflow(
         }
     }
 
-    // Update or create edges - use node IDs when available, names as fallback
-    let mut processed_edge_keys = std::collections::HashSet::new();
+    // Simplified edge processing: delete all existing edges, then create new ones from request
+    // Delete all existing edges for this workflow
+    edges::Entity::delete_many()
+        .filter(edges::Column::WorkflowId.eq(&id))
+        .exec(&*state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Create all edges from request (require node IDs)
     for edge_req in request.edges {
-        // Determine source and target node IDs/names
-        let from_node_id = if let Some(id) = &edge_req.from_node_id {
-            id.clone()
-        } else if let Some(id) = node_id_to_name_mapping.get(&edge_req.from_node_name) {
-            id.clone()
-        } else {
-            // Try to find by name in existing nodes
-            "unknown".to_string() // This will be handled by validation
-        };
+        // Resolve node IDs with proper error handling
+        let from_node_id = edge_req.from_node_id
+            .or_else(|| node_id_to_name_mapping.get(&edge_req.from_node_name).cloned())
+            .ok_or(StatusCode::BAD_REQUEST)?;
         
-        let to_node_id = if let Some(id) = &edge_req.to_node_id {
-            id.clone()
-        } else if let Some(id) = node_id_to_name_mapping.get(&edge_req.to_node_name) {
-            id.clone()
-        } else {
-            // Try to find by name in existing nodes
-            "unknown".to_string() // This will be handled by validation
-        };
+        let to_node_id = edge_req.to_node_id
+            .or_else(|| node_id_to_name_mapping.get(&edge_req.to_node_name).cloned())
+            .ok_or(StatusCode::BAD_REQUEST)?;
         
-        // Create edge key using IDs when available, names as fallback
-        let edge_key = if edge_req.from_node_id.is_some() && edge_req.to_node_id.is_some() {
-            format!("{}_{}_id_{:?}", from_node_id, to_node_id, edge_req.condition_result)
-        } else {
-            format!("{}_{}_{:?}", edge_req.from_node_name, edge_req.to_node_name, edge_req.condition_result)
+        let edge_model = edges::ActiveModel {
+            id: Set(Uuid::new_v4().to_string()),
+            workflow_id: Set(id.clone()),
+            from_node_name: Set(edge_req.from_node_name),
+            to_node_name: Set(edge_req.to_node_name),
+            from_node_id: Set(Some(from_node_id)),
+            to_node_id: Set(Some(to_node_id)),
+            condition_result: Set(edge_req.condition_result),
+            ..Default::default()
         };
-        processed_edge_keys.insert(edge_key.clone());
 
-        if let Some(_existing_edge) = existing_edges_map.remove(&edge_key) {
-            // Edge already exists and is correct, no update needed
-            // (edges are simple and don't have updatable fields beyond the key)
-        } else {
-            // Create new edge
-            let edge_model = edges::ActiveModel {
-                id: Set(Uuid::new_v4().to_string()),
-                workflow_id: Set(id.clone()),
-                from_node_name: Set(edge_req.from_node_name),
-                to_node_name: Set(edge_req.to_node_name),
-                from_node_id: Set(Some(from_node_id)),
-                to_node_id: Set(Some(to_node_id)),
-                condition_result: Set(edge_req.condition_result),
-                ..Default::default()
-            };
-
-            edge_model
-                .insert(&*state.db)
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        }
-    }
-
-    // Delete edges that are no longer present
-    for (_, remaining_edge) in existing_edges_map {
-        edges::Entity::delete_by_id(&remaining_edge.id)
-            .exec(&*state.db)
+        edge_model
+            .insert(&*state.db)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
