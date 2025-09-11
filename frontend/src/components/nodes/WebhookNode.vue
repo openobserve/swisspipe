@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between mb-2">
       <div class="flex-1">
         <div class="text-sm font-medium">{{ data.label || 'Webhook' }}</div>
-        <div class="text-xs text-green-200 opacity-80">HTTP Request</div>
+        <div class="text-xs text-green-200 opacity-80">Webhook</div>
       </div>
       <div v-if="data.isTracing" class="flex items-center space-x-1">
         <div v-if="data.executionStatus" :class="statusIndicatorClasses" class="w-3 h-3 rounded-full"></div>

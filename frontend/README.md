@@ -92,7 +92,7 @@ src/
 │   │   ├── TransformerNode.vue
 │   │   └── AppNode.vue
 │   ├── panels/          # UI panels
-│   │   ├── NodeLibraryPanel.vue
+│   │   ├── NodeLibraryModal.vue
 │   │   └── NodePropertiesPanel.vue
 │   └── common/          # Reusable components
 │       └── CodeEditor.vue

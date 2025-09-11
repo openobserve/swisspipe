@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between mb-2">
       <div class="flex-1">
         <div class="text-sm font-medium">{{ data.label || 'OpenObserve' }}</div>
-        <div class="text-xs text-orange-200 opacity-80">Log Analytics</div>
+        <div class="text-xs text-orange-200 opacity-80">OpenObserve</div>
       </div>
       <div v-if="data.isTracing" class="flex items-center space-x-1">
         <div v-if="data.executionStatus" :class="statusIndicatorClasses" class="w-3 h-3 rounded-full"></div>

@@ -2,7 +2,7 @@ import { ref } from 'vue'
 
 export function usePanelState() {
   const showExecutionsPanel = ref(false)
-  const showNodeLibrary = ref(true)
+  const showNodeLibrary = ref(false)
 
   function toggleExecutionsPanel() {
     showExecutionsPanel.value = !showExecutionsPanel.value

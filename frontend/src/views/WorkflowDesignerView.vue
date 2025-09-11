@@ -40,10 +40,10 @@
           <button
             @click="toggleNodeLibrary"
             class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center space-x-2"
-            :title="showNodeLibrary ? 'Hide Node Library' : 'Show Node Library'"
+            title="Node Library"
           >
             <Squares2X2Icon class="h-4 w-4" />
-            <span>{{ showNodeLibrary ? 'Hide' : 'Show' }} Node Library</span>
+            <span>Node Library</span>
           </button>
           <button
             @click="toggleExecutionsPanel"
@@ -69,20 +69,23 @@
 
     <!-- Main Content -->
     <div class="flex flex-1 overflow-hidden">
-      <!-- Node Library Panel -->
+      <!-- Node Library Modal -->
       <Transition
-        enter-active-class="transition-all duration-300 ease-out"
-        leave-active-class="transition-all duration-300 ease-in"
-        enter-from-class="w-0 opacity-0"
-        enter-to-class="w-80 opacity-100"
-        leave-from-class="w-80 opacity-100"
-        leave-to-class="w-0 opacity-0"
+        enter-active-class="transition-opacity duration-300 ease-out"
+        leave-active-class="transition-opacity duration-300 ease-in"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
       >
         <div 
           v-if="showNodeLibrary"
-          class="w-80 glass-medium border-r border-slate-700/50 flex-shrink-0 overflow-y-auto"
+          class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          @click.self="closeNodeLibrary"
         >
-          <NodeLibraryPanel />
+          <div class="bg-slate-800 rounded-xl border border-slate-700 max-w-4xl w-full max-h-[80vh] overflow-hidden shadow-2xl">
+            <NodeLibraryModal @close="closeNodeLibrary" @add-node="handleAddNode" />
+          </div>
         </div>
       </Transition>
 
@@ -218,7 +221,7 @@ import { ArrowLeftIcon, ClockIcon, Squares2X2Icon } from '@heroicons/vue/24/outl
 import { useWorkflowStore } from '../stores/workflows'
 import { useNodeStore } from '../stores/nodes'
 import { useAuthStore } from '../stores/auth'
-import NodeLibraryPanel from '../components/panels/NodeLibraryPanel.vue'
+import NodeLibraryModal from '../components/panels/NodeLibraryModal.vue'
 import NodePropertiesPanel from '../components/panels/NodePropertiesPanel.vue'
 import ExecutionSidePanel from '../components/panels/ExecutionSidePanel.vue'
 import NodeInspector from '../components/panels/NodeInspector.vue'
@@ -372,6 +375,40 @@ function showJsonView() {
 
 function handleCloseJsonView() {
   showJsonModal.value = false
+}
+
+function closeNodeLibrary() {
+  showNodeLibrary.value = false
+}
+
+function handleAddNode(nodeType: any) {
+  // Add node at the center of the viewport
+  const centerPosition = {
+    x: 400,
+    y: 300
+  }
+  
+  // Create a unique ID for the node
+  const nodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  
+  // Create the node data
+  const newNode = {
+    id: nodeId,
+    type: nodeType.type,
+    position: centerPosition,
+    data: {
+      label: nodeType.label,
+      description: nodeType.description,
+      config: nodeType.defaultConfig,
+      status: 'ready' as const
+    }
+  }
+  
+  // Add the node to the store
+  nodeStore.addNode(newNode)
+  
+  // Close the modal
+  closeNodeLibrary()
 }
 
 function handleLogout() {
