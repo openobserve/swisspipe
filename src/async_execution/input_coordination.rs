@@ -86,7 +86,7 @@ pub trait InputCoordination {
         input_merge_strategy: Option<&InputMergeStrategy>,
     ) -> Result<(bool, WorkflowEvent)> {
         let incoming_edge_count = self.count_incoming_edges(workflow, node_name);
-        let merge_strategy = input_merge_strategy.unwrap_or(&InputMergeStrategy::FirstWins);
+        let merge_strategy = input_merge_strategy.unwrap_or(&InputMergeStrategy::WaitForAll);
         
         if incoming_edge_count > 1 {
             // Multiple inputs - check synchronization

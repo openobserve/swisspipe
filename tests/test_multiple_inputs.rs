@@ -68,14 +68,28 @@ async fn test_input_synchronization_wait_for_all() {
                 .expect("Failed to merge inputs");
             
             // Verify merged data structure
-            if let Some(obj) = merged.data.as_object() {
-                assert!(obj.contains_key("input_0_message"));
-                assert!(obj.contains_key("input_0_value"));
-                assert!(obj.contains_key("input_1_message"));
-                assert!(obj.contains_key("input_1_value"));
-                println!("✅ Input merging created correct data structure");
+            if let Some(array) = merged.data.as_array() {
+                assert_eq!(array.len(), 2);
+                
+                // Check first input data
+                if let Some(input_0) = array[0].as_object() {
+                    assert!(input_0.contains_key("message"));
+                    assert!(input_0.contains_key("value"));
+                    assert_eq!(input_0["message"], "first input");
+                    assert_eq!(input_0["value"], 100);
+                }
+                
+                // Check second input data  
+                if let Some(input_1) = array[1].as_object() {
+                    assert!(input_1.contains_key("message"));
+                    assert!(input_1.contains_key("value"));
+                    assert_eq!(input_1["message"], "second input");
+                    assert_eq!(input_1["value"], 200);
+                }
+                
+                println!("✅ Input merging created correct array structure");
             } else {
-                panic!("Merged data should be an object");
+                panic!("Merged data should be an array");
             }
             
             // Verify metadata merging
@@ -229,25 +243,22 @@ fn test_merge_strategies_logic() {
     let wait_all_result = InputSyncService::merge_inputs(inputs, &InputMergeStrategy::WaitForAll)
         .expect("WaitForAll merge failed");
     
-    if let Some(obj) = wait_all_result.data.as_object() {
-        // With new nested structure, check for input_0 and input_1 keys
-        assert!(obj.contains_key("input_0"));
-        assert!(obj.contains_key("input_1"));
+    if let Some(array) = wait_all_result.data.as_array() {
+        // With new array structure, check that we have 2 elements
+        assert_eq!(array.len(), 2);
         
-        // Verify the nested data is correct
-        if let Some(input_0) = obj.get("input_0") {
-            if let Some(input_0_obj) = input_0.as_object() {
-                assert!(input_0_obj.contains_key("key1"));
-            }
+        // Verify the array elements contain the correct data
+        if let Some(input_0_obj) = array[0].as_object() {
+            assert!(input_0_obj.contains_key("key1"));
+            assert_eq!(input_0_obj["key1"], "value1");
         }
-        if let Some(input_1) = obj.get("input_1") {
-            if let Some(input_1_obj) = input_1.as_object() {
-                assert!(input_1_obj.contains_key("key2"));
-            }
+        if let Some(input_1_obj) = array[1].as_object() {
+            assert!(input_1_obj.contains_key("key2"));
+            assert_eq!(input_1_obj["key2"], "value2");
         }
-        println!("✅ WaitForAll merge created expected nested structure");
+        println!("✅ WaitForAll merge created expected array structure");
     } else {
-        panic!("WaitForAll should create object structure");
+        panic!("WaitForAll should create array structure");
     }
     
     // Check metadata merging

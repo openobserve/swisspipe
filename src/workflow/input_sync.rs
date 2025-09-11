@@ -224,9 +224,8 @@ impl InputSyncService {
         }
     }
 
-    /// Helper method to merge all inputs with structured nesting to prevent collisions
+    /// Helper method to merge all inputs as an array
     fn merge_all_inputs(inputs: Vec<WorkflowEvent>) -> Result<WorkflowEvent> {
-        let mut merged_data = serde_json::Map::new();
         let mut merged_metadata = HashMap::new();
         let mut merged_headers = HashMap::new();
         let mut merged_condition_results = HashMap::new();
@@ -236,15 +235,15 @@ impl InputSyncService {
         merged_metadata.insert("input_count".to_string(), inputs.len().to_string());
         merged_metadata.insert("merge_timestamp".to_string(), chrono::Utc::now().to_rfc3339());
 
-        // Create structured merge to avoid any potential key collisions
-        // Each input is preserved under its own input_N key
-        // This ensures every node's complete output is available to the receiving node
+        // Create array of input data values
+        let input_data_array: Vec<serde_json::Value> = inputs.iter()
+            .map(|input| input.data.clone())
+            .collect();
+
+        // Merge metadata, headers, and condition results with input prefix for traceability
         for (index, input) in inputs.iter().enumerate() {
             let input_key = format!("input_{index}");
             
-            // Store entire input data under indexed key
-            merged_data.insert(input_key.clone(), input.data.clone());
-
             // Merge metadata with input prefix
             for (key, value) in &input.metadata {
                 merged_metadata.insert(format!("{input_key}_{key}"), value.clone());
@@ -262,7 +261,7 @@ impl InputSyncService {
         }
 
         Ok(WorkflowEvent {
-            data: serde_json::Value::Object(merged_data),
+            data: serde_json::Value::Array(input_data_array),
             metadata: merged_metadata,
             headers: merged_headers,
             condition_results: merged_condition_results,
@@ -325,25 +324,20 @@ mod tests {
         let wait_all_result = InputSyncService::merge_inputs(inputs, &InputMergeStrategy::WaitForAll)
             .expect("WaitForAll merge failed");
         
-        if let Some(obj) = wait_all_result.data.as_object() {
-            // With new nested structure, check for input_0 and input_1 keys
-            assert!(obj.contains_key("input_0"));
-            assert!(obj.contains_key("input_1"));
+        if let Some(array) = wait_all_result.data.as_array() {
+            // With new array structure, check that we have 2 elements
+            assert_eq!(array.len(), 2);
             
-            // Verify the nested data is correct
-            if let Some(input_0) = obj.get("input_0") {
-                if let Some(input_0_obj) = input_0.as_object() {
-                    assert!(input_0_obj.contains_key("key1"));
-                }
+            // Verify the array elements contain the correct data
+            if let Some(input_0_obj) = array[0].as_object() {
+                assert!(input_0_obj.contains_key("key1"));
             }
-            if let Some(input_1) = obj.get("input_1") {
-                if let Some(input_1_obj) = input_1.as_object() {
-                    assert!(input_1_obj.contains_key("key2"));
-                }
+            if let Some(input_1_obj) = array[1].as_object() {
+                assert!(input_1_obj.contains_key("key2"));
             }
-            println!("✅ WaitForAll merge created expected nested structure");
+            println!("✅ WaitForAll merge created expected array structure");
         } else {
-            panic!("WaitForAll should create object structure");
+            panic!("WaitForAll should create array structure");
         }
         
         // Check metadata merging
