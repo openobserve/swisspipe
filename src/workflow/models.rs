@@ -6,7 +6,7 @@ pub struct WorkflowEvent {
     pub data: serde_json::Value,
     pub metadata: HashMap<String, String>,
     pub headers: HashMap<String, String>,
-    pub condition_results: HashMap<String, bool>, // Store condition results by node name
+    pub condition_results: HashMap<String, bool>, // Store condition results by node name/ID
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,8 +112,10 @@ pub struct Node {
 pub struct Edge {
     pub id: String,
     pub workflow_id: String,
-    pub from_node_name: String,
-    pub to_node_name: String,
+    pub from_node_name: String, // Deprecated: use from_node_id
+    pub to_node_name: String,   // Deprecated: use to_node_id
+    pub from_node_id: Option<String>, // New: node ID reference
+    pub to_node_id: Option<String>,   // New: node ID reference
     pub condition_result: Option<bool>,
 }
 
@@ -122,7 +124,8 @@ pub struct Workflow {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
-    pub start_node_name: String,
+    pub start_node_name: String, // Deprecated: use start_node_id
+    pub start_node_id: Option<String>, // New: node ID reference
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
 }

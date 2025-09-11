@@ -10,7 +10,8 @@ pub struct Model {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
-    pub start_node_name: String,
+    pub start_node_name: String, // Deprecated, use start_node_id
+    pub start_node_id: Option<String>,
     pub created_at: ChronoDateTimeUtc,
     pub updated_at: ChronoDateTimeUtc,
 }

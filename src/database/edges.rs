@@ -9,8 +9,10 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
     pub workflow_id: String,
-    pub from_node_name: String,
-    pub to_node_name: String,
+    pub from_node_name: String, // Deprecated, use from_node_id
+    pub to_node_name: String,   // Deprecated, use to_node_id
+    pub from_node_id: Option<String>,
+    pub to_node_id: Option<String>,
     pub condition_result: Option<bool>,
     pub created_at: ChronoDateTimeUtc,
 }

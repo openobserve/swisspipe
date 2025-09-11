@@ -87,6 +87,8 @@ impl WorkflowEngine {
                 workflow_id: edge_model.workflow_id,
                 from_node_name: edge_model.from_node_name,
                 to_node_name: edge_model.to_node_name,
+                from_node_id: edge_model.from_node_id,
+                to_node_id: edge_model.to_node_id,
                 condition_result: edge_model.condition_result,
             })
             .collect();
@@ -96,6 +98,7 @@ impl WorkflowEngine {
             name: workflow_model.name,
             description: workflow_model.description,
             start_node_name: workflow_model.start_node_name,
+            start_node_id: workflow_model.start_node_id,
             nodes,
             edges,
         })

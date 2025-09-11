@@ -10,7 +10,8 @@ pub struct Model {
     pub id: String,
     pub workflow_id: String,
     pub status: String, // 'pending', 'running', 'completed', 'failed', 'cancelled'
-    pub current_node_name: Option<String>,
+    pub current_node_name: Option<String>, // Deprecated, use current_node_id
+    pub current_node_id: Option<String>,
     pub input_data: Option<String>, // JSON
     pub output_data: Option<String>, // JSON
     pub error_message: Option<String>,

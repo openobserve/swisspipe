@@ -43,8 +43,18 @@ export function useWorkflowData() {
       
       // Convert API edges to VueFlow format
       workflow.edges.forEach(edge => {
-        const sourceNode = workflow.nodes.find(n => n.name === edge.from_node_name)
-        const targetNode = workflow.nodes.find(n => n.name === edge.to_node_name)
+        // Prefer node IDs over names for edge connections
+        let sourceNode, targetNode
+        
+        if (edge.from_node_id && edge.to_node_id) {
+          // Use node IDs if available
+          sourceNode = workflow.nodes.find(n => n.id === edge.from_node_id)
+          targetNode = workflow.nodes.find(n => n.id === edge.to_node_id)
+        } else {
+          // Fall back to names for backward compatibility
+          sourceNode = workflow.nodes.find(n => n.name === edge.from_node_name)
+          targetNode = workflow.nodes.find(n => n.name === edge.to_node_name)
+        }
         
         if (sourceNode && targetNode) {
           const vueFlowEdge = {
@@ -128,16 +138,20 @@ export function useWorkflowData() {
         return {
           from_node_name: sourceNode?.type === 'trigger' ? 'Start' : (sourceNode?.data.label || edge.source),
           to_node_name: targetNode?.type === 'trigger' ? 'Start' : (targetNode?.data.label || edge.target),
+          from_node_id: edge.source,
+          to_node_id: edge.target,
           condition_result: edge.sourceHandle === 'true' ? true : edge.sourceHandle === 'false' ? false : undefined
         }
       })
 
       const startNodeName = 'Start'
+      const startNodeId = nodeStore.nodes.find(n => n.type === 'trigger')?.id
 
       const workflowData = {
         name: workflowName.value || workflowStore.currentWorkflow.name,
         description: workflowStore.currentWorkflow.description,
         start_node_name: startNodeName,
+        start_node_id: startNodeId,
         nodes: apiNodes,
         edges: apiEdges
       }

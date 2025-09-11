@@ -67,6 +67,7 @@ impl ExecutionService {
             workflow_id: Set(workflow_id),
             status: Set(ExecutionStatus::Pending.to_string()),
             current_node_name: Set(None),
+            current_node_id: Set(None),
             input_data: Set(Some(serialized_execution_data)),
             output_data: Set(None),
             error_message: Set(None),
@@ -195,6 +196,7 @@ impl ExecutionService {
             execution_id: Set(execution_id),
             node_id: Set(node_id),
             node_name: Set(node_name),
+            node_id_ref: Set(None), // Will be populated after migration
             status: Set(StepStatus::Pending.to_string()),
             input_data: Set(input_data.map(|v| serde_json::to_string(&v).unwrap_or_default())),
             output_data: Set(None),
