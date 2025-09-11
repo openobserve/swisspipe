@@ -14,9 +14,9 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> Result<Self, SwissPipeError> {
         let username = env::var("SP_USERNAME")
-            .unwrap_or_else(|_| "admin".to_string());
+            .map_err(|_| SwissPipeError::Config("SP_USERNAME environment variable is required".to_string()))?;
         let password = env::var("SP_PASSWORD")
-            .unwrap_or_else(|_| "admin".to_string());
+            .map_err(|_| SwissPipeError::Config("SP_PASSWORD environment variable is required".to_string()))?;
         let database_url = env::var("DATABASE_URL")
             .unwrap_or_else(|_| "sqlite:data/swisspipe.db?mode=rwc".to_string());
         let port = env::var("PORT")
