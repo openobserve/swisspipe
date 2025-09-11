@@ -132,6 +132,17 @@ impl TemplateEngine {
             "hostname": std::env::var("HOSTNAME").unwrap_or_else(|_| "unknown".to_string()),
         }));
         
+        // Flatten data properties to root level for easier access
+        // This allows using {{name}} instead of {{event.data.name}}
+        if let Value::Object(ref data_obj) = workflow_event.data {
+            for (key, value) in data_obj {
+                // Only add if it doesn't conflict with existing root-level keys
+                if !context.contains_key(key) {
+                    context.insert(key.clone(), value.clone());
+                }
+            }
+        }
+        
         Ok(Value::Object(context))
     }
     
