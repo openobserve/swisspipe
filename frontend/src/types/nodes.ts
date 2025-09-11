@@ -29,11 +29,11 @@ export interface WorkflowEdge extends Omit<Edge, 'data'> {
   }
 }
 
-export type NodeTypeString = 'trigger' | 'condition' | 'transformer' | 'app' | 'email' | 'delay'
+export type NodeTypeString = 'trigger' | 'condition' | 'transformer' | 'webhook' | 'openobserve' | 'app' | 'email' | 'delay'
 
 export type NodeStatus = 'ready' | 'running' | 'completed' | 'error'
 
-export type NodeConfig = TriggerConfig | ConditionConfig | TransformerConfig | AppConfig | EmailConfig | DelayConfig
+export type NodeConfig = TriggerConfig | ConditionConfig | TransformerConfig | WebhookConfig | OpenObserveConfig | AppConfig | EmailConfig | DelayConfig
 
 export interface TriggerConfig {
   type: 'trigger'
@@ -50,17 +50,27 @@ export interface TransformerConfig {
   script: string
 }
 
-export interface AppConfig {
-  type: 'app'
-  app_type: AppType
+export interface WebhookConfig {
+  type: 'webhook'
   url: string
   method: string
   timeout_seconds: number
   failure_action: FailureAction
   headers?: Record<string, string>
-  openobserve_url?: string
-  authorization_header?: string
-  stream_name?: string
+  retry_config: {
+    max_attempts: number
+    initial_delay_ms: number
+    max_delay_ms: number
+    backoff_multiplier: number
+  }
+}
+
+export interface OpenObserveConfig {
+  type: 'openobserve'
+  url: string
+  authorization_header: string
+  timeout_seconds: number
+  failure_action: FailureAction
   retry_config: {
     max_attempts: number
     initial_delay_ms: number
@@ -95,6 +105,25 @@ export interface DelayConfig {
   unit: DelayUnit
 }
 
+// Legacy support for old App nodes
+export interface AppConfig {
+  type: 'app'
+  app_type: string
+  url: string
+  method: string
+  timeout_seconds: number
+  failure_action: string
+  headers: Record<string, string>
+  openobserve_url?: string
+  authorization_header?: string
+  retry_config: {
+    max_attempts: number
+    initial_delay_ms: number
+    max_delay_ms: number
+    backoff_multiplier: number
+  }
+}
+
 export type DelayUnit = 'Seconds' | 'Minutes' | 'Hours' | 'Days'
 
 export interface EmailAddress {
@@ -108,7 +137,6 @@ export interface EmailAttachment {
   data: string
 }
 
-export type AppType = 'Webhook' | { OpenObserve: { url: string, authorization_header: string } }
 export type FailureAction = 'Continue' | 'Stop' | 'Retry'
 
 export interface NodeTypeDefinition {

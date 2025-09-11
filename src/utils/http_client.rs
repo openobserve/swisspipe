@@ -1,6 +1,6 @@
 use crate::workflow::{
     errors::{AppError, SwissPipeError},
-    models::{AppType, HttpMethod, RetryConfig, WorkflowEvent},
+    models::{HttpMethod, RetryConfig, WorkflowEvent},
 };
 use reqwest::Client;
 use std::time::Duration;
@@ -30,9 +30,8 @@ impl AppExecutor {
     }
     
     #[allow(clippy::too_many_arguments)]
-    pub async fn execute_app(
+    pub async fn execute_webhook(
         &self,
-        app_type: &AppType,
         url: &str,
         method: &HttpMethod,
         timeout_seconds: u64,
@@ -40,7 +39,7 @@ impl AppExecutor {
         event: WorkflowEvent,
         node_headers: &std::collections::HashMap<String, String>,
     ) -> Result<WorkflowEvent, SwissPipeError> {
-        tracing::info!("Starting app execution: url={}, method={:?}, timeout={}s, max_attempts={}", 
+        tracing::info!("Starting webhook execution: url={}, method={:?}, timeout={}s, max_attempts={}", 
             url, method, timeout_seconds, retry_config.max_attempts);
         
         let mut attempts = 0;
@@ -48,18 +47,18 @@ impl AppExecutor {
         
         loop {
             attempts += 1;
-            tracing::info!("App execution attempt {} of {}", attempts, retry_config.max_attempts);
+            tracing::info!("Webhook execution attempt {} of {}", attempts, retry_config.max_attempts);
             
             let start_time = std::time::Instant::now();
-            match self.execute_app_request(app_type, url, method, timeout_seconds, &event, node_headers).await {
+            match self.execute_webhook_request(url, method, timeout_seconds, &event, node_headers).await {
                 Ok(response_event) => {
                     let elapsed = start_time.elapsed();
-                    tracing::info!("App execution succeeded on attempt {} after {:?}", attempts, elapsed);
+                    tracing::info!("Webhook execution succeeded on attempt {} after {:?}", attempts, elapsed);
                     return Ok(response_event);
                 },
                 Err(e) if attempts >= retry_config.max_attempts => {
                     let elapsed = start_time.elapsed();
-                    tracing::error!("App execution failed after {} attempts. Final attempt took {:?}. Error: {}", 
+                    tracing::error!("Webhook execution failed after {} attempts. Final attempt took {:?}. Error: {}", 
                         attempts, elapsed, e);
                     return Err(SwissPipeError::App(AppError::HttpRequestFailed {
                         attempts,
@@ -68,7 +67,58 @@ impl AppExecutor {
                 }
                 Err(e) => {
                     let elapsed = start_time.elapsed();
-                    tracing::warn!("App execution attempt {} failed after {:?}, retrying in {:?}. Error: {}", 
+                    tracing::warn!("Webhook execution attempt {} failed after {:?}, retrying in {:?}. Error: {}", 
+                        attempts, elapsed, delay, e);
+                    
+                    // Wait before retry
+                    tokio::time::sleep(delay).await;
+                    
+                    // Exponential backoff
+                    delay = Duration::from_millis(
+                        ((delay.as_millis() as f64) * retry_config.backoff_multiplier) as u64
+                    ).min(Duration::from_millis(retry_config.max_delay_ms));
+                }
+            }
+        }
+    }
+
+    pub async fn execute_openobserve(
+        &self,
+        url: &str,
+        authorization_header: &str,
+        timeout_seconds: u64,
+        retry_config: &RetryConfig,
+        event: WorkflowEvent,
+    ) -> Result<WorkflowEvent, SwissPipeError> {
+        tracing::info!("Starting OpenObserve execution: url={}, timeout={}s, max_attempts={}", 
+            url, timeout_seconds, retry_config.max_attempts);
+        
+        let mut attempts = 0;
+        let mut delay = Duration::from_millis(retry_config.initial_delay_ms);
+        
+        loop {
+            attempts += 1;
+            tracing::info!("OpenObserve execution attempt {} of {}", attempts, retry_config.max_attempts);
+            
+            let start_time = std::time::Instant::now();
+            match self.execute_openobserve_request(url, authorization_header, timeout_seconds, &event).await {
+                Ok(response_event) => {
+                    let elapsed = start_time.elapsed();
+                    tracing::info!("OpenObserve execution succeeded on attempt {} after {:?}", attempts, elapsed);
+                    return Ok(response_event);
+                },
+                Err(e) if attempts >= retry_config.max_attempts => {
+                    let elapsed = start_time.elapsed();
+                    tracing::error!("OpenObserve execution failed after {} attempts. Final attempt took {:?}. Error: {}", 
+                        attempts, elapsed, e);
+                    return Err(SwissPipeError::App(AppError::HttpRequestFailed {
+                        attempts,
+                        error: e.to_string(),
+                    }));
+                }
+                Err(e) => {
+                    let elapsed = start_time.elapsed();
+                    tracing::warn!("OpenObserve execution attempt {} failed after {:?}, retrying in {:?}. Error: {}", 
                         attempts, elapsed, delay, e);
                     
                     // Wait before retry
@@ -83,9 +133,8 @@ impl AppExecutor {
         }
     }
     
-    async fn execute_app_request(
+    async fn execute_webhook_request(
         &self,
-        app_type: &AppType,
         url: &str,
         method: &HttpMethod,
         timeout_seconds: u64,
@@ -93,10 +142,9 @@ impl AppExecutor {
         node_headers: &std::collections::HashMap<String, String>,
     ) -> Result<WorkflowEvent, SwissPipeError> {
         let timeout = Duration::from_secs(timeout_seconds);
-        tracing::info!("Executing HTTP request: url={}, timeout={:?}", url, timeout);
+        tracing::info!("Executing webhook request: url={}, timeout={:?}", url, timeout);
         
-        match app_type {
-            AppType::Webhook => {
+        {
                 let mut request = match method {
                     HttpMethod::Post => self.client.post(url).json(&event.data),
                     HttpMethod::Put => self.client.put(url).json(&event.data),
@@ -183,45 +231,51 @@ impl AppExecutor {
                     condition_results: event.condition_results.clone(),
                 })
             }
-            
-            AppType::OpenObserve { url: openobserve_url, authorization_header } => {
-                // OpenObserve expects JSON array format
-                let payload = match &event.data {
-                    serde_json::Value::Array(arr) => arr.clone(),
-                    single_value => vec![single_value.clone()],
-                };
-                
-                let full_url = openobserve_url.clone();
-                
-                tracing::info!("Sending OpenObserve request to: {}", full_url);
-                let request_start = std::time::Instant::now();
-                
-                let response = self.client
-                    .post(&full_url)
-                    .header("Authorization", authorization_header)
-                    .header("Content-Type", "application/json")
-                    .json(&payload)
-                    .timeout(timeout)
-                    .send()
-                    .await
-                    .map_err(|e| {
-                        let elapsed = request_start.elapsed();
-                        tracing::error!("OpenObserve request failed after {:?}: {}", elapsed, e);
-                        AppError::HttpRequestFailed { attempts: 1, error: e.to_string() }
-                    })?;
-                
-                let request_elapsed = request_start.elapsed();
-                tracing::info!("OpenObserve request completed in {:?}, status: {}", request_elapsed, response.status());
-                
-                match response.status().as_u16() {
-                    200..=299 => {
-                        // OpenObserve success - return original event for further processing
-                        Ok(event.clone())
-                    }
-                    401 => Err(SwissPipeError::App(AppError::AuthenticationFailed)),
-                    status => Err(SwissPipeError::App(AppError::InvalidStatus { status })),
-                }
+    }
+    
+    async fn execute_openobserve_request(
+        &self,
+        url: &str,
+        authorization_header: &str,
+        timeout_seconds: u64,
+        event: &WorkflowEvent,
+    ) -> Result<WorkflowEvent, SwissPipeError> {
+        let timeout = Duration::from_secs(timeout_seconds);
+        tracing::info!("Executing OpenObserve request: url={}, timeout={:?}", url, timeout);
+        
+        // OpenObserve expects JSON array format
+        let payload = match &event.data {
+            serde_json::Value::Array(arr) => arr.clone(),
+            single_value => vec![single_value.clone()],
+        };
+        
+        tracing::info!("Sending OpenObserve request to: {}", url);
+        let request_start = std::time::Instant::now();
+        
+        let response = self.client
+            .post(url)
+            .header("Authorization", authorization_header)
+            .header("Content-Type", "application/json")
+            .json(&payload)
+            .timeout(timeout)
+            .send()
+            .await
+            .map_err(|e| {
+                let elapsed = request_start.elapsed();
+                tracing::error!("OpenObserve request failed after {:?}: {}", elapsed, e);
+                AppError::HttpRequestFailed { attempts: 1, error: e.to_string() }
+            })?;
+        
+        let request_elapsed = request_start.elapsed();
+        tracing::info!("OpenObserve request completed in {:?}, status: {}", request_elapsed, response.status());
+        
+        match response.status().as_u16() {
+            200..=299 => {
+                // OpenObserve success - return original event for further processing
+                Ok(event.clone())
             }
+            401 => Err(SwissPipeError::App(AppError::AuthenticationFailed)),
+            status => Err(SwissPipeError::App(AppError::InvalidStatus { status })),
         }
     }
     

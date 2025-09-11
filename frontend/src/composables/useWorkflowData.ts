@@ -167,23 +167,34 @@ export function useWorkflowData() {
   }
 }
 
-function convertApiNodeTypeToVueFlowType(nodeType: any): 'trigger' | 'condition' | 'transformer' | 'app' | 'email' | 'delay' {
+function convertApiNodeTypeToVueFlowType(nodeType: any): 'trigger' | 'condition' | 'transformer' | 'webhook' | 'openobserve' | 'email' | 'delay' {
   if (nodeType.Trigger) return 'trigger'
   if (nodeType.Condition) return 'condition'
   if (nodeType.Transformer) return 'transformer'
-  if (nodeType.App) return 'app'
+  if (nodeType.Webhook) return 'webhook'
+  if (nodeType.OpenObserve) return 'openobserve'
   if (nodeType.Email) return 'email'
   if (nodeType.Delay) return 'delay'
-  return 'app'
+  // Legacy support for old App nodes
+  if (nodeType.App) {
+    if (typeof nodeType.App.app_type === 'object' && nodeType.App.app_type.OpenObserve) {
+      return 'openobserve'
+    }
+    return 'webhook'
+  }
+  return 'webhook'
 }
 
 function getNodeDescription(nodeType: any): string {
   if (nodeType.Trigger) return 'HTTP endpoint trigger'
   if (nodeType.Condition) return 'Conditional logic node'
   if (nodeType.Transformer) return 'Data transformation node'
-  if (nodeType.App) return 'External application node'
+  if (nodeType.Webhook) return 'HTTP webhook request'
+  if (nodeType.OpenObserve) return 'OpenObserve log analytics'
   if (nodeType.Email) return 'Email notification node'
   if (nodeType.Delay) return 'Workflow execution delay'
+  // Legacy support
+  if (nodeType.App) return 'External application node'
   return 'Unknown node type'
 }
 
@@ -206,6 +217,38 @@ function convertApiNodeConfigToVueFlowConfig(nodeType: any): NodeConfig {
       script: nodeType.Transformer.script || DEFAULT_TRANSFORMER_SCRIPT
     }
   }
+  if (nodeType.Webhook) {
+    return {
+      type: 'webhook' as const,
+      url: nodeType.Webhook.url || 'https://httpbin.org/post',
+      method: nodeType.Webhook.method || 'POST',
+      timeout_seconds: nodeType.Webhook.timeout_seconds || 30,
+      failure_action: nodeType.Webhook.failure_action || 'Stop',
+      headers: nodeType.Webhook.headers || {},
+      retry_config: nodeType.Webhook.retry_config || {
+        max_attempts: 3,
+        initial_delay_ms: 100,
+        max_delay_ms: 5000,
+        backoff_multiplier: 2.0
+      }
+    }
+  }
+  if (nodeType.OpenObserve) {
+    return {
+      type: 'openobserve' as const,
+      url: nodeType.OpenObserve.url || '',
+      authorization_header: nodeType.OpenObserve.authorization_header || '',
+      timeout_seconds: nodeType.OpenObserve.timeout_seconds || 30,
+      failure_action: nodeType.OpenObserve.failure_action || 'Stop',
+      retry_config: nodeType.OpenObserve.retry_config || {
+        max_attempts: 3,
+        initial_delay_ms: 100,
+        max_delay_ms: 5000,
+        backoff_multiplier: 2.0
+      }
+    }
+  }
+  // Legacy support for old App nodes
   if (nodeType.App) {
     const config = {
       type: 'app' as const,
@@ -294,7 +337,41 @@ function convertNodeToApiType(node: { type: string; data: { config: any } }) {
           script: node.data.config.script || DEFAULT_TRANSFORMER_SCRIPT
         }
       }
+    case 'webhook':
+      const webhookConfig = node.data.config as any
+      return {
+        Webhook: {
+          url: webhookConfig.url || 'https://httpbin.org/post',
+          method: webhookConfig.method || 'POST',
+          timeout_seconds: webhookConfig.timeout_seconds || 30,
+          failure_action: webhookConfig.failure_action || 'Stop',
+          headers: webhookConfig.headers || {},
+          retry_config: webhookConfig.retry_config || {
+            max_attempts: 3,
+            initial_delay_ms: 100,
+            max_delay_ms: 5000,
+            backoff_multiplier: 2.0
+          }
+        }
+      }
+    case 'openobserve':
+      const openobserveConfig = node.data.config as any
+      return {
+        OpenObserve: {
+          url: openobserveConfig.url || '',
+          authorization_header: openobserveConfig.authorization_header || '',
+          timeout_seconds: openobserveConfig.timeout_seconds || 30,
+          failure_action: openobserveConfig.failure_action || 'Stop',
+          retry_config: openobserveConfig.retry_config || {
+            max_attempts: 3,
+            initial_delay_ms: 100,
+            max_delay_ms: 5000,
+            backoff_multiplier: 2.0
+          }
+        }
+      }
     case 'app':
+      // Legacy support for old App nodes
       const appConfig = node.data.config as any
       let app_type = appConfig.app_type || 'Webhook'
       

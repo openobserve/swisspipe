@@ -38,14 +38,6 @@ impl Default for RetryConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum AppType {
-    Webhook,
-    OpenObserve {
-        url: String,
-        authorization_header: String,
-    },
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FailureAction {
@@ -83,14 +75,20 @@ pub enum NodeType {
     Transformer { 
         script: String 
     },
-    App {
-        app_type: AppType,
+    Webhook {
         url: String,
         method: HttpMethod,
         timeout_seconds: u64,
         failure_action: FailureAction,
         retry_config: RetryConfig,
         headers: HashMap<String, String>,
+    },
+    OpenObserve {
+        url: String,
+        authorization_header: String,
+        timeout_seconds: u64,
+        failure_action: FailureAction,
+        retry_config: RetryConfig,
     },
     Email {
         config: crate::email::EmailConfig,

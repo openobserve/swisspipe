@@ -50,22 +50,38 @@ export const useNodeStore = defineStore('nodes', () => {
       }
     },
     {
-      type: 'app',
-      label: 'App',
-      description: 'Send data to external systems',
+      type: 'webhook',
+      label: 'Webhook',
+      description: 'Send HTTP requests to external APIs',
       color: '#10b981',
-      icon: 'cube',
+      icon: 'globe-alt',
       defaultConfig: {
-        type: 'app',
-        app_type: 'Webhook',
+        type: 'webhook',
         url: 'https://httpbin.org/post',
         method: 'POST',
         timeout_seconds: 30,
         failure_action: 'Stop',
         headers: {},
-        openobserve_url: '',
-        authorization_header: '',
-        stream_name: 'default',
+        retry_config: {
+          max_attempts: 3,
+          initial_delay_ms: 100,
+          max_delay_ms: 5000,
+          backoff_multiplier: 2.0
+        }
+      }
+    },
+    {
+      type: 'openobserve',
+      label: 'OpenObserve',
+      description: 'Send logs and data to OpenObserve platform',
+      color: '#f97316',
+      icon: 'chart-bar',
+      defaultConfig: {
+        type: 'openobserve',
+        url: 'https://api.openobserve.ai/api/default/logs/_json',
+        authorization_header: 'Basic <your-token>',
+        timeout_seconds: 30,
+        failure_action: 'Stop',
         retry_config: {
           max_attempts: 3,
           initial_delay_ms: 100,

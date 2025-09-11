@@ -95,7 +95,99 @@
         </div>
       </div>
 
-      <!-- App Node Configuration -->
+      <!-- Webhook Node Configuration -->
+      <div v-if="selectedNodeData.type === 'webhook'">
+        <h3 class="text-sm font-semibold text-gray-300 mb-3">Webhook Configuration</h3>
+        <WebhookConfig
+          v-model="localNodeData.config"
+          @update="updateNodeData"
+        />
+        
+        <div class="mt-4">
+          <label class="block text-sm font-medium text-gray-300 mb-2">Timeout (seconds)</label>
+          <input
+            v-model.number="localNodeData.config.timeout_seconds"
+            @blur="updateNodeData"
+            type="number"
+            min="1"
+            max="300"
+            class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        
+        <div class="mt-4">
+          <label class="block text-sm font-medium text-gray-300 mb-2">On Failure</label>
+          <select
+            v-model="localNodeData.config.failure_action"
+            @change="updateNodeData"
+            class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="Stop">Stop Workflow</option>
+            <option value="Continue">Continue to Next Node</option>
+            <option value="Retry">Retry This Node</option>
+          </select>
+        </div>
+        
+        <div v-if="localNodeData.config.failure_action === 'Retry'" class="mt-4">
+          <label class="block text-sm font-medium text-gray-300 mb-2">Retry Attempts</label>
+          <input
+            v-model.number="localNodeData.config.retry_config.max_attempts"
+            @blur="updateNodeData"
+            type="number"
+            min="1"
+            max="10"
+            class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+      </div>
+
+      <!-- OpenObserve Node Configuration -->
+      <div v-if="selectedNodeData.type === 'openobserve'">
+        <h3 class="text-sm font-semibold text-gray-300 mb-3">OpenObserve Configuration</h3>
+        <OpenObserveConfig
+          v-model="localNodeData.config"
+          @update="updateNodeData"
+        />
+        
+        <div class="mt-4">
+          <label class="block text-sm font-medium text-gray-300 mb-2">Timeout (seconds)</label>
+          <input
+            v-model.number="localNodeData.config.timeout_seconds"
+            @blur="updateNodeData"
+            type="number"
+            min="1"
+            max="300"
+            class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+        
+        <div class="mt-4">
+          <label class="block text-sm font-medium text-gray-300 mb-2">On Failure</label>
+          <select
+            v-model="localNodeData.config.failure_action"
+            @change="updateNodeData"
+            class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="Stop">Stop Workflow</option>
+            <option value="Continue">Continue to Next Node</option>
+            <option value="Retry">Retry This Node</option>
+          </select>
+        </div>
+        
+        <div v-if="localNodeData.config.failure_action === 'Retry'" class="mt-4">
+          <label class="block text-sm font-medium text-gray-300 mb-2">Retry Attempts</label>
+          <input
+            v-model.number="localNodeData.config.retry_config.max_attempts"
+            @blur="updateNodeData"
+            type="number"
+            min="1"
+            max="10"
+            class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+      </div>
+
+      <!-- Legacy App Node Configuration -->
       <div v-if="selectedNodeData.type === 'app'">
         <h3 class="text-sm font-semibold text-gray-300 mb-3">App Configuration</h3>
         <div class="space-y-4">

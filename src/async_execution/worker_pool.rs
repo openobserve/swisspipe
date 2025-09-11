@@ -336,23 +336,23 @@ impl WorkerPool {
                 
                 Ok(transformed_event)
             }
-            NodeType::App { app_type, url, method, timeout_seconds, failure_action, retry_config, headers } => {
+            NodeType::Webhook { url, method, timeout_seconds, failure_action, retry_config, headers } => {
                 match failure_action {
                     crate::workflow::models::FailureAction::Retry => {
                         // Use retry_config for retries on failure
                         self.workflow_engine.app_executor
-                            .execute_app(app_type, url, method, *timeout_seconds, retry_config, event, headers)
+                            .execute_webhook(url, method, *timeout_seconds, retry_config, event, headers)
                             .await
                     },
                     crate::workflow::models::FailureAction::Continue => {
                         // Try once, if it fails, continue with original event
                         match self.workflow_engine.app_executor
-                            .execute_app(app_type, url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event.clone(), headers)
+                            .execute_webhook(url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event.clone(), headers)
                             .await 
                         {
                             Ok(result) => Ok(result),
                             Err(e) => {
-                                tracing::warn!("App node '{}' failed but continuing: {}", node.name, e);
+                                tracing::warn!("Webhook node '{}' failed but continuing: {}", node.name, e);
                                 Ok(event) // Continue with original event
                             }
                         }
@@ -360,7 +360,33 @@ impl WorkerPool {
                     crate::workflow::models::FailureAction::Stop => {
                         // Try once, if it fails, stop the workflow
                         self.workflow_engine.app_executor
-                            .execute_app(app_type, url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event, headers)
+                            .execute_webhook(url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event, headers)
+                            .await
+                    }
+                }
+            }
+            NodeType::OpenObserve { url, authorization_header, timeout_seconds, failure_action, retry_config } => {
+                match failure_action {
+                    crate::workflow::models::FailureAction::Retry => {
+                        self.workflow_engine.app_executor
+                            .execute_openobserve(url, authorization_header, *timeout_seconds, retry_config, event)
+                            .await
+                    },
+                    crate::workflow::models::FailureAction::Continue => {
+                        match self.workflow_engine.app_executor
+                            .execute_openobserve(url, authorization_header, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event.clone())
+                            .await 
+                        {
+                            Ok(result) => Ok(result),
+                            Err(e) => {
+                                tracing::warn!("OpenObserve node '{}' failed but continuing: {}", node.name, e);
+                                Ok(event)
+                            }
+                        }
+                    },
+                    crate::workflow::models::FailureAction::Stop => {
+                        self.workflow_engine.app_executor
+                            .execute_openobserve(url, authorization_header, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event)
                             .await
                     }
                 }
@@ -1107,28 +1133,54 @@ impl WorkerPoolForBranch {
                 transformed_event.condition_results = event.condition_results;
                 Ok(transformed_event)
             }
-            NodeType::App { app_type, url, method, timeout_seconds, failure_action, retry_config, headers } => {
+            NodeType::Webhook { url, method, timeout_seconds, failure_action, retry_config, headers } => {
                 match failure_action {
                     crate::workflow::models::FailureAction::Retry => {
                         self.workflow_engine.app_executor
-                            .execute_app(app_type, url, method, *timeout_seconds, retry_config, event, headers)
+                            .execute_webhook(url, method, *timeout_seconds, retry_config, event, headers)
                             .await
                     },
                     crate::workflow::models::FailureAction::Continue => {
                         match self.workflow_engine.app_executor
-                            .execute_app(app_type, url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event.clone(), headers)
+                            .execute_webhook(url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event.clone(), headers)
                             .await 
                         {
                             Ok(result) => Ok(result),
                             Err(e) => {
-                                tracing::warn!("App node '{}' failed but continuing: {}", node.name, e);
+                                tracing::warn!("Webhook node '{}' failed but continuing: {}", node.name, e);
                                 Ok(event)
                             }
                         }
                     },
                     crate::workflow::models::FailureAction::Stop => {
                         self.workflow_engine.app_executor
-                            .execute_app(app_type, url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event, headers)
+                            .execute_webhook(url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event, headers)
+                            .await
+                    }
+                }
+            }
+            NodeType::OpenObserve { url, authorization_header, timeout_seconds, failure_action, retry_config } => {
+                match failure_action {
+                    crate::workflow::models::FailureAction::Retry => {
+                        self.workflow_engine.app_executor
+                            .execute_openobserve(url, authorization_header, *timeout_seconds, retry_config, event)
+                            .await
+                    },
+                    crate::workflow::models::FailureAction::Continue => {
+                        match self.workflow_engine.app_executor
+                            .execute_openobserve(url, authorization_header, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event.clone())
+                            .await 
+                        {
+                            Ok(result) => Ok(result),
+                            Err(e) => {
+                                tracing::warn!("OpenObserve node '{}' failed but continuing: {}", node.name, e);
+                                Ok(event)
+                            }
+                        }
+                    },
+                    crate::workflow::models::FailureAction::Stop => {
+                        self.workflow_engine.app_executor
+                            .execute_openobserve(url, authorization_header, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event)
                             .await
                     }
                 }

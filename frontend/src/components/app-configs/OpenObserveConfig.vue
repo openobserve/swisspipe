@@ -3,8 +3,8 @@
     <div>
       <label class="block text-sm font-medium text-gray-300 mb-2">OpenObserve URL</label>
       <input
-        :value="modelValue.openobserve_url"
-        @input="updateConfig('openobserve_url', ($event.target as HTMLInputElement).value)"
+        :value="modelValue.url"
+        @input="updateConfig('url', ($event.target as HTMLInputElement).value)"
         @blur="$emit('update')"
         type="url"
         placeholder="https://your-openobserve-instance.com/api/org/stream/_json"
@@ -48,9 +48,8 @@
 
 <script setup lang="ts">
 interface OpenObserveConfig {
-  openobserve_url: string
+  url: string
   authorization_header: string
-  stream_name: string
 }
 
 interface Props {

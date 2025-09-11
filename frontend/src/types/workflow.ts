@@ -50,7 +50,7 @@ export interface EdgeRequest {
   condition_result?: boolean
 }
 
-export type NodeType = TriggerNode | ConditionNode | TransformerNode | AppNode | EmailNode | DelayNode
+export type NodeType = TriggerNode | ConditionNode | TransformerNode | WebhookNode | OpenObserveNode | AppNode | EmailNode | DelayNode
 
 export interface TriggerNode {
   Trigger: {
@@ -70,6 +70,28 @@ export interface TransformerNode {
   }
 }
 
+export interface WebhookNode {
+  Webhook: {
+    url: string
+    method: HttpMethod
+    timeout_seconds: number
+    failure_action: FailureAction
+    retry_config: RetryConfig
+    headers: Record<string, string>
+  }
+}
+
+export interface OpenObserveNode {
+  OpenObserve: {
+    url: string
+    authorization_header: string
+    timeout_seconds: number
+    failure_action: FailureAction
+    retry_config: RetryConfig
+  }
+}
+
+// Legacy support for old App nodes
 export interface AppNode {
   App: {
     app_type: AppType

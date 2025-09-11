@@ -111,7 +111,7 @@ const logicNodes = computed(() =>
 )
 
 const appNodes = computed(() => 
-  nodeStore.nodeTypes.filter(type => type.type === 'app')
+  nodeStore.nodeTypes.filter(type => type.type === 'webhook' || type.type === 'openobserve')
 )
 
 const communicationNodes = computed(() => 

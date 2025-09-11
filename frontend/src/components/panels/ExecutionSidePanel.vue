@@ -153,10 +153,10 @@ interface Execution {
   id: string
   workflow_id: string
   status: string
-  started_at: number | null
-  completed_at: number | null
-  duration_ms: number | null
-  error_message: string | null
+  started_at?: number | null
+  completed_at?: number | null
+  duration_ms?: number | null
+  error_message?: string | null
 }
 
 interface Props {
@@ -247,7 +247,7 @@ function stopAutoRefresh() {
   }
 }
 
-function formatRelativeTime(timestamp: number | null): string {
+function formatRelativeTime(timestamp: number | null | undefined): string {
   if (!timestamp) return 'N/A'
   
   const now = Date.now() * 1000 // Convert to microseconds
@@ -263,7 +263,7 @@ function formatRelativeTime(timestamp: number | null): string {
   return `${seconds}s ago`
 }
 
-function formatDuration(durationMs: number | null): string {
+function formatDuration(durationMs: number | null | undefined): string {
   if (!durationMs) return 'N/A'
   
   if (durationMs < 1000) return `${durationMs}ms`
