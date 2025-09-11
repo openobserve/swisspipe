@@ -18,7 +18,6 @@ pub struct AppState {
     pub engine: Arc<workflow::engine::WorkflowEngine>,
     pub config: Arc<config::Config>,
     pub worker_pool: Arc<async_execution::worker_pool::WorkerPool>,
-    pub cleanup_service: Arc<async_execution::cleanup_service::CleanupService>,
     pub workflow_cache: Arc<cache::WorkflowCache>,
     pub delay_scheduler: Arc<async_execution::DelayScheduler>,
 }

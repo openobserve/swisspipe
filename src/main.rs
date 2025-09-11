@@ -17,7 +17,7 @@ use cache::WorkflowCache;
 use config::Config;
 use database::establish_connection;
 use workflow::engine::WorkflowEngine;
-use async_execution::{WorkerPool, CleanupService, ResumptionService, DelayScheduler};
+use async_execution::{WorkerPool, ResumptionService, DelayScheduler};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -25,7 +25,6 @@ pub struct AppState {
     pub engine: Arc<WorkflowEngine>,
     pub config: Arc<Config>,
     pub worker_pool: Arc<WorkerPool>,
-    pub cleanup_service: Arc<CleanupService>,
     pub workflow_cache: Arc<WorkflowCache>,
     pub delay_scheduler: Arc<DelayScheduler>,
 }
@@ -74,11 +73,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Initialize and start cleanup service
-    let cleanup_service = Arc::new(CleanupService::new(db.clone()));
-    tracing::info!("Starting cleanup service...");
-    let _cleanup_handle = cleanup_service.start().await;
-    tracing::info!("Cleanup service started successfully");
 
     // Initialize and start input sync timeout manager
     let mut input_sync_manager = crate::workflow::input_sync_manager::InputSyncManager::new(db.clone());
@@ -208,7 +202,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         engine, 
         config: Arc::new(config),
         worker_pool: worker_pool.clone(),
-        cleanup_service: cleanup_service.clone(),
         workflow_cache: workflow_cache.clone(),
         delay_scheduler: delay_scheduler.clone(),
     };
@@ -237,9 +230,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_graceful_shutdown(shutdown_signal)
         .await?;
 
-    // Shutdown cleanup service
-    tracing::info!("Shutting down cleanup service...");
-    cleanup_service.stop();
 
     // Shutdown worker pool
     tracing::info!("Shutting down worker pool...");
