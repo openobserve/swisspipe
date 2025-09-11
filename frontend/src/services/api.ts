@@ -27,8 +27,8 @@ class ApiClient {
     // Request interceptor for auth
     this.client.interceptors.request.use(
       (config) => {
-        // Add Basic Auth for management endpoints
-        if (!config.url?.includes('/api/v1/')) {
+        // Add Basic Auth for admin management endpoints only
+        if (config.url?.includes('/api/admin/')) {
           // Try to get credentials from localStorage first (from auth store)
           const storedCredentials = localStorage.getItem('auth_credentials')
           
@@ -70,27 +70,27 @@ class ApiClient {
 
   // Workflow endpoints
   async getWorkflows(): Promise<WorkflowListResponse> {
-    const response = await this.client.get<WorkflowListResponse>('/workflows')
+    const response = await this.client.get<WorkflowListResponse>('/api/admin/v1/workflows')
     return response.data
   }
 
   async getWorkflow(id: string): Promise<Workflow> {
-    const response = await this.client.get<Workflow>(`/workflows/${id}`)
+    const response = await this.client.get<Workflow>(`/api/admin/v1/workflows/${id}`)
     return response.data
   }
 
   async createWorkflow(workflow: CreateWorkflowRequest): Promise<Workflow> {
-    const response = await this.client.post<Workflow>('/workflows', workflow)
+    const response = await this.client.post<Workflow>('/api/admin/v1/workflows', workflow)
     return response.data
   }
 
   async updateWorkflow(id: string, workflow: CreateWorkflowRequest): Promise<Workflow> {
-    const response = await this.client.put<Workflow>(`/workflows/${id}`, workflow)
+    const response = await this.client.put<Workflow>(`/api/admin/v1/workflows/${id}`, workflow)
     return response.data
   }
 
   async deleteWorkflow(id: string): Promise<void> {
-    await this.client.delete(`/workflows/${id}`)
+    await this.client.delete(`/api/admin/v1/workflows/${id}`)
   }
 
   // Workflow execution endpoints
@@ -112,27 +112,27 @@ class ApiClient {
     if (workflowId) params.append('workflow_id', workflowId)
     if (status) params.append('status', status)
     
-    const response = await this.client.get<ExecutionListResponse>(`/executions?${params}`)
+    const response = await this.client.get<ExecutionListResponse>(`/api/admin/v1/executions?${params}`)
     return response.data
   }
 
   async getExecution(executionId: string): Promise<WorkflowExecution> {
-    const response = await this.client.get<WorkflowExecution>(`/executions/${executionId}`)
+    const response = await this.client.get<WorkflowExecution>(`/api/admin/v1/executions/${executionId}`)
     return response.data
   }
 
   async getExecutionSteps(executionId: string): Promise<ExecutionStepsResponse> {
-    const response = await this.client.get<ExecutionStepsResponse>(`/executions/${executionId}/steps`)
+    const response = await this.client.get<ExecutionStepsResponse>(`/api/admin/v1/executions/${executionId}/steps`)
     return response.data
   }
 
   async getExecutionLogs(executionId: string): Promise<ExecutionLogsResponse> {
-    const response = await this.client.get<ExecutionLogsResponse>(`/executions/${executionId}/logs`)
+    const response = await this.client.get<ExecutionLogsResponse>(`/api/admin/v1/executions/${executionId}/logs`)
     return response.data
   }
 
   async cancelExecution(executionId: string): Promise<void> {
-    await this.client.post(`/executions/${executionId}/cancel`)
+    await this.client.post(`/api/admin/v1/executions/${executionId}/cancel`)
   }
 
   async getExecutionsByWorkflow(workflowId: string, limit?: number, offset?: number, status?: string): Promise<ExecutionListResponse> {
@@ -142,8 +142,22 @@ class ApiClient {
     if (offset) params.append('offset', offset.toString())
     if (status) params.append('status', status)
     
-    const response = await this.client.get<ExecutionListResponse>(`/executions?${params}`)
+    const response = await this.client.get<ExecutionListResponse>(`/api/admin/v1/executions?${params}`)
     return response.data
+  }
+
+  // Auth validation endpoint
+  async validateCredentials(credentials: string): Promise<boolean> {
+    try {
+      const response = await this.client.get('/api/admin/v1/workflows', {
+        headers: {
+          'Authorization': `Basic ${credentials}`
+        }
+      })
+      return response.status === 200
+    } catch (error) {
+      return false
+    }
   }
 }
 

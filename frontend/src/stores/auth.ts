@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { apiClient } from '../services/api'
 
 export interface User {
   username: string
@@ -14,15 +15,10 @@ export const useAuthStore = defineStore('auth', () => {
       // Create basic auth header
       const credentials = btoa(`${username}:${password}`)
       
-      // Test authentication by making a request to the management workflows endpoint
-      const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3701'
-      const response = await fetch(`${baseURL}/workflows`, {
-        headers: {
-          'Authorization': `Basic ${credentials}`
-        }
-      })
+      // Test authentication using the API client
+      const isValid = await apiClient.validateCredentials(credentials)
 
-      if (response.ok) {
+      if (isValid) {
         user.value = { username }
         // Store credentials in localStorage for subsequent requests
         localStorage.setItem('auth_credentials', credentials)
