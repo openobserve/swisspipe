@@ -117,7 +117,7 @@ HIGH_VALUE_DATA='{
   "description": "This should trigger the high value path"
 }'
 
-HIGH_VALUE_RESULT=$(curl -s -X POST "$BASE_URL/api/v1/$WORKFLOW_ID/ep" \
+HIGH_VALUE_RESULT=$(curl -s -X POST "$BASE_URL/api/v1/$WORKFLOW_ID/trigger" \
   -H "Content-Type: application/json" \
   -d "$HIGH_VALUE_DATA")
 
@@ -133,7 +133,7 @@ LOW_VALUE_DATA='{
   "description": "This should trigger the low value path"
 }'
 
-LOW_VALUE_RESULT=$(curl -s -X POST "$BASE_URL/api/v1/$WORKFLOW_ID/ep" \
+LOW_VALUE_RESULT=$(curl -s -X POST "$BASE_URL/api/v1/$WORKFLOW_ID/trigger" \
   -H "Content-Type: application/json" \
   -d "$LOW_VALUE_DATA")
 
@@ -149,7 +149,7 @@ EDGE_VALUE_DATA='{
   "description": "This should trigger the low value path (not greater than 50)"
 }'
 
-EDGE_VALUE_RESULT=$(curl -s -X POST "$BASE_URL/api/v1/$WORKFLOW_ID/ep" \
+EDGE_VALUE_RESULT=$(curl -s -X POST "$BASE_URL/api/v1/$WORKFLOW_ID/trigger" \
   -H "Content-Type: application/json" \
   -d "$EDGE_VALUE_DATA")
 

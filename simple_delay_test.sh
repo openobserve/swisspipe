@@ -70,7 +70,7 @@ echo "5. Executing workflow..."
 START_TIME=$(date +%s)
 
 EXEC_RESPONSE=$(curl -s -X POST \
-  "${BASE_URL}/api/v1/workflows/${WORKFLOW_ID}/ep" \
+  "${BASE_URL}/api/v1/workflows/${WORKFLOW_ID}/trigger" \
   -H "Content-Type: application/json" \
   -d '{"test": "delay"}')
 

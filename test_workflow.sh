@@ -95,7 +95,7 @@ if [ ! -z "$WORKFLOW_ID" ]; then
     "action": "test_workflow"
   }'
   
-  EXECUTION_RESULT=$(curl -s -X POST "$BASE_URL/api/v1/$WORKFLOW_ID/ep" \
+  EXECUTION_RESULT=$(curl -s -X POST "$BASE_URL/api/v1/$WORKFLOW_ID/trigger" \
     -H "Content-Type: application/json" \
     -d "$TEST_DATA")
   

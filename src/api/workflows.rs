@@ -95,7 +95,7 @@ pub async fn list_workflows(
     let workflow_responses: Vec<WorkflowResponse> = workflows
         .into_iter()
         .map(|w| WorkflowResponse {
-            endpoint_url: format!("/api/v1/{}/ep", w.id),
+            endpoint_url: format!("/api/v1/{}/trigger", w.id),
             id: w.id,
             name: w.name,
             description: w.description,
@@ -265,7 +265,7 @@ pub async fn create_workflow(
         name: workflow.name,
         description: workflow.description,
         start_node_name: workflow.start_node_name.clone(),
-        endpoint_url: format!("/api/v1/{}/ep", workflow.id),
+        endpoint_url: format!("/api/v1/{}/trigger", workflow.id),
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
         nodes: node_responses,
@@ -342,7 +342,7 @@ pub async fn get_workflow(
         name: workflow.name,
         description: workflow.description,
         start_node_name: workflow.start_node_name.clone(),
-        endpoint_url: format!("/api/v1/{}/ep", workflow.id),
+        endpoint_url: format!("/api/v1/{}/trigger", workflow.id),
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
         nodes: node_responses,
@@ -522,7 +522,7 @@ pub async fn update_workflow(
         name: workflow.name,
         description: workflow.description,
         start_node_name: workflow.start_node_name.clone(),
-        endpoint_url: format!("/api/v1/{}/ep", workflow.id),
+        endpoint_url: format!("/api/v1/{}/trigger", workflow.id),
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
         nodes: node_responses,

@@ -88,7 +88,7 @@ class ApiClient {
 
   // Workflow execution endpoints
   async executeWorkflow(workflowId: string, data: unknown): Promise<unknown> {
-    const response = await this.client.post(`/api/v1/${workflowId}/ep`, data)
+    const response = await this.client.post(`/api/v1/${workflowId}/trigger`, data)
     return response.data
   }
 

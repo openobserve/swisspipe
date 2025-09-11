@@ -72,7 +72,7 @@ SwissPipe is a high-performance workflow engine that accepts incoming data via R
 - **DELETE /workflows/{id}** - Delete workflow
 
 ### Data Ingestion
-- **GET/POST/PUT /api/v1/{workflow_uuid}/ep** - Trigger workflow execution
+- **GET/POST/PUT /api/v1/{workflow_uuid}/trigger** - Trigger workflow execution
 - UUID in URL serves as authentication mechanism
 - POST/PUT endpoints accept JSON payload
 - GET endpoints can accept data via query parameters

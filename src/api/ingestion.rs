@@ -16,7 +16,7 @@ use crate::{
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/:workflow_id/ep", get(trigger_workflow_get).post(trigger_workflow_post).put(trigger_workflow_put))
+        .route("/:workflow_id/trigger", get(trigger_workflow_get).post(trigger_workflow_post).put(trigger_workflow_put))
         .route("/:workflow_id/json_array", post(trigger_workflow_array))
 }
 

@@ -10,10 +10,16 @@ pub struct CleanupService {
     retention_count: u64,
     cleanup_interval_minutes: u64,
     is_running: std::sync::atomic::AtomicBool,
+    is_disabled: bool,
 }
 
 impl CleanupService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        // Check if cleanup service is disabled
+        let is_disabled = std::env::var("SP_DISABLE_CLEANUP")
+            .map(|s| s.eq_ignore_ascii_case("true") || s == "1")
+            .unwrap_or(false);
+
         // Get retention count from environment variable, default to 100
         let retention_count = std::env::var("SP_EXECUTION_RETENTION_COUNT")
             .ok()
@@ -26,23 +32,33 @@ impl CleanupService {
             .and_then(|s| s.parse().ok())
             .unwrap_or(1);
 
-        tracing::info!(
-            "CleanupService configured: retention_count={}, cleanup_interval_minutes={}",
-            retention_count,
-            cleanup_interval_minutes
-        );
+        if is_disabled {
+            tracing::info!("CleanupService is DISABLED via SP_DISABLE_CLEANUP environment variable");
+        } else {
+            tracing::info!(
+                "CleanupService configured: retention_count={}, cleanup_interval_minutes={}",
+                retention_count,
+                cleanup_interval_minutes
+            );
+        }
 
         Self {
             db,
             retention_count,
             cleanup_interval_minutes,
             is_running: std::sync::atomic::AtomicBool::new(false),
+            is_disabled,
         }
     }
 
     /// Start the background cleanup task
     pub async fn start(&self) -> JoinHandle<()> {
         use std::sync::atomic::Ordering;
+
+        if self.is_disabled {
+            tracing::info!("CleanupService start requested but service is disabled");
+            return tokio::spawn(async {});
+        }
 
         if self.is_running.swap(true, Ordering::SeqCst) {
             tracing::warn!("CleanupService is already running");
@@ -186,6 +202,7 @@ impl CleanupService {
             retention_count: self.retention_count,
             cleanup_interval_minutes: self.cleanup_interval_minutes,
             is_running: self.is_running.load(std::sync::atomic::Ordering::SeqCst),
+            is_disabled: self.is_disabled,
             old_executions,
             old_steps,
             total_executions,
@@ -203,6 +220,7 @@ impl Clone for CleanupService {
             is_running: std::sync::atomic::AtomicBool::new(
                 self.is_running.load(std::sync::atomic::Ordering::SeqCst)
             ),
+            is_disabled: self.is_disabled,
         }
     }
 }
@@ -212,6 +230,7 @@ pub struct CleanupStats {
     pub retention_count: u64,
     pub cleanup_interval_minutes: u64,
     pub is_running: bool,
+    pub is_disabled: bool,
     pub old_executions: u64,
     pub old_steps: u64,
     pub total_executions: u64,

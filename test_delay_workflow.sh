@@ -98,7 +98,7 @@ echo "6. Executing workflow and measuring delay..."
 START_TIME=$(date +%s)
 
 EXECUTION_RESPONSE=$(curl -s -X POST \
-  "${BASE_URL}/api/v1/workflows/${WORKFLOW_ID}/ep" \
+  "${BASE_URL}/api/v1/workflows/${WORKFLOW_ID}/trigger" \
   -H "Content-Type: application/json" \
   -d '{"test": "delay_functionality", "timestamp": "'$(date -Iseconds)'"}')
 

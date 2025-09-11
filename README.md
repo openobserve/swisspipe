@@ -60,7 +60,7 @@ Environment variables:
 
 ### Data Ingestion (UUID-based auth)
 
-- `GET/POST/PUT /api/v1/{workflow_id}/ep` - Trigger workflow execution
+- `GET/POST/PUT /api/v1/{workflow_id}/trigger` - Trigger workflow execution
 - `POST /api/v1/{workflow_id}/json_array` - Accept JSON array data
 
 ## Workflow Structure
@@ -156,7 +156,7 @@ curl -X POST http://localhost:3700/workflows \
 ### Trigger the Workflow
 
 ```bash
-curl -X POST http://localhost:3700/api/v1/{workflow-id}/ep \
+curl -X POST http://localhost:3700/api/v1/{workflow-id}/trigger \
   -H "Content-Type: application/json" \
   -d '{"message": "Hello World", "value": 42}'
 ```

@@ -46,6 +46,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `workflow_execution_steps`: Per-node execution details
 - `job_queue`: Async job queue with status tracking
 - `email_queue` & `email_audit_log`: Email system tables
+- `scheduled_delays`: Delay node scheduling and resumption tracking
 
 ### Frontend Architecture
 - **Vue 3** with TypeScript and Composition API
@@ -58,7 +59,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Trigger Nodes
 - Entry points for HTTP requests (GET/POST/PUT)
-- Accessible via `/api/v1/{workflow_id}/ep` endpoints
+- Accessible via `/api/v1/{workflow_id}/trigger` endpoints
 
 ### Condition Nodes
 - JavaScript functions returning boolean for flow control
@@ -73,18 +74,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Webhook**: HTTP requests to external endpoints
 - **OpenObserve**: Log ingestion to OpenObserve platform
 - **Email**: Send emails via SMTP with templating
+- **Delay**: Schedule workflow execution delays with resumption capability
 
 ## Testing and Scripts
 
 ### Test Scripts
 - `./test_workflow.sh`: Basic workflow creation and execution testing
 - `./test_conditional_workflow.sh`: Conditional workflow testing
+- `./test_delay_workflow.sh`: Delay node testing
+- `./simple_delay_test.sh`: Simple delay functionality testing
 
 ### Special Environment Variables
 - `SP_EXECUTION_RETENTION_HOURS`: Control execution data retention (default varies)
 - `SP_EXECUTION_RETENTION_COUNT`: Alternative retention by count limit
 - `SP_CLEANUP_INTERVAL_MINUTES`: Cleanup service frequency
 - `SP_DANGEROUS_HEADERS`: Headers to exclude from logging (comma-separated)
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`: Email configuration
 
 ## Development Patterns
 

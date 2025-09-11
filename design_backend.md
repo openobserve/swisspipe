@@ -216,7 +216,7 @@ fn management_routes() -> Router {
 // Data ingestion API (UUID-based auth)
 fn ingestion_routes() -> Router {
     Router::new()
-        .route("/:workflow_id/ep", get(trigger_workflow).post(trigger_workflow).put(trigger_workflow))
+        .route("/:workflow_id/trigger", get(trigger_workflow).post(trigger_workflow).put(trigger_workflow))
         .route("/:workflow_id/json_array", post(trigger_workflow_array))
 }
 ```

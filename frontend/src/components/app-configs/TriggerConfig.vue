@@ -88,6 +88,6 @@ const _emit = defineEmits<Emits>()
 const workflowStore = useWorkflowStore()
 
 const workflowId = computed(() => workflowStore.currentWorkflow?.id || '{workflow_id}')
-const endpointUrl = computed(() => `/api/v1/${workflowId.value}/ep`)
+const endpointUrl = computed(() => `/api/v1/${workflowId.value}/trigger`)
 
 </script>
