@@ -4,6 +4,7 @@ import { useWorkflowStore } from '../stores/workflows'
 import { useNodeStore } from '../stores/nodes'
 import { DEFAULT_CONDITION_SCRIPT, DEFAULT_TRANSFORMER_SCRIPT } from '../constants/defaults'
 import type { NodeConfig, WorkflowNode } from '../types/nodes'
+import { debugLog } from '../utils/debug'
 
 export function useWorkflowData() {
   const router = useRouter()
@@ -92,6 +93,13 @@ export function useWorkflowData() {
 
       // Convert Vue Flow nodes to API format
       const apiNodes = nodeStore.nodes.map(node => {
+        debugLog.transform('node-to-api', {
+          nodeId: node.id,
+          nodeType: node.type,
+          hasData: !!node.data,
+          hasConfig: !!node.data.config
+        })
+        
         const apiNode = {
           name: node.type === 'trigger' ? 'Start' : (node.data.label || node.id),
           node_type: convertNodeToApiType(node),
@@ -101,10 +109,12 @@ export function useWorkflowData() {
         
         // Debug logging for email nodes specifically
         if (node.type === 'email') {
-          console.log('Saving email node:', {
+          debugLog.component('useWorkflowData', 'email-node-conversion', {
             nodeId: node.id,
-            rawConfig: node.data.config,
-            convertedApiType: apiNode.node_type
+            hasConfig: !!node.data.config,
+            hasFrom: !!(node.data.config as any)?.from,
+            hasTo: !!(node.data.config as any)?.to,
+            toCount: (node.data.config as any)?.to?.length || 0
           })
         }
         
@@ -315,7 +325,18 @@ function convertNodeToApiType(node: { type: string; data: { config: any } }) {
       }
     case 'email':
       const emailConfig = node.data.config as any
-      return {
+      debugLog.transform('email-config-to-api', {
+        nodeId: (node as any).id || 'unknown',
+        hasFrom: !!emailConfig.from,
+        hasTo: !!emailConfig.to,
+        toCount: emailConfig.to?.length || 0,
+        hasCC: !!emailConfig.cc,
+        ccCount: emailConfig.cc?.length || 0,
+        hasBCC: !!emailConfig.bcc,
+        bccCount: emailConfig.bcc?.length || 0
+      })
+      
+      const result = {
         Email: {
           config: {
             smtp_config: emailConfig.smtp_config || 'default',
@@ -343,6 +364,15 @@ function convertNodeToApiType(node: { type: string; data: { config: any } }) {
           }
         }
       }
+      
+      debugLog.transform('email-api-result', {
+        hasResult: !!result,
+        hasEmailConfig: !!result.Email?.config,
+        finalToCount: result.Email?.config?.to?.length || 0,
+        finalFromExists: !!result.Email?.config?.from
+      })
+      
+      return result
     case 'delay':
       const delayConfig = node.data.config as any
       return {

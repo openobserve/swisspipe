@@ -7,14 +7,16 @@
     >
       <input
         v-model="recipient.email"
-        @input="onEmailInputDebug"
-        @blur="onFieldBlur"
+        @input="(event) => onEmailInputDebug(event, index)"
+        @blur="(event) => onFieldBlur(event, index)"
         placeholder="email@example.com or {{ event.data.email }}"
         type="text"
         class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       <input
         v-model="recipient.name"
+        @input="(event) => onNameInputDebug(event, index)"
+        @blur="(event) => onFieldBlur(event, index)"
         placeholder="Name (optional)"
         class="w-40 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
@@ -66,8 +68,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
 import type { EmailAddress } from '../../types/nodes'
+import { useEmailRecipients } from '../../composables/useEmailRecipients'
 
 interface Props {
   modelValue: EmailAddress[]
@@ -84,97 +86,18 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
-const localRecipients = ref<EmailAddress[]>([...props.modelValue])
-const showSuggestions = ref(false)
-
-const commonVariables = [
-  { path: '{{ event.data.user_email }}', description: 'User email from workflow data' },
-  { path: '{{ event.data.admin_email }}', description: 'Admin email from workflow data' },
-  { path: '{{ event.data.email }}', description: 'Generic email from workflow data' },
-  { path: '{{ event.data.user_name }}', description: 'User name from workflow data' },
-  { path: '{{ event.metadata.created_by }}', description: 'Workflow creator' }
-]
-
-// Ensure at least one recipient if not allowing empty
-if (localRecipients.value.length === 0 && !props.allowEmpty) {
-  localRecipients.value.push({ email: '', name: '' })
-}
-
-// Watch for external changes (without deep watching) - but don't override if user is actively typing
-let userIsTyping = false
-watch(
-  () => props.modelValue,
-  (newValue) => {
-    console.log('EmailRecipientList props watcher triggered:', {
-      newValue: JSON.stringify(newValue, null, 2),
-      currentLocal: JSON.stringify(localRecipients.value, null, 2),
-      userIsTyping
-    })
-    
-    // Only update if user is not actively typing
-    if (!userIsTyping) {
-      localRecipients.value = [...newValue]
-    }
-  }
-)
-
-// Debounced emit function
-let emitTimeout: ReturnType<typeof setTimeout> | null = null
-const emitUpdate = () => {
-  if (emitTimeout) clearTimeout(emitTimeout)
-  emitTimeout = setTimeout(() => {
-    console.log('EmailRecipientList emitting update:', JSON.stringify(localRecipients.value, null, 2))
-    emit('update:modelValue', [...localRecipients.value])
-  }, 400) // Increased debounce to avoid partial data capture
-}
-
-// Debug function to track input changes
-const onEmailInputDebug = (event: Event) => {
-  userIsTyping = true
-  const target = event.target as HTMLInputElement
-  console.log('EmailRecipientList input event:', {
-    inputValue: target.value,
-    recipientsData: JSON.stringify(localRecipients.value, null, 2)
-  })
-}
-
-// Immediate update on blur to avoid truncation issues
-const onFieldBlur = () => {
-  userIsTyping = false  // User finished typing
-  console.log('EmailRecipientList field blur - emitting immediate update:', JSON.stringify(localRecipients.value, null, 2))
-  emit('update:modelValue', [...localRecipients.value])
-}
-
-// Emit changes with debouncing
-watch(
+// Use the email recipients composable for all business logic
+const {
   localRecipients,
-  () => emitUpdate(),
-  { deep: true }
-)
-
-function addRecipient() {
-  localRecipients.value.push({ email: '', name: '' })
-}
-
-function removeRecipient(index: number) {
-  if (localRecipients.value.length > 1 || props.allowEmpty) {
-    localRecipients.value.splice(index, 1)
-  }
-}
-
-function insertVariable(variablePath: string) {
-  // Find the last focused email input and insert the variable
-  // For simplicity, we'll add it to the last recipient's email field
-  if (localRecipients.value.length > 0) {
-    const lastRecipient = localRecipients.value[localRecipients.value.length - 1]
-    if (!lastRecipient.email) {
-      lastRecipient.email = variablePath
-    } else {
-      // Add a new recipient with the variable
-      localRecipients.value.push({ email: variablePath, name: '' })
-    }
-  }
-}
+  showSuggestions,
+  commonVariables,
+  onEmailInputDebug,
+  onNameInputDebug,
+  onFieldBlur,
+  addRecipient,
+  removeRecipient,
+  insertVariable
+} = useEmailRecipients(props, emit)
 </script>
 
 <style scoped>

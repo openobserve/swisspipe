@@ -33,8 +33,6 @@
           <div class="grid grid-cols-2 gap-2">
             <input
               v-model="localConfig.from.email"
-              @input="onEmailInput"
-              @blur="onFieldBlur"
               placeholder="email@example.com"
               type="email"
               class="px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -51,7 +49,7 @@
         <div>
           <label class="block text-sm font-medium text-gray-300 mb-2">To Recipients</label>
           <EmailRecipientList
-            v-model="localConfig.to"
+            v-model="toRecipients"
             :allow-empty="false"
           />
         </div>
@@ -59,13 +57,13 @@
         <!-- CC Recipients -->
         <div>
           <label class="block text-sm font-medium text-gray-300 mb-2">CC Recipients (Optional)</label>
-          <EmailRecipientList :model-value="localConfig.cc || []" @update:model-value="(val) => localConfig.cc = val" />
+          <EmailRecipientList v-model="ccRecipients" />
         </div>
 
         <!-- BCC Recipients -->
         <div>
           <label class="block text-sm font-medium text-gray-300 mb-2">BCC Recipients (Optional)</label>
-          <EmailRecipientList :model-value="localConfig.bcc || []" @update:model-value="(val) => localConfig.bcc = val" />
+          <EmailRecipientList v-model="bccRecipients" />
         </div>
       </div>
     </div>
@@ -80,8 +78,6 @@
           <label class="block text-sm font-medium text-gray-300 mb-2">Subject</label>
           <input
             v-model="localConfig.subject"
-            @input="onSubjectInput"
-            @blur="onFieldBlur"
             placeholder="Email subject with {{ event.name }} variables"
             class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -121,8 +117,6 @@
             v-model="localConfig.body_template"
             :content-type="localConfig.template_type"
             :height="300"
-            @input="onBodyTemplateInput"
-            @blur="onFieldBlur"
           />
         </div>
 
@@ -213,8 +207,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
 import type { EmailConfig } from '../../types/nodes'
+import { useEmailConfig } from '../../composables/useEmailConfig'
 import EmailRecipientList from './EmailRecipientList.vue'
 import EmailContentEditor from './EmailContentEditor.vue'
 import EmailTemplateVariables from './EmailTemplateVariables.vue'
@@ -230,78 +224,13 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-// Local config to avoid direct prop mutation
-const localConfig = ref<EmailConfig>({ ...props.modelValue })
-
-// Watch for external changes (without deep watching) - but don't override if user is actively typing
-let userIsTyping = false
-watch(
-  () => props.modelValue,
-  (newValue) => {
-    console.log('EmailConfig props watcher triggered:', {
-      newValue: JSON.stringify(newValue, null, 2),
-      currentLocal: JSON.stringify(localConfig.value, null, 2),
-      userIsTyping
-    })
-    
-    // Only update if user is not actively typing
-    if (!userIsTyping) {
-      localConfig.value = { ...newValue }
-    }
-  }
-)
-
-// Debounced emit function to reduce update frequency
-let updateTimeout: ReturnType<typeof setTimeout> | null = null
-const emitUpdate = () => {
-  if (updateTimeout) clearTimeout(updateTimeout)
-  updateTimeout = setTimeout(() => {
-    console.log('EmailConfig emitting update:', JSON.stringify(localConfig.value, null, 2))
-    emit('update:modelValue', { ...localConfig.value })
-  }, 500) // Increased to 500ms debounce to avoid capturing partial input
-}
-
-// Special handler for email input to log what's being captured
-const onEmailInput = (event: Event) => {
-  userIsTyping = true
-  const target = event.target as HTMLInputElement
-  console.log('Email input event:', {
-    value: target.value,
-    currentFromEmail: localConfig.value.from?.email
-  })
-}
-
-// Subject input handler
-const onSubjectInput = (event: Event) => {
-  userIsTyping = true
-  const target = event.target as HTMLInputElement
-  console.log('Subject input event:', {
-    value: target.value,
-    currentSubject: localConfig.value.subject
-  })
-}
-
-// Body template input handler
-const onBodyTemplateInput = () => {
-  userIsTyping = true
-  console.log('Body template input event:', {
-    currentBodyTemplate: localConfig.value.body_template
-  })
-}
-
-// Use blur event instead of deep watching to avoid race conditions
-const onFieldBlur = () => {
-  userIsTyping = false  // User finished typing
-  console.log('Field blur - emitting immediate update:', JSON.stringify(localConfig.value, null, 2))
-  emit('update:modelValue', { ...localConfig.value })
-}
-
-// Keep the debounced watch as backup for non-input changes
-watch(
+// Use the email config composable for all business logic
+const {
   localConfig,
-  () => emitUpdate(),
-  { deep: true }
-)
+  toRecipients,
+  ccRecipients,
+  bccRecipients
+} = useEmailConfig(props, emit)
 </script>
 
 <style scoped>

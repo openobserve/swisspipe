@@ -240,6 +240,7 @@ import TriggerConfig from '../app-configs/TriggerConfig.vue'
 import WebhookConfig from '../app-configs/WebhookConfig.vue'
 import OpenObserveConfig from '../app-configs/OpenObserveConfig.vue'
 import EmailConfig from '../email-configs/EmailConfig.vue'
+import { debugLog } from '../../utils/debug'
 
 const nodeStore = useNodeStore()
 
@@ -259,6 +260,26 @@ watch(selectedNodeData, (newNode) => {
 
 function updateNodeData() {
   if (selectedNodeData.value) {
+    debugLog.component('NodePropertiesPanel', 'updateNodeData', {
+      nodeId: selectedNodeData.value.id,
+      nodeType: selectedNodeData.value.type,
+      hasLocalData: !!localNodeData.value,
+      isEmailNode: selectedNodeData.value.type === 'email'
+    })
+    
+    if (selectedNodeData.value.type === 'email') {
+      debugLog.component('NodePropertiesPanel', 'email-node-update', {
+        hasEmailConfig: !!localNodeData.value.config,
+        hasFrom: !!(localNodeData.value.config as any)?.from,
+        hasTo: !!(localNodeData.value.config as any)?.to,
+        toCount: (localNodeData.value.config as any)?.to?.length || 0,
+        hasCC: !!(localNodeData.value.config as any)?.cc,
+        ccCount: (localNodeData.value.config as any)?.cc?.length || 0,
+        hasBCC: !!(localNodeData.value.config as any)?.bcc,
+        bccCount: (localNodeData.value.config as any)?.bcc?.length || 0
+      })
+    }
+    
     nodeStore.updateNode(selectedNodeData.value.id, {
       data: localNodeData.value
     })

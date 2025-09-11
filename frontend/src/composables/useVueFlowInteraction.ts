@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { useVueFlow } from '@vue-flow/core'
 import { useNodeStore } from '../stores/nodes'
+import { deepClone } from '../utils/comparison'
 
 export function useVueFlowInteraction() {
   const nodeStore = useNodeStore()
@@ -75,7 +76,7 @@ export function useVueFlowInteraction() {
         data: {
           label: nodeTypeData.label,
           description: nodeTypeData.description,
-          config: { ...nodeTypeData.defaultConfig },
+          config: deepClone(nodeTypeData.defaultConfig),
           status: 'ready' as const
         }
       }
