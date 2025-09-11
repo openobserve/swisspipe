@@ -56,7 +56,7 @@ export interface EdgeRequest {
   condition_result?: boolean
 }
 
-export type NodeType = TriggerNode | ConditionNode | TransformerNode | WebhookNode | OpenObserveNode | AppNode | EmailNode | DelayNode
+export type NodeType = TriggerNode | ConditionNode | TransformerNode | HttpRequestNode | OpenObserveNode | AppNode | EmailNode | DelayNode
 
 export interface TriggerNode {
   Trigger: {
@@ -76,8 +76,8 @@ export interface TransformerNode {
   }
 }
 
-export interface WebhookNode {
-  Webhook: {
+export interface HttpRequestNode {
+  HttpRequest: {
     url: string
     method: HttpMethod
     timeout_seconds: number
@@ -141,7 +141,7 @@ export interface DelayNode {
 
 export type DelayUnit = 'Seconds' | 'Minutes' | 'Hours' | 'Days'
 
-export type AppType = 'Webhook' | { OpenObserve: { url: string, authorization_header: string } }
+export type AppType = 'HttpRequest' | { OpenObserve: { url: string, authorization_header: string } }
 
 export type FailureAction = 'Continue' | 'Stop' | 'Retry'
 

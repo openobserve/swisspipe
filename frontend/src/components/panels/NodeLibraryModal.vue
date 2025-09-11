@@ -165,7 +165,7 @@ const logicNodes = computed(() =>
   nodeStore.nodeTypes.filter(type => type.type === 'condition' || type.type === 'delay')
 )
 const appNodes = computed(() => 
-  nodeStore.nodeTypes.filter(type => type.type === 'webhook' || type.type === 'openobserve')
+  nodeStore.nodeTypes.filter(type => type.type === 'http-request' || type.type === 'openobserve')
 )
 const communicationNodes = computed(() => 
   nodeStore.nodeTypes.filter(type => type.type === 'email')

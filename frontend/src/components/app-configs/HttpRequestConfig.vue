@@ -1,13 +1,13 @@
 <template>
   <div class="space-y-4">
     <div>
-      <label class="block text-sm font-medium text-gray-300 mb-2">Webhook URL</label>
+      <label class="block text-sm font-medium text-gray-300 mb-2">HTTP Request URL</label>
       <input
         :value="modelValue.url"
         @input="updateConfig('url', ($event.target as HTMLInputElement).value)"
         @blur="$emit('update')"
         type="url"
-        placeholder="https://api.example.com/webhook"
+        placeholder="https://api.example.com/endpoint"
         class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
       />
     </div>
@@ -67,25 +67,25 @@
 
 <script setup lang="ts">
 
-interface WebhookConfig {
+interface HttpRequestConfig {
   url: string
   method: string
   headers?: Record<string, string>
 }
 
 interface Props {
-  modelValue: WebhookConfig
+  modelValue: HttpRequestConfig
 }
 
 interface Emits {
-  (e: 'update:modelValue', value: WebhookConfig): void
+  (e: 'update:modelValue', value: HttpRequestConfig): void
   (e: 'update'): void
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-function updateConfig(key: keyof WebhookConfig, value: unknown) {
+function updateConfig(key: keyof HttpRequestConfig, value: unknown) {
   const updated = { ...props.modelValue }
   ;(updated as Record<string, unknown>)[key] = value
   emit('update:modelValue', updated)

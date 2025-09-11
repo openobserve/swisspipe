@@ -160,7 +160,7 @@ function initializeEditor() {
           data: any;
           /** Metadata key-value pairs for the workflow execution */
           metadata: Record<string, string>;
-          /** HTTP headers if triggered by webhook */
+          /** HTTP headers if triggered by HTTP request */
           headers: Record<string, string>;
           /** Results from previous condition nodes */
           condition_results: Record<string, boolean>;

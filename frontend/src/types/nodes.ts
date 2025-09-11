@@ -29,11 +29,11 @@ export interface WorkflowEdge extends Omit<Edge, 'data'> {
   }
 }
 
-export type NodeTypeString = 'trigger' | 'condition' | 'transformer' | 'webhook' | 'openobserve' | 'app' | 'email' | 'delay'
+export type NodeTypeString = 'trigger' | 'condition' | 'transformer' | 'http-request' | 'openobserve' | 'app' | 'email' | 'delay'
 
 export type NodeStatus = 'ready' | 'running' | 'completed' | 'error'
 
-export type NodeConfig = TriggerConfig | ConditionConfig | TransformerConfig | WebhookConfig | OpenObserveConfig | AppConfig | EmailConfig | DelayConfig
+export type NodeConfig = TriggerConfig | ConditionConfig | TransformerConfig | HttpRequestConfig | OpenObserveConfig | AppConfig | EmailConfig | DelayConfig
 
 export interface TriggerConfig {
   type: 'trigger'
@@ -50,8 +50,8 @@ export interface TransformerConfig {
   script: string
 }
 
-export interface WebhookConfig {
-  type: 'webhook'
+export interface HttpRequestConfig {
+  type: 'http-request'
   url: string
   method: string
   timeout_seconds: number

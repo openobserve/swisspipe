@@ -95,10 +95,10 @@
         </div>
       </div>
 
-      <!-- Webhook Node Configuration -->
-      <div v-if="selectedNodeData.type === 'webhook'">
-        <h3 class="text-sm font-semibold text-gray-300 mb-3">Webhook Configuration</h3>
-        <WebhookConfig
+      <!-- HTTP Request Node Configuration -->
+      <div v-if="selectedNodeData.type === 'http-request'">
+        <h3 class="text-sm font-semibold text-gray-300 mb-3">HTTP Request Configuration</h3>
+        <HttpRequestConfig
           v-model="localNodeData.config"
           @update="updateNodeData"
         />
@@ -198,15 +198,15 @@
               @change="updateNodeData"
               class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
-              <option value="Webhook">Webhook</option>
+              <option value="HttpRequest">HTTP Request</option>
               <option value="OpenObserve">OpenObserve</option>
             </select>
           </div>
           
           <!-- App-specific configuration -->
           <div class="mt-4">
-            <WebhookConfig
-              v-if="localNodeData.config.app_type === 'Webhook'"
+            <HttpRequestConfig
+              v-if="localNodeData.config.app_type === 'HttpRequest'"
               v-model="localNodeData.config"
               @update="updateNodeData"
             />
@@ -329,7 +329,7 @@ import { XMarkIcon } from '@heroicons/vue/24/outline'
 import { useNodeStore } from '../../stores/nodes'
 import CodeEditor from '../common/CodeEditor.vue'
 import TriggerConfig from '../app-configs/TriggerConfig.vue'
-import WebhookConfig from '../app-configs/WebhookConfig.vue'
+import HttpRequestConfig from '../app-configs/HttpRequestConfig.vue'
 import OpenObserveConfig from '../app-configs/OpenObserveConfig.vue'
 import EmailConfig from '../email-configs/EmailConfig.vue'
 import { debugLog } from '../../utils/debug'

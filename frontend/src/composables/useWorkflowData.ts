@@ -181,11 +181,11 @@ export function useWorkflowData() {
   }
 }
 
-function convertApiNodeTypeToVueFlowType(nodeType: any): 'trigger' | 'condition' | 'transformer' | 'webhook' | 'openobserve' | 'email' | 'delay' {
+function convertApiNodeTypeToVueFlowType(nodeType: any): 'trigger' | 'condition' | 'transformer' | 'http-request' | 'openobserve' | 'email' | 'delay' {
   if (nodeType.Trigger) return 'trigger'
   if (nodeType.Condition) return 'condition'
   if (nodeType.Transformer) return 'transformer'
-  if (nodeType.Webhook) return 'webhook'
+  if (nodeType.HttpRequest) return 'http-request'
   if (nodeType.OpenObserve) return 'openobserve'
   if (nodeType.Email) return 'email'
   if (nodeType.Delay) return 'delay'
@@ -194,16 +194,16 @@ function convertApiNodeTypeToVueFlowType(nodeType: any): 'trigger' | 'condition'
     if (typeof nodeType.App.app_type === 'object' && nodeType.App.app_type.OpenObserve) {
       return 'openobserve'
     }
-    return 'webhook'
+    return 'http-request'
   }
-  return 'webhook'
+  return 'http-request'
 }
 
 function getNodeDescription(nodeType: any): string {
   if (nodeType.Trigger) return 'HTTP endpoint trigger'
   if (nodeType.Condition) return 'Conditional logic node'
   if (nodeType.Transformer) return 'Data transformation node'
-  if (nodeType.Webhook) return 'HTTP webhook request'
+  if (nodeType.HttpRequest) return 'HTTP request'
   if (nodeType.OpenObserve) return 'OpenObserve log analytics'
   if (nodeType.Email) return 'Email notification node'
   if (nodeType.Delay) return 'Workflow execution delay'
@@ -231,15 +231,15 @@ function convertApiNodeConfigToVueFlowConfig(nodeType: any): NodeConfig {
       script: nodeType.Transformer.script || DEFAULT_TRANSFORMER_SCRIPT
     }
   }
-  if (nodeType.Webhook) {
+  if (nodeType.HttpRequest) {
     return {
-      type: 'webhook' as const,
-      url: nodeType.Webhook.url || 'https://httpbin.org/post',
-      method: nodeType.Webhook.method || 'POST',
-      timeout_seconds: nodeType.Webhook.timeout_seconds || 30,
-      failure_action: nodeType.Webhook.failure_action || 'Stop',
-      headers: nodeType.Webhook.headers || {},
-      retry_config: nodeType.Webhook.retry_config || {
+      type: 'http-request' as const,
+      url: nodeType.HttpRequest.url || 'https://httpbin.org/post',
+      method: nodeType.HttpRequest.method || 'POST',
+      timeout_seconds: nodeType.HttpRequest.timeout_seconds || 30,
+      failure_action: nodeType.HttpRequest.failure_action || 'Stop',
+      headers: nodeType.HttpRequest.headers || {},
+      retry_config: nodeType.HttpRequest.retry_config || {
         max_attempts: 3,
         initial_delay_ms: 100,
         max_delay_ms: 5000,
@@ -266,7 +266,7 @@ function convertApiNodeConfigToVueFlowConfig(nodeType: any): NodeConfig {
   if (nodeType.App) {
     const config = {
       type: 'app' as const,
-      app_type: nodeType.App.app_type || 'Webhook',
+      app_type: nodeType.App.app_type || 'HttpRequest',
       url: nodeType.App.url || 'https://httpbin.org/post',
       method: nodeType.App.method || 'POST',
       timeout_seconds: nodeType.App.timeout_seconds || 30,
@@ -351,16 +351,16 @@ function convertNodeToApiType(node: { type: string; data: { config: any } }) {
           script: node.data.config.script || DEFAULT_TRANSFORMER_SCRIPT
         }
       }
-    case 'webhook':
-      const webhookConfig = node.data.config as any
+    case 'http-request':
+      const httpRequestConfig = node.data.config as any
       return {
-        Webhook: {
-          url: webhookConfig.url || 'https://httpbin.org/post',
-          method: webhookConfig.method || 'POST',
-          timeout_seconds: webhookConfig.timeout_seconds || 30,
-          failure_action: webhookConfig.failure_action || 'Stop',
-          headers: webhookConfig.headers || {},
-          retry_config: webhookConfig.retry_config || {
+        HttpRequest: {
+          url: httpRequestConfig.url || 'https://httpbin.org/post',
+          method: httpRequestConfig.method || 'POST',
+          timeout_seconds: httpRequestConfig.timeout_seconds || 30,
+          failure_action: httpRequestConfig.failure_action || 'Stop',
+          headers: httpRequestConfig.headers || {},
+          retry_config: httpRequestConfig.retry_config || {
             max_attempts: 3,
             initial_delay_ms: 100,
             max_delay_ms: 5000,
@@ -387,7 +387,7 @@ function convertNodeToApiType(node: { type: string; data: { config: any } }) {
     case 'app':
       // Legacy support for old App nodes
       const appConfig = node.data.config as any
-      let app_type = appConfig.app_type || 'Webhook'
+      let app_type = appConfig.app_type || 'HttpRequest'
       
       if (appConfig.app_type === 'OpenObserve') {
         app_type = {

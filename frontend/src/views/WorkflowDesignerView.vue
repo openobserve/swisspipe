@@ -124,8 +124,8 @@
           <template #node-transformer="{ data }">
             <TransformerNode :data="data" />
           </template>
-          <template #node-webhook="{ data }">
-            <WebhookNode :data="data" />
+          <template #node-http-request="{ data }">
+            <HttpRequestNode :data="data" />
           </template>
           <template #node-openobserve="{ data }">
             <OpenObserveNode :data="data" />
@@ -229,7 +229,7 @@ import JsonViewModal from '../components/common/JsonViewModal.vue'
 import TriggerNode from '../components/nodes/TriggerNode.vue'
 import ConditionNode from '../components/nodes/ConditionNode.vue'
 import TransformerNode from '../components/nodes/TransformerNode.vue'
-import WebhookNode from '../components/nodes/WebhookNode.vue'
+import HttpRequestNode from '../components/nodes/HttpRequestNode.vue'
 import OpenObserveNode from '../components/nodes/OpenObserveNode.vue'
 import AppNode from '../components/nodes/AppNode.vue'
 import EmailNode from '../components/nodes/EmailNode.vue'

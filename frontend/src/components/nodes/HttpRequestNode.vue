@@ -1,9 +1,9 @@
 <template>
-  <div class="node-webhook px-4 py-3 rounded-lg shadow-2xl min-w-[180px] border-2" :class="nodeClasses">
+  <div class="node-http-request px-4 py-3 rounded-lg shadow-2xl min-w-[180px] border-2" :class="nodeClasses">
     <div class="flex items-center justify-between mb-2">
       <div class="flex-1">
-        <div class="text-sm font-medium">{{ data.label || 'Webhook' }}</div>
-        <div class="text-xs text-green-200 opacity-80">Webhook</div>
+        <div class="text-sm font-medium">{{ data.label || 'HTTP Request' }}</div>
+        <div class="text-xs text-green-200 opacity-80">HTTP Request</div>
       </div>
       <div v-if="data.isTracing" class="flex items-center space-x-1">
         <div v-if="data.executionStatus" :class="statusIndicatorClasses" class="w-3 h-3 rounded-full"></div>
@@ -93,7 +93,7 @@ function formatDuration(durationMs: number | null): string {
 </script>
 
 <style scoped>
-.node-webhook {
+.node-http-request {
   background: rgba(34, 197, 94, 0.12);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -104,7 +104,7 @@ function formatDuration(durationMs: number | null): string {
   transition: all 0.3s ease;
 }
 
-.node-webhook:hover {
+.node-http-request:hover {
   background: rgba(34, 197, 94, 0.18);
   box-shadow: 
     0 12px 40px rgba(34, 197, 94, 0.25),

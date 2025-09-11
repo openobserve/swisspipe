@@ -50,13 +50,13 @@ export const useNodeStore = defineStore('nodes', () => {
       }
     },
     {
-      type: 'webhook',
-      label: 'Webhook',
+      type: 'http-request',
+      label: 'HTTP Request',
       description: 'Send HTTP requests to external APIs',
       color: '#10b981',
       icon: 'globe-alt',
       defaultConfig: {
-        type: 'webhook',
+        type: 'http-request',
         url: 'https://httpbin.org/post',
         method: 'POST',
         timeout_seconds: 30,

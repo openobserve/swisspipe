@@ -75,7 +75,7 @@ pub enum NodeType {
     Transformer { 
         script: String 
     },
-    Webhook {
+    HttpRequest {
         url: String,
         method: HttpMethod,
         timeout_seconds: u64,

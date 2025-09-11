@@ -30,7 +30,7 @@ impl AppExecutor {
     }
     
     #[allow(clippy::too_many_arguments)]
-    pub async fn execute_webhook(
+    pub async fn execute_http_request(
         &self,
         url: &str,
         method: &HttpMethod,
@@ -39,7 +39,7 @@ impl AppExecutor {
         event: WorkflowEvent,
         node_headers: &std::collections::HashMap<String, String>,
     ) -> Result<WorkflowEvent, SwissPipeError> {
-        tracing::info!("Starting webhook execution: url={}, method={:?}, timeout={}s, max_attempts={}", 
+        tracing::info!("Starting HTTP request execution: url={}, method={:?}, timeout={}s, max_attempts={}", 
             url, method, timeout_seconds, retry_config.max_attempts);
         
         let mut attempts = 0;
@@ -47,18 +47,18 @@ impl AppExecutor {
         
         loop {
             attempts += 1;
-            tracing::info!("Webhook execution attempt {} of {}", attempts, retry_config.max_attempts);
+            tracing::info!("HTTP request execution attempt {} of {}", attempts, retry_config.max_attempts);
             
             let start_time = std::time::Instant::now();
-            match self.execute_webhook_request(url, method, timeout_seconds, &event, node_headers).await {
+            match self.execute_http_request_internal(url, method, timeout_seconds, &event, node_headers).await {
                 Ok(response_event) => {
                     let elapsed = start_time.elapsed();
-                    tracing::info!("Webhook execution succeeded on attempt {} after {:?}", attempts, elapsed);
+                    tracing::info!("HTTP request execution succeeded on attempt {} after {:?}", attempts, elapsed);
                     return Ok(response_event);
                 },
                 Err(e) if attempts >= retry_config.max_attempts => {
                     let elapsed = start_time.elapsed();
-                    tracing::error!("Webhook execution failed after {} attempts. Final attempt took {:?}. Error: {}", 
+                    tracing::error!("HTTP request execution failed after {} attempts. Final attempt took {:?}. Error: {}", 
                         attempts, elapsed, e);
                     return Err(SwissPipeError::App(AppError::HttpRequestFailed {
                         attempts,
@@ -67,7 +67,7 @@ impl AppExecutor {
                 }
                 Err(e) => {
                     let elapsed = start_time.elapsed();
-                    tracing::warn!("Webhook execution attempt {} failed after {:?}, retrying in {:?}. Error: {}", 
+                    tracing::warn!("HTTP request execution attempt {} failed after {:?}, retrying in {:?}. Error: {}", 
                         attempts, elapsed, delay, e);
                     
                     // Wait before retry
@@ -133,7 +133,7 @@ impl AppExecutor {
         }
     }
     
-    async fn execute_webhook_request(
+    async fn execute_http_request_internal(
         &self,
         url: &str,
         method: &HttpMethod,
@@ -142,7 +142,7 @@ impl AppExecutor {
         node_headers: &std::collections::HashMap<String, String>,
     ) -> Result<WorkflowEvent, SwissPipeError> {
         let timeout = Duration::from_secs(timeout_seconds);
-        tracing::info!("Executing webhook request: url={}, timeout={:?}", url, timeout);
+        tracing::info!("Executing HTTP request: url={}, timeout={:?}", url, timeout);
         
         {
                 let mut request = match method {

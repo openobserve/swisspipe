@@ -194,7 +194,7 @@ pub async fn create_workflow(
                 NodeType::Trigger { .. } => "trigger".to_string(),
                 NodeType::Condition { .. } => "condition".to_string(),
                 NodeType::Transformer { .. } => "transformer".to_string(),
-                NodeType::Webhook { .. } => "webhook".to_string(),
+                NodeType::HttpRequest { .. } => "http_request".to_string(),
                 NodeType::OpenObserve { .. } => "openobserve".to_string(),
                 NodeType::Email { .. } => "email".to_string(),
                 NodeType::Delay { .. } => "delay".to_string(),
@@ -275,7 +275,7 @@ pub async fn create_workflow(
         .into_iter()
         .map(|node| {
             let node_type: NodeType = serde_json::from_str(&node.config)
-                .unwrap_or(NodeType::Webhook {
+                .unwrap_or(NodeType::HttpRequest {
                     url: "".to_string(),
                     method: HttpMethod::Get,
                     timeout_seconds: 30,
@@ -354,7 +354,7 @@ pub async fn get_workflow(
         .into_iter()
         .map(|node| {
             let node_type: NodeType = serde_json::from_str(&node.config)
-                .unwrap_or(NodeType::Webhook {
+                .unwrap_or(NodeType::HttpRequest {
                     url: "".to_string(),
                     method: HttpMethod::Get,
                     timeout_seconds: 30,
@@ -486,7 +486,7 @@ pub async fn update_workflow(
             NodeType::Trigger { .. } => "trigger".to_string(),
             NodeType::Condition { .. } => "condition".to_string(),
             NodeType::Transformer { .. } => "transformer".to_string(),
-            NodeType::Webhook { .. } => "webhook".to_string(),
+            NodeType::HttpRequest { .. } => "http_request".to_string(),
             NodeType::OpenObserve { .. } => "openobserve".to_string(),
             NodeType::Email { .. } => "email".to_string(),
             NodeType::Delay { .. } => "delay".to_string(),
@@ -628,7 +628,7 @@ pub async fn update_workflow(
         .into_iter()
         .map(|node| {
             let node_type: NodeType = serde_json::from_str(&node.config)
-                .unwrap_or(NodeType::Webhook {
+                .unwrap_or(NodeType::HttpRequest {
                     url: "".to_string(),
                     method: HttpMethod::Get,
                     timeout_seconds: 30,
