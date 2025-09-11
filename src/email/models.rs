@@ -78,7 +78,7 @@ impl EmailPriority {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn from_priority_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "critical" => Some(Self::Critical),
             "high" => Some(Self::High),

@@ -53,6 +53,7 @@ impl WorkflowEngine {
                 workflow_id: node_model.workflow_id,
                 name: node_model.name,
                 node_type,
+                input_merge_strategy: None, // Default to FirstWins behavior
             });
         }
         

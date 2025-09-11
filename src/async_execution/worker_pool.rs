@@ -1,4 +1,4 @@
-use crate::async_execution::{ExecutionService, JobManager, DelayScheduler};
+use crate::async_execution::{ExecutionService, JobManager, DelayScheduler, input_coordination::InputCoordination};
 use crate::database::{
     workflow_executions::ExecutionStatus,
     workflow_execution_steps::StepStatus,
@@ -7,6 +7,7 @@ use crate::workflow::{
     engine::WorkflowEngine,
     errors::{Result, SwissPipeError},
     models::{Workflow, WorkflowEvent},
+    input_sync::InputSyncService,
 };
 use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, ActiveModelTrait, Set};
 use serde_json::Value;
@@ -23,6 +24,7 @@ pub struct WorkerPool {
     execution_service: Arc<ExecutionService>,
     job_manager: Arc<JobManager>,
     workflow_engine: Arc<WorkflowEngine>,
+    input_sync_service: Arc<InputSyncService>,
     config: WorkerPoolConfig,
     workers: Arc<RwLock<Vec<Worker>>>,
     is_running: Arc<AtomicBool>,
@@ -68,6 +70,12 @@ enum WorkerStatus {
     Shutdown,
 }
 
+impl InputCoordination for WorkerPool {
+    fn get_input_sync_service(&self) -> &Arc<InputSyncService> {
+        &self.input_sync_service
+    }
+}
+
 impl WorkerPool {
     pub fn new(
         db: Arc<DatabaseConnection>,
@@ -76,12 +84,14 @@ impl WorkerPool {
     ) -> Self {
         let execution_service = Arc::new(ExecutionService::new(db.clone()));
         let job_manager = Arc::new(JobManager::new(db.clone()));
+        let input_sync_service = Arc::new(InputSyncService::new(db.clone()));
 
         Self {
             db,
             execution_service,
             job_manager,
             workflow_engine,
+            input_sync_service,
             config: config.unwrap_or_default(),
             workers: Arc::new(RwLock::new(Vec::new())),
             is_running: Arc::new(AtomicBool::new(false)),
@@ -157,6 +167,21 @@ impl WorkerPool {
                     }
                 }
             } else {
+                // Check if this node requires input coordination
+                let (ready_to_execute, coordinated_event) = self.coordinate_node_inputs(
+                    workflow,
+                    execution_id,
+                    &current_node_name,
+                    &current_event,
+                    node.input_merge_strategy.as_ref(),
+                ).await?;
+
+                if !ready_to_execute {
+                    break;
+                }
+
+                current_event = coordinated_event;
+
                 // Create and execute the step as normal
                 let input_data = serde_json::to_value(&current_event).ok();
                 let step_id = self.execution_service
@@ -217,12 +242,14 @@ impl WorkerPool {
                         let execution_service = self.execution_service.clone();
                         let workflow_engine = self.workflow_engine.clone();
                         let delay_scheduler = self.delay_scheduler.clone();
+                        let input_sync_service = self.input_sync_service.clone();
                         
                         let handle = tokio::spawn(async move {
                             let worker_pool = WorkerPoolForBranch {
                                 execution_service,
                                 workflow_engine,
                                 delay_scheduler,
+                                input_sync_service,
                             };
                             
                             tracing::debug!("Starting parallel branch execution for node: {}", next_node_name);
@@ -924,6 +951,13 @@ struct WorkerPoolForBranch {
     execution_service: Arc<ExecutionService>,
     workflow_engine: Arc<crate::workflow::engine::WorkflowEngine>,
     delay_scheduler: Arc<RwLock<Option<Arc<DelayScheduler>>>>,
+    input_sync_service: Arc<InputSyncService>,
+}
+
+impl InputCoordination for WorkerPoolForBranch {
+    fn get_input_sync_service(&self) -> &Arc<InputSyncService> {
+        &self.input_sync_service
+    }
 }
 
 impl WorkerPoolForBranch {
@@ -954,6 +988,21 @@ impl WorkerPoolForBranch {
                 .get(&current_node_name)
                 .ok_or_else(|| SwissPipeError::NodeNotFound(current_node_name.clone()))?;
             
+            // Check if this node requires input coordination
+            let (ready_to_execute, coordinated_event) = self.coordinate_node_inputs(
+                workflow,
+                execution_id,
+                &current_node_name,
+                &event,
+                node.input_merge_strategy.as_ref(),
+            ).await?;
+
+            if !ready_to_execute {
+                break;
+            }
+
+            event = coordinated_event;
+
             // Create execution step
             let input_data = serde_json::to_value(&event).ok();
             let step_id = self.execution_service
@@ -1186,6 +1235,7 @@ impl WorkerPoolForBranch {
         let delay_scheduler = self.delay_scheduler.read().await;
         delay_scheduler.clone()
     }
+
 }
 
 impl WorkerPool {
@@ -1340,6 +1390,7 @@ impl WorkerPool {
             execution_service: Arc::clone(&self.execution_service),
             workflow_engine: Arc::clone(&self.workflow_engine),
             delay_scheduler: Arc::clone(&self.delay_scheduler),
+            input_sync_service: Arc::clone(&self.input_sync_service),
         };
 
         // Execute from the specified node
@@ -1352,6 +1403,7 @@ impl WorkerPool {
 
         Ok(())
     }
+
 
 }
 

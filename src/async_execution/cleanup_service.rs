@@ -1,4 +1,4 @@
-use crate::database::{workflow_executions, workflow_execution_steps};
+use crate::database::{workflow_executions, workflow_execution_steps, node_input_sync};
 use crate::workflow::errors::Result;
 use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, PaginatorTrait, DeleteResult};
 use std::sync::Arc;
@@ -126,19 +126,31 @@ impl CleanupService {
             return Ok((0, 0));
         }
 
-        // Count steps that will be cascade deleted (for logging purposes)
+        // Count records that will be deleted (for logging purposes)
         let steps_count = workflow_execution_steps::Entity::find()
             .filter(workflow_execution_steps::Column::ExecutionId.is_in(executions_to_delete.clone()))
             .count(self.db.as_ref())
             .await?;
 
-        // Delete executions - cascade delete will automatically remove related steps
-        let result: DeleteResult = workflow_executions::Entity::delete_many()
+        let _sync_records_count = node_input_sync::Entity::find()
+            .filter(node_input_sync::Column::ExecutionId.is_in(executions_to_delete.clone()))
+            .count(self.db.as_ref())
+            .await?;
+
+        // Clean up stale input sync records (older than 1 hour and still waiting)
+        let stale_sync_result = self.cleanup_stale_sync_records().await?;
+        
+        // Delete executions - cascade delete will automatically remove related sync records
+        let executions_result: DeleteResult = workflow_executions::Entity::delete_many()
             .filter(workflow_executions::Column::Id.is_in(executions_to_delete))
             .exec(self.db.as_ref())
             .await?;
 
-        Ok((result.rows_affected, steps_count))
+        if stale_sync_result > 0 {
+            tracing::debug!("Cleaned up {} stale input sync records", stale_sync_result);
+        }
+
+        Ok((executions_result.rows_affected, steps_count))
     }
 
 
@@ -208,6 +220,53 @@ impl CleanupService {
             total_executions,
             total_steps,
         })
+    }
+
+    /// Clean up stale input sync records that have been waiting too long
+    async fn cleanup_stale_sync_records(&self) -> Result<u64> {
+        // Clean up sync records that are:
+        // 1. In "waiting" status
+        // 2. Created more than 1 hour ago (configurable via environment)
+        // 3. Have no timeout set OR timeout has already passed
+        
+        let stale_hours = std::env::var("SP_SYNC_STALE_HOURS")
+            .ok()
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(1);
+
+        let cutoff_time = chrono::Utc::now() - chrono::Duration::hours(stale_hours);
+
+        use sea_orm::Condition;
+        
+        let delete_result = node_input_sync::Entity::delete_many()
+            .filter(node_input_sync::Column::Status.eq("waiting"))
+            .filter(
+                Condition::any()
+                    // Records with no timeout_at set: use creation time + stale hours
+                    .add(
+                        Condition::all()
+                            .add(node_input_sync::Column::TimeoutAt.is_null())
+                            .add(node_input_sync::Column::CreatedAt.lt(cutoff_time))
+                    )
+                    // Records with timeout_at set: use the explicit timeout
+                    .add(
+                        Condition::all()
+                            .add(node_input_sync::Column::TimeoutAt.is_not_null())
+                            .add(node_input_sync::Column::TimeoutAt.lt(chrono::Utc::now()))
+                    )
+            )
+            .exec(self.db.as_ref())
+            .await?;
+
+        if delete_result.rows_affected > 0 {
+            tracing::warn!(
+                "Cleaned up {} stale input sync records (older than {} hours)", 
+                delete_result.rows_affected,
+                stale_hours
+            );
+        }
+
+        Ok(delete_result.rows_affected)
     }
 }
 

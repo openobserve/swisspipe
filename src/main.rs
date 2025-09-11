@@ -80,6 +80,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _cleanup_handle = cleanup_service.start().await;
     tracing::info!("Cleanup service started successfully");
 
+    // Initialize and start input sync timeout manager
+    let mut input_sync_manager = crate::workflow::input_sync_manager::InputSyncManager::new(db.clone());
+    tracing::info!("Starting input sync timeout manager...");
+    match input_sync_manager.start(30).await { // Check for timeouts every 30 seconds
+        Ok(()) => {
+            tracing::info!("Input sync timeout manager started successfully");
+        }
+        Err(e) => {
+            tracing::error!("Failed to start input sync timeout manager: {}", e);
+            // Don't fail startup, just log the error
+        }
+    }
+
     // Resume interrupted workflows on startup
     let resumption_service = ResumptionService::new(db.clone());
     match resumption_service.resume_interrupted_executions().await {

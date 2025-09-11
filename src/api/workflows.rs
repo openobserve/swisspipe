@@ -124,6 +124,7 @@ pub async fn create_workflow(
         workflow_id: workflow_id.clone(),
         name: n.name.clone(),
         node_type: n.node_type.clone(),
+        input_merge_strategy: None,
     }).collect();
     
     let edges: Vec<Edge> = request.edges.iter().map(|e| Edge {
@@ -372,6 +373,7 @@ pub async fn update_workflow(
         workflow_id: id.clone(),
         name: n.name.clone(),
         node_type: n.node_type.clone(),
+        input_merge_strategy: None,
     }).collect();
     
     let edges: Vec<Edge> = request.edges.iter().map(|e| Edge {

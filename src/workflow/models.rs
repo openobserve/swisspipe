@@ -63,6 +63,16 @@ pub enum DelayUnit {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum InputMergeStrategy {
+    /// Wait for all expected inputs before executing (default for multiple inputs)
+    WaitForAll,
+    /// Execute on first input, ignore others (default for single inputs)
+    FirstWins,
+    /// Wait up to N seconds for inputs, then execute with whatever was received
+    TimeoutBased(u64),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum NodeType {
     Trigger { 
         methods: Vec<HttpMethod> 
@@ -97,6 +107,7 @@ pub struct Node {
     pub workflow_id: String,
     pub name: String,
     pub node_type: NodeType,
+    pub input_merge_strategy: Option<InputMergeStrategy>,
 }
 
 #[derive(Debug, Clone)]
