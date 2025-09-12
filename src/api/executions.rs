@@ -26,7 +26,6 @@ pub fn routes() -> Router<AppState> {
         .route("/", get(get_all_executions))
         .route("/:execution_id", get(get_execution))
         .route("/:execution_id/status", get(get_execution_status))
-        .route("/:execution_id/logs", get(get_execution_logs))
         .route("/:execution_id/steps", get(get_execution_steps))
         .route("/:execution_id/cancel", axum::routing::post(cancel_execution))
         .route("/stats", get(get_worker_pool_stats))
@@ -89,7 +88,8 @@ pub async fn get_execution_steps(
             serde_json::json!({
                 "id": step.id,
                 "execution_id": step.execution_id,
-                "node_id": &step.node_id,
+                "node_id": step.node_id,
+                "node_name": step.node_name,
                 "status": step.status,
                 "input_data": step.input_data.and_then(|d| serde_json::from_str::<Value>(&d).ok()),
                 "output_data": step.output_data.and_then(|d| serde_json::from_str::<Value>(&d).ok()),
@@ -189,61 +189,6 @@ pub async fn get_execution_status(
     }
 }
 
-/// Get execution logs
-pub async fn get_execution_logs(
-    State(state): State<AppState>,
-    Path(execution_id): Path<String>,
-) -> std::result::Result<Json<Value>, StatusCode> {
-    let execution_service = ExecutionService::new(state.db.clone());
-    
-    // Check if execution exists
-    let execution = execution_service
-        .get_execution(&execution_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to get execution: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    if execution.is_none() {
-        return Err(StatusCode::NOT_FOUND);
-    }
-
-    // Get execution steps (which contain the logs/progress)
-    let steps = execution_service
-        .get_execution_steps(&execution_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to get execution steps: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    // Format as logs
-    let logs: Vec<Value> = steps
-        .into_iter()
-        .map(|step| {
-            let node_id = &step.node_id;
-            serde_json::json!({
-                "timestamp": step.created_at,
-                "level": "info",
-                "node_id": node_id,
-                "status": step.status,
-                "message": format!("Node '{}' status: {}", node_id, step.status),
-                "error": step.error_message,
-                "started_at": step.started_at,
-                "completed_at": step.completed_at
-            })
-        })
-        .collect();
-
-    let response = serde_json::json!({
-        "execution_id": execution_id,
-        "logs": logs,
-        "total_entries": logs.len()
-    });
-
-    Ok(Json(response))
-}
 
 /// Get all recent executions across workflows
 pub async fn get_all_executions(

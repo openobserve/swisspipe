@@ -205,6 +205,7 @@ impl WorkerPool {
                     .create_execution_step(
                         execution_id.to_string(),
                         node.id.clone(),
+                        node.name.clone(),
                         input_data,
                     )
                     .await?;
@@ -1060,6 +1061,7 @@ impl WorkerPoolForBranch {
                 .create_execution_step(
                     execution_id.to_string(),
                     node.id.clone(),
+                    node.name.clone(),
                     input_data,
                 )
                 .await?;

@@ -21,6 +21,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(WorkflowExecutionSteps::ExecutionId).string().not_null())
                     .col(ColumnDef::new(WorkflowExecutionSteps::NodeId).string().not_null())
+                    .col(ColumnDef::new(WorkflowExecutionSteps::NodeName).string().not_null())
                     .col(ColumnDef::new(WorkflowExecutionSteps::Status).string().not_null())
                     .col(ColumnDef::new(WorkflowExecutionSteps::InputData).text())
                     .col(ColumnDef::new(WorkflowExecutionSteps::OutputData).text())
@@ -87,6 +88,7 @@ pub enum WorkflowExecutionSteps {
     Id,
     ExecutionId,
     NodeId,
+    NodeName,
     Status,
     InputData,
     OutputData,

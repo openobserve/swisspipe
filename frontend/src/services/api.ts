@@ -4,8 +4,7 @@ import type { Workflow, WorkflowListResponse, CreateWorkflowRequest } from '../t
 import type { 
   WorkflowExecution, 
   ExecutionListResponse, 
-  ExecutionStepsResponse, 
-  ExecutionLogsResponse 
+  ExecutionStepsResponse 
 } from '../types/execution'
 
 class ApiClient {
@@ -123,11 +122,6 @@ class ApiClient {
 
   async getExecutionSteps(executionId: string): Promise<ExecutionStepsResponse> {
     const response = await this.client.get<ExecutionStepsResponse>(`/api/admin/v1/executions/${executionId}/steps`)
-    return response.data
-  }
-
-  async getExecutionLogs(executionId: string): Promise<ExecutionLogsResponse> {
-    const response = await this.client.get<ExecutionLogsResponse>(`/api/admin/v1/executions/${executionId}/logs`)
     return response.data
   }
 

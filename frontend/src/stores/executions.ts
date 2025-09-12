@@ -3,8 +3,7 @@ import { ref, computed } from 'vue'
 import apiClient from '../services/api'
 import type { 
   WorkflowExecution, 
-  ExecutionStep, 
-  ExecutionLog,
+  ExecutionStep,
   ExecutionStatus 
 } from '../types/execution'
 
@@ -16,7 +15,6 @@ export const useExecutionStore = defineStore('executions', () => {
   const searchTerm = ref('')
   const selectedExecution = ref<WorkflowExecution | null>(null)
   const executionSteps = ref<ExecutionStep[]>([])
-  const executionLogs = ref<ExecutionLog[]>([])
   const showSidePanel = ref(false)
 
   // Computed
@@ -73,17 +71,6 @@ export const useExecutionStore = defineStore('executions', () => {
     }
   }
 
-  async function fetchExecutionLogs(executionId: string) {
-    try {
-      const response = await apiClient.getExecutionLogs(executionId)
-      executionLogs.value = response.logs
-      return response.logs
-    } catch (err: unknown) {
-      error.value = (err as Error).message || 'Failed to fetch execution logs'
-      console.error('Error fetching execution logs:', err)
-      throw err
-    }
-  }
 
   async function cancelExecution(executionId: string) {
     try {
@@ -106,16 +93,14 @@ export const useExecutionStore = defineStore('executions', () => {
   function openExecutionDetails(execution: WorkflowExecution) {
     selectedExecution.value = execution
     showSidePanel.value = true
-    // Load steps and logs for the selected execution
+    // Load steps for the selected execution
     fetchExecutionSteps(execution.id)
-    fetchExecutionLogs(execution.id)
   }
 
   function closeSidePanel() {
     showSidePanel.value = false
     selectedExecution.value = null
     executionSteps.value = []
-    executionLogs.value = []
   }
 
   function getStatusColor(status: ExecutionStatus): string {
@@ -158,7 +143,6 @@ export const useExecutionStore = defineStore('executions', () => {
     searchTerm,
     selectedExecution,
     executionSteps,
-    executionLogs,
     showSidePanel,
     
     // Computed
@@ -169,7 +153,6 @@ export const useExecutionStore = defineStore('executions', () => {
     fetchExecutions,
     fetchExecution,
     fetchExecutionSteps,
-    fetchExecutionLogs,
     cancelExecution,
     openExecutionDetails,
     closeSidePanel,

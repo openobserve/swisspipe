@@ -10,6 +10,7 @@ pub struct Model {
     pub id: String,
     pub execution_id: String,
     pub node_id: String, // Node ID reference
+    pub node_name: String, // Node name for easy display
     pub status: String, // 'pending', 'running', 'completed', 'failed', 'skipped', 'cancelled'
     pub input_data: Option<String>, // JSON
     pub output_data: Option<String>, // JSON

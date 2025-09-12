@@ -184,6 +184,7 @@ impl ExecutionService {
         &self,
         execution_id: String,
         node_id: String,
+        node_name: String,
         input_data: Option<Value>,
     ) -> Result<String> {
         let step_id = Uuid::now_v7().to_string();
@@ -193,6 +194,7 @@ impl ExecutionService {
             id: Set(step_id.clone()),
             execution_id: Set(execution_id),
             node_id: Set(node_id),
+            node_name: Set(node_name),
             status: Set(StepStatus::Pending.to_string()),
             input_data: Set(input_data.map(|v| serde_json::to_string(&v).unwrap_or_default())),
             output_data: Set(None),

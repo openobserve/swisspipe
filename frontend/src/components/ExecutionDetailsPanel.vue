@@ -151,7 +151,7 @@
                     @click="openStepModal(step)"
                   >
                     <td class="px-4 py-2 text-sm font-medium text-white">
-                      {{ step.node_id }}
+                      {{ step.node_name }}
                     </td>
                     <td class="px-4 py-2 text-sm">
                       <span 
@@ -417,7 +417,6 @@ async function refreshExecution() {
   try {
     await executionStore.fetchExecution(executionStore.selectedExecution.id)
     await executionStore.fetchExecutionSteps(executionStore.selectedExecution.id)
-    await executionStore.fetchExecutionLogs(executionStore.selectedExecution.id)
   } catch (error) {
     console.error('Failed to refresh execution:', error)
   }

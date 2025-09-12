@@ -41,20 +41,3 @@ export interface ExecutionStepsResponse {
   steps: ExecutionStep[]
 }
 
-export interface ExecutionLog {
-  timestamp: number
-  level: string
-  node_name: string
-  node_id: string
-  status: string
-  message: string
-  error?: string
-  started_at?: number
-  completed_at?: number
-}
-
-export interface ExecutionLogsResponse {
-  execution_id: string
-  logs: ExecutionLog[]
-  total_entries: number
-}
