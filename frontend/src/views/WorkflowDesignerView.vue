@@ -142,14 +142,6 @@
         </VueFlow>
       </div>
 
-      <!-- Properties Panel (slide out when node selected) -->
-      <div
-        v-if="nodeStore.selectedNode && nodeStore.selectedNodeData"
-        class="w-[768px] border-l border-slate-700/50 flex-shrink-0 overflow-y-auto bg-transparent"
-        style="background: none !important;"
-      >
-        <NodePropertiesPanel />
-      </div>
 
       <!-- Executions Panel (slide out when executions button clicked) -->
       <div
@@ -208,6 +200,9 @@
       :json-data="workflowJson"
       @close="handleCloseJsonView"
     />
+
+    <!-- Node Properties Modal -->
+    <NodePropertiesPanel />
   </div>
 </template>
 

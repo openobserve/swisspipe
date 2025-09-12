@@ -1,14 +1,26 @@
 <template>
-  <div class="p-4 bg-transparent" v-if="selectedNodeData">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-semibold text-white">Node Properties</h2>
-      <button
-        @click="nodeStore.setSelectedNode(null)"
-        class="text-gray-400 hover:text-gray-200 transition-colors"
-      >
-        <XMarkIcon class="h-5 w-5" />
-      </button>
-    </div>
+  <!-- Modal Backdrop -->
+  <div
+    v-if="selectedNodeData"
+    class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    @click.self="nodeStore.setSelectedNode(null)"
+  >
+    <!-- Modal Content -->
+    <div class="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between p-6 border-b border-slate-700/50">
+        <h2 class="text-xl font-semibold text-white">Node Properties</h2>
+        <button
+          @click="nodeStore.setSelectedNode(null)"
+          class="text-gray-400 hover:text-gray-200 transition-colors p-2 rounded-md hover:bg-slate-700/30"
+          aria-label="Close"
+        >
+          <XMarkIcon class="h-5 w-5" />
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
 
     <!-- Node Basic Info -->
     <div class="mb-6">
@@ -320,7 +332,9 @@
       </div>
     </div>
 
-  </div>
+      </div> <!-- Modal Body -->
+    </div> <!-- Modal Content -->
+  </div> <!-- Modal Backdrop -->
 </template>
 
 <script setup lang="ts">
