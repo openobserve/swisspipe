@@ -28,9 +28,17 @@ export function useExecutionTracing() {
     const nodeExecutionMap = new Map()
     
     executionSteps.value.forEach(step => {
-      nodeExecutionMap.set(step.node_name, {
+      // Calculate duration from started_at and completed_at if available
+      // Backend timestamps are in microseconds, convert to milliseconds
+      let duration = undefined
+      if (step.started_at && step.completed_at) {
+        duration = Math.round((step.completed_at - step.started_at) / 1000) // Convert microseconds to milliseconds
+      }
+
+      // Use node_id instead of node_name for mapping
+      nodeExecutionMap.set(step.node_id, {
         status: step.status,
-        duration: step.duration_ms,
+        duration: duration,
         error: step.error_message,
         input: step.input_data,
         output: step.output_data
@@ -38,8 +46,8 @@ export function useExecutionTracing() {
     })
     
     nodeStore.nodes.forEach(node => {
-      const nodeName = node.type === 'trigger' ? 'Start' : node.data.label
-      const executionData = nodeExecutionMap.get(nodeName)
+      // Match by node ID instead of node name/label
+      const executionData = nodeExecutionMap.get(node.id)
       
       if (executionData) {
         node.data = {
@@ -68,17 +76,15 @@ export function useExecutionTracing() {
   }
 
   function updateEdgeExecutionStyles() {
-    const executedNodeNames = new Set(executionSteps.value.map(step => step.node_name))
+    const executedNodeIds = new Set(executionSteps.value.map(step => step.node_id))
     
     nodeStore.edges.forEach((edge: any) => {
       const sourceNode = nodeStore.nodes.find(n => n.id === edge.source)
       const targetNode = nodeStore.nodes.find(n => n.id === edge.target)
       
       if (sourceNode && targetNode) {
-        const sourceName = sourceNode.type === 'trigger' ? 'Start' : sourceNode.data.label
-        const targetName = targetNode.type === 'trigger' ? 'Start' : targetNode.data.label
-        
-        const isExecutionPath = executedNodeNames.has(sourceName) && executedNodeNames.has(targetName)
+        // Use node IDs instead of node names/labels
+        const isExecutionPath = executedNodeIds.has(sourceNode.id) && executedNodeIds.has(targetNode.id)
         
         if (isExecutionPath) {
           edge.style = {
