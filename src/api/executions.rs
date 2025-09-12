@@ -53,7 +53,7 @@ pub async fn get_execution(
                 "id": exec.id,
                 "workflow_id": exec.workflow_id,
                 "status": exec.status,
-                "current_node_name": exec.current_node_name,
+                "current_node_id": exec.current_node_id,
                 "input_data": exec.input_data.and_then(|d| serde_json::from_str::<Value>(&d).ok()),
                 "output_data": exec.output_data.and_then(|d| serde_json::from_str::<Value>(&d).ok()),
                 "error_message": exec.error_message,
@@ -89,8 +89,7 @@ pub async fn get_execution_steps(
             serde_json::json!({
                 "id": step.id,
                 "execution_id": step.execution_id,
-                "node_id": step.node_id,
-                "node_name": step.node_name,
+                "node_id": &step.node_id,
                 "status": step.status,
                 "input_data": step.input_data.and_then(|d| serde_json::from_str::<Value>(&d).ok()),
                 "output_data": step.output_data.and_then(|d| serde_json::from_str::<Value>(&d).ok()),
@@ -177,7 +176,7 @@ pub async fn get_execution_status(
                 "id": exec.id,
                 "workflow_id": exec.workflow_id,
                 "status": exec.status,
-                "current_node_name": exec.current_node_name,
+                "current_node_id": exec.current_node_id,
                 "error_message": exec.error_message,
                 "started_at": exec.started_at,
                 "completed_at": exec.completed_at,
@@ -223,13 +222,13 @@ pub async fn get_execution_logs(
     let logs: Vec<Value> = steps
         .into_iter()
         .map(|step| {
+            let node_id = &step.node_id;
             serde_json::json!({
                 "timestamp": step.created_at,
                 "level": "info",
-                "node_name": step.node_name,
-                "node_id": step.node_id,
+                "node_id": node_id,
                 "status": step.status,
-                "message": format!("Node '{}' status: {}", step.node_name, step.status),
+                "message": format!("Node '{}' status: {}", node_id, step.status),
                 "error": step.error_message,
                 "started_at": step.started_at,
                 "completed_at": step.completed_at
@@ -297,7 +296,7 @@ pub async fn get_all_executions(
                 "id": exec.id,
                 "workflow_id": exec.workflow_id,
                 "status": exec.status,
-                "current_node_name": exec.current_node_name,
+                "current_node_id": exec.current_node_id,
                 "input_data": exec.input_data.and_then(|d| serde_json::from_str::<Value>(&d).ok()),
                 "output_data": exec.output_data.and_then(|d| serde_json::from_str::<Value>(&d).ok()),
                 "error_message": exec.error_message,

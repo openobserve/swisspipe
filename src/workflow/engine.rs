@@ -85,8 +85,6 @@ impl WorkflowEngine {
             .map(|edge_model| Edge {
                 id: edge_model.id,
                 workflow_id: edge_model.workflow_id,
-                from_node_name: edge_model.from_node_name,
-                to_node_name: edge_model.to_node_name,
                 from_node_id: edge_model.from_node_id,
                 to_node_id: edge_model.to_node_id,
                 condition_result: edge_model.condition_result,
@@ -97,7 +95,6 @@ impl WorkflowEngine {
             id: workflow_model.id,
             name: workflow_model.name,
             description: workflow_model.description,
-            start_node_name: workflow_model.start_node_name,
             start_node_id: workflow_model.start_node_id,
             nodes,
             edges,
@@ -119,7 +116,7 @@ impl WorkflowEngine {
         // Build graph structures for DAG traversal
         let node_map: HashMap<String, &Node> = workflow.nodes
             .iter()
-            .map(|node| (node.name.clone(), node))
+            .map(|node| (node.id.clone(), node))
             .collect();
 
         let predecessors = self.build_predecessor_map(workflow);
@@ -131,15 +128,17 @@ impl WorkflowEngine {
         let mut pending_executions: JoinSet<Result<(String, WorkflowEvent)>> = JoinSet::new();
         
         // Start with the trigger node
-        let start_node = node_map.get(&workflow.start_node_name)
-            .ok_or_else(|| SwissPipeError::NodeNotFound(workflow.start_node_name.clone()))?;
+        let start_node_id = workflow.start_node_id.as_ref()
+            .ok_or_else(|| SwissPipeError::Config("Workflow missing start_node_id".to_string()))?;
+        let start_node = node_map.get(start_node_id)
+            .ok_or_else(|| SwissPipeError::NodeNotFound(start_node_id.clone()))?;
         
         // Execute trigger node first
         let trigger_result = self.execute_single_node(start_node, vec![event], &execution_id).await?;
-        completed_nodes.insert(workflow.start_node_name.clone());
-        node_outputs.insert(workflow.start_node_name.clone(), trigger_result.clone());
+        completed_nodes.insert(start_node_id.clone());
+        node_outputs.insert(start_node_id.clone(), trigger_result.clone());
         
-        tracing::info!("Completed trigger node '{}', looking for next nodes", workflow.start_node_name);
+        tracing::info!("Completed trigger node '{}' (id: {}), looking for next nodes", start_node.name, start_node_id);
 
         // Schedule immediately ready nodes for concurrent execution
         let mut execution_context = ExecutionContext {
@@ -157,10 +156,10 @@ impl WorkflowEngine {
             // Wait for any node to complete
             if let Some(result) = pending_executions.join_next().await {
                 match result {
-                    Ok(Ok((node_name, output))) => {
-                        tracing::info!("Node '{}' completed successfully", node_name);
-                        completed_nodes.insert(node_name.clone());
-                        node_outputs.insert(node_name.clone(), output);
+                    Ok(Ok((node_id, output))) => {
+                        tracing::info!("Node '{}' completed successfully", node_id);
+                        completed_nodes.insert(node_id.clone());
+                        node_outputs.insert(node_id.clone(), output);
 
                         // Schedule any newly ready nodes
                         let mut execution_context = ExecutionContext {
@@ -197,10 +196,12 @@ impl WorkflowEngine {
         let mut predecessors: HashMap<String, Vec<String>> = HashMap::new();
         
         for edge in &workflow.edges {
+            let from_id = &edge.from_node_id;
+            let to_id = &edge.to_node_id;
             predecessors
-                .entry(edge.to_node_name.clone())
+                .entry(to_id.clone())
                 .or_default()
-                .push(edge.from_node_name.clone());
+                .push(from_id.clone());
         }
         
         predecessors
@@ -210,10 +211,12 @@ impl WorkflowEngine {
         let mut successors: HashMap<String, Vec<(String, Option<bool>)>> = HashMap::new();
         
         for edge in &workflow.edges {
+            let from_id = &edge.from_node_id;
+            let to_id = &edge.to_node_id;
             successors
-                .entry(edge.from_node_name.clone())
+                .entry(from_id.clone())
                 .or_default()
-                .push((edge.to_node_name.clone(), edge.condition_result));
+                .push((to_id.clone(), edge.condition_result));
         }
         
         successors
@@ -226,20 +229,20 @@ impl WorkflowEngine {
     ) -> Result<()> {
         // Find all nodes that are ready to execute
         for node in &workflow.nodes {
-            if execution_context.completed_nodes.contains(&node.name) {
+            if execution_context.completed_nodes.contains(&node.id) {
                 continue; // Already completed
             }
             
             // Check if all predecessors are completed
-            let node_predecessors = execution_context.predecessors.get(&node.name).cloned().unwrap_or_default();
+            let node_predecessors = execution_context.predecessors.get(&node.id).cloned().unwrap_or_default();
             let all_predecessors_ready = node_predecessors.iter().all(|pred| execution_context.completed_nodes.contains(pred));
             
             if all_predecessors_ready {
-                tracing::info!("Node '{}' is ready for execution", node.name);
+                tracing::info!("Node '{}' (id: {}) is ready for execution", node.name, node.id);
                 
                 // Collect inputs from predecessors
                 let inputs = self.collect_node_inputs(
-                    &node.name,
+                    &node.id,
                     &node_predecessors,
                     execution_context.successors,
                     execution_context.node_outputs,
@@ -264,7 +267,7 @@ impl WorkflowEngine {
                         &execution_id,
                         engine_components,
                     ).await?;
-                    Ok((node_clone.name, result))
+                    Ok((node_clone.id, result))
                 });
             }
         }
@@ -274,7 +277,7 @@ impl WorkflowEngine {
 
     fn collect_node_inputs(
         &self,
-        node_name: &str,
+        node_id: &str,
         predecessors: &[String],
         successors: &HashMap<String, Vec<(String, Option<bool>)>>,
         node_outputs: &HashMap<String, WorkflowEvent>,
@@ -282,16 +285,16 @@ impl WorkflowEngine {
     ) -> Result<Vec<WorkflowEvent>> {
         let mut inputs = Vec::new();
         
-        for pred_name in predecessors {
-            if let Some(pred_output) = node_outputs.get(pred_name) {
+        for pred_id in predecessors {
+            if let Some(pred_output) = node_outputs.get(pred_id) {
                 // Check if this edge should be followed based on conditions
-                if let Some(pred_successors) = successors.get(pred_name) {
-                    for (succ_name, condition_result) in pred_successors {
-                        if succ_name == node_name {
+                if let Some(pred_successors) = successors.get(pred_id) {
+                    for (succ_id, condition_result) in pred_successors {
+                        if succ_id == node_id {
                             if let Some(expected_result) = condition_result {
                                 // Check if condition matches
                                 let actual_result = pred_output.condition_results
-                                    .get(pred_name)
+                                    .get(pred_id)
                                     .copied()
                                     .unwrap_or(false);
                                 
@@ -478,9 +481,9 @@ impl WorkflowEngine {
         let mut leaf_nodes = Vec::new();
         
         for node in &workflow.nodes {
-            if completed_nodes.contains(&node.name)
-                && (!successors.contains_key(&node.name) || successors[&node.name].is_empty()) {
-                    leaf_nodes.push(node.name.clone());
+            if completed_nodes.contains(&node.id)
+                && (!successors.contains_key(&node.id) || successors[&node.id].is_empty()) {
+                    leaf_nodes.push(node.id.clone());
                 }
         }
         

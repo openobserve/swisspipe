@@ -41,8 +41,8 @@ impl DelayScheduler {
     pub async fn schedule_delay(
         &self,
         execution_id: String,
-        current_node_name: String,
-        next_node_name: String,
+        current_node_id: String,
+        next_node_id: String,
         delay_duration: chrono::Duration,
         workflow_state: WorkflowEvent,
     ) -> Result<String> {
@@ -60,8 +60,8 @@ impl DelayScheduler {
         let delay_model = scheduled_delays::ActiveModel {
             id: Set(delay_id.clone()),
             execution_id: Set(execution_id.clone()),
-            current_node_name: Set(current_node_name),
-            next_node_name: Set(next_node_name.clone()),
+            current_node_id: Set(current_node_id),     // Node ID field
+            next_node_id: Set(next_node_id.clone()),   // Node ID field
             scheduled_at: Set(scheduled_at_micros),
             status: Set(DelayStatus::Pending.to_string()),
             workflow_state: Set(workflow_state_json),
@@ -165,8 +165,8 @@ impl DelayScheduler {
             "type": "workflow_resume",
             "delay_id": delay_id,
             "execution_id": delay_record.execution_id.clone(),
-            "current_node_name": delay_record.current_node_name.clone(),
-            "next_node_name": delay_record.next_node_name.clone(),
+            "current_node_id": delay_record.current_node_id.clone(),
+            "next_node_id": delay_record.next_node_id.clone(),
             "workflow_state": workflow_state
         });
 
@@ -190,9 +190,9 @@ impl DelayScheduler {
         txn.commit().await?;
 
         tracing::info!(
-            "Created job to resume workflow execution {} at node '{}' after scheduled delay",
+            "Created job to resume workflow execution {} at node ID '{}' after scheduled delay",
             delay_record.execution_id,
-            delay_record.next_node_name
+            &delay_record.next_node_id
         );
 
         Ok(())
@@ -357,8 +357,8 @@ impl DelayScheduler {
             "type": "workflow_resume",
             "delay_id": delay_record.id.clone(),
             "execution_id": delay_record.execution_id.clone(),
-            "current_node_name": delay_record.current_node_name.clone(),
-            "next_node_name": delay_record.next_node_name.clone(),
+            "current_node_id": delay_record.current_node_id.clone(),
+            "next_node_id": delay_record.next_node_id.clone(),
             "workflow_state": workflow_state
         });
 
@@ -382,9 +382,9 @@ impl DelayScheduler {
         txn.commit().await?;
 
         tracing::info!(
-            "Created immediate job to resume workflow execution {} at node '{}' after overdue delay",
+            "Created immediate job to resume workflow execution {} at node ID '{}' after overdue delay",
             delay_record.execution_id,
-            delay_record.next_node_name
+            &delay_record.next_node_id
         );
 
         Ok(())

@@ -9,8 +9,8 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
     pub execution_id: String,
-    pub current_node_name: String,
-    pub next_node_name: String,
+    pub current_node_id: String, // Node ID reference
+    pub next_node_id: String,    // Node ID reference
     pub scheduled_at: i64, // Unix epoch microseconds - when delay should trigger
     pub created_at: i64,   // Unix epoch microseconds - when delay was scheduled
     pub status: String,    // 'pending', 'triggered', 'cancelled'

@@ -72,7 +72,7 @@ impl ResumptionService {
             // Update execution with resumption information
             let mut execution_model: workflow_executions::ActiveModel = execution.clone().into();
             execution_model.status = Set(ExecutionStatus::Pending.to_string());
-            execution_model.current_node_name = Set(resume_info.resume_node.clone());
+            execution_model.current_node_id = Set(resume_info.resume_node.clone());
             execution_model.updated_at = Set(now);
             
             // Only reset started_at if we're starting from the beginning
@@ -83,8 +83,8 @@ impl ResumptionService {
             execution_model.update(&txn).await?;
             
             match &resume_info.resume_node {
-                Some(node_name) => {
-                    tracing::info!("Execution {} will resume from step '{}'", execution_id, node_name);
+                Some(node_id) => {
+                    tracing::info!("Execution {} will resume from step '{}'", execution_id, node_id);
                 }
                 None => {
                     tracing::debug!("Execution {} will restart from beginning", execution_id);
@@ -198,23 +198,25 @@ impl ResumptionService {
             match step.status.as_str() {
                 "pending" => {
                     // Found a pending step - resume from here
+                    let node_id = step.node_id.clone();
                     tracing::debug!(
                         "Found pending step '{}' for execution {}, will resume here",
-                        step.node_name, execution_id
+                        node_id, execution_id
                     );
                     return Ok(ResumeInfo {
-                        resume_node: Some(step.node_name),
+                        resume_node: Some(node_id),
                         interrupted_step_id: None,
                     });
                 }
                 "running" => {
                     // Found an interrupted step - reset it and resume from here
+                    let node_id = step.node_id.clone();
                     tracing::debug!(
                         "Found interrupted running step '{}' for execution {}, will reset and resume",
-                        step.node_name, execution_id
+                        node_id, execution_id
                     );
                     return Ok(ResumeInfo {
-                        resume_node: Some(step.node_name),
+                        resume_node: Some(node_id),
                         interrupted_step_id: Some(step.id),
                     });
                 }
@@ -225,12 +227,13 @@ impl ResumptionService {
                 "failed" => {
                     // Step failed - execution should have been marked as failed
                     // But since we're here, let's restart from this step
+                    let node_id = step.node_id.clone();
                     tracing::warn!(
                         "Found failed step '{}' for execution {}, will retry from here",
-                        step.node_name, execution_id
+                        node_id, execution_id
                     );
                     return Ok(ResumeInfo {
-                        resume_node: Some(step.node_name),
+                        resume_node: Some(node_id),
                         interrupted_step_id: Some(step.id),
                     });
                 }

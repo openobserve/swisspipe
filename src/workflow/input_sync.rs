@@ -23,7 +23,7 @@ impl InputSyncService {
     pub async fn initialize_node_sync(
         &self,
         execution_id: &str,
-        node_name: &str,
+        node_id: &str,
         expected_input_count: i32,
         merge_strategy: &InputMergeStrategy,
     ) -> Result<()> {
@@ -37,7 +37,7 @@ impl InputSyncService {
         let sync_record = node_input_sync::ActiveModel {
             id: Set(Uuid::new_v4().to_string()),
             execution_id: Set(execution_id.to_string()),
-            node_name: Set(node_name.to_string()),
+            node_id: Set(node_id.to_string()),
             expected_input_count: Set(expected_input_count),
             received_inputs: Set("[]".to_string()),
             timeout_at: Set(timeout_at),
@@ -48,7 +48,7 @@ impl InputSyncService {
         sync_record.insert(self.db.as_ref()).await?;
         tracing::debug!(
             "Initialized input sync for node '{}' in execution '{}', expecting {} inputs",
-            node_name, execution_id, expected_input_count
+            node_id, execution_id, expected_input_count
         );
 
         Ok(())
@@ -58,7 +58,7 @@ impl InputSyncService {
     pub async fn add_input(
         &self,
         execution_id: &str,
-        node_name: &str,
+        node_id: &str,
         event: WorkflowEvent,
     ) -> Result<InputSyncResult> {
         use sea_orm::{TransactionTrait, QuerySelect};
@@ -69,13 +69,13 @@ impl InputSyncService {
         // Lock the record for update to prevent race conditions
         let sync_record = node_input_sync::Entity::find()
             .filter(node_input_sync::Column::ExecutionId.eq(execution_id))
-            .filter(node_input_sync::Column::NodeName.eq(node_name))
+            .filter(node_input_sync::Column::NodeId.eq(node_id))
             .lock_exclusive()  // This prevents other transactions from modifying
             .one(&txn)
             .await?
             .ok_or_else(|| {
                 SwissPipeError::Generic(format!(
-                    "No input sync record found for node '{node_name}' in execution '{execution_id}'"
+                    "No input sync record found for node '{node_id}' in execution '{execution_id}'"
                 ))
             })?;
 
@@ -134,7 +134,7 @@ impl InputSyncService {
 
         tracing::debug!(
             "Added input to node '{}' in execution '{}'. Status: {:?}, Inputs: {}/{}",
-            node_name, execution_id, new_status, received_inputs.len(), expected_count
+            node_id, execution_id, new_status, received_inputs.len(), expected_count
         );
 
         match new_status {
@@ -161,7 +161,7 @@ impl InputSyncService {
 
             // Store values before moving record
             let execution_id = record.execution_id.clone();
-            let node_name = record.node_name.clone();
+            let node_id = record.node_id.clone();
             let expected_count = record.expected_input_count;
 
             // Update status to timeout
@@ -171,13 +171,13 @@ impl InputSyncService {
 
             results.push(TimeoutResult {
                 execution_id: execution_id.clone(),
-                node_name: node_name.clone(),
+                node_id: node_id.clone(),
                 received_inputs: received_inputs.clone(),
             });
 
             tracing::warn!(
                 "Node '{}' in execution '{}' timed out with {}/{} inputs",
-                node_name, execution_id, received_inputs.len(), expected_count
+                node_id, execution_id, received_inputs.len(), expected_count
             );
         }
 
@@ -185,10 +185,10 @@ impl InputSyncService {
     }
 
     /// Mark a node's input synchronization as completed
-    pub async fn mark_completed(&self, execution_id: &str, node_name: &str) -> Result<()> {
+    pub async fn mark_completed(&self, execution_id: &str, node_id: &str) -> Result<()> {
         let sync_record = node_input_sync::Entity::find()
             .filter(node_input_sync::Column::ExecutionId.eq(execution_id))
-            .filter(node_input_sync::Column::NodeName.eq(node_name))
+            .filter(node_input_sync::Column::NodeId.eq(node_id))
             .one(self.db.as_ref())
             .await?;
 
@@ -280,7 +280,7 @@ pub enum InputSyncResult {
 #[derive(Debug, Clone)]
 pub struct TimeoutResult {
     pub execution_id: String,
-    pub node_name: String,
+    pub node_id: String,
     pub received_inputs: Vec<WorkflowEvent>,
 }
 

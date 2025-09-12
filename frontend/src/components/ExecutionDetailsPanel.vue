@@ -50,9 +50,9 @@
                   </span>
                 </div>
               </div>
-              <div v-if="executionStore.selectedExecution.current_node_name">
+              <div v-if="executionStore.selectedExecution.current_node_id">
                 <span class="text-xs text-gray-400">Current Node</span>
-                <div class="text-sm text-white">{{ executionStore.selectedExecution.current_node_name }}</div>
+                <div class="text-sm text-white">{{ executionStore.selectedExecution.current_node_id }}</div>
               </div>
             </div>
           </div>
@@ -151,7 +151,7 @@
                     @click="openStepModal(step)"
                   >
                     <td class="px-4 py-2 text-sm font-medium text-white">
-                      {{ step.node_name }}
+                      {{ step.node_id }}
                     </td>
                     <td class="px-4 py-2 text-sm">
                       <span 

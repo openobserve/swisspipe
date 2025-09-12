@@ -52,7 +52,7 @@ impl InputSyncManager {
                             for timeout_result in timed_out {
                                 tracing::warn!(
                                     "Node '{}' in execution '{}' timed out with {} inputs",
-                                    timeout_result.node_name,
+                                    timeout_result.node_id,
                                     timeout_result.execution_id,
                                     timeout_result.received_inputs.len()
                                 );

@@ -9,7 +9,7 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
     pub execution_id: String,
-    pub node_name: String,
+    pub node_id: String,
     pub expected_input_count: i32,
     pub received_inputs: String, // JSON array of WorkflowEvents
     pub timeout_at: Option<ChronoDateTimeUtc>,

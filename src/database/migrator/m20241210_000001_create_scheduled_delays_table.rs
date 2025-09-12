@@ -19,8 +19,8 @@ impl MigrationTrait for Migration {
                             .primary_key(),
                     )
                     .col(ColumnDef::new(ScheduledDelays::ExecutionId).string().not_null())
-                    .col(ColumnDef::new(ScheduledDelays::CurrentNodeName).string().not_null())
-                    .col(ColumnDef::new(ScheduledDelays::NextNodeName).string().not_null())
+                    .col(ColumnDef::new(ScheduledDelays::CurrentNodeId).string().not_null())
+                    .col(ColumnDef::new(ScheduledDelays::NextNodeId).string().not_null())
                     .col(ColumnDef::new(ScheduledDelays::ScheduledAt).big_integer().not_null())
                     .col(ColumnDef::new(ScheduledDelays::CreatedAt).big_integer().not_null())
                     .col(
@@ -89,8 +89,8 @@ pub enum ScheduledDelays {
     Table,
     Id,
     ExecutionId,
-    CurrentNodeName,
-    NextNodeName,
+    CurrentNodeId,
+    NextNodeId,
     ScheduledAt,
     CreatedAt,
     Status,

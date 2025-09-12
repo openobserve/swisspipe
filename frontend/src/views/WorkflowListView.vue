@@ -152,7 +152,7 @@
                       <DocumentDuplicateIcon class="h-5 w-5" />
                     </button>
                     <button
-                      @click.stop="showDeleteModal(workflow)"
+                      @click.stop="showDeleteModalHandler(workflow)"
                       class="text-red-400 hover:text-red-300 transition-colors"
                       title="Delete"
                     >
@@ -212,6 +212,37 @@
         </form>
       </div>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div
+      v-if="showDeleteModal"
+      class="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50"
+      @click.self="cancelDelete"
+    >
+      <div class="glass-strong rounded-lg p-6 w-full max-w-md shadow-2xl">
+        <h2 class="text-lg font-medium text-white mb-4">Delete Workflow</h2>
+        <p class="text-gray-300 mb-6">
+          Are you sure you want to delete "{{ workflowToDelete?.name }}"? This action cannot be undone.
+        </p>
+        <div class="flex justify-end space-x-3">
+          <button
+            type="button"
+            @click="cancelDelete"
+            :disabled="deleting"
+            class="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            @click="confirmDelete"
+            :disabled="deleting"
+            class="bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-md font-medium transition-colors"
+          >
+            {{ deleting ? 'Deleting...' : 'Delete' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -226,6 +257,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useWorkflowStore } from '../stores/workflows'
 import { useAuthStore } from '../stores/auth'
+import { apiClient } from '../services/api'
 import type { Workflow } from '../types/workflow'
 
 const router = useRouter()
@@ -233,7 +265,11 @@ const workflowStore = useWorkflowStore()
 const authStore = useAuthStore()
 
 const showCreateModal = ref(false)
+const showDeleteModal = ref(false)
 const creating = ref(false)
+const deleting = ref(false)
+const duplicating = ref(false)
+const workflowToDelete = ref<Workflow | null>(null)
 const newWorkflow = ref({
   name: '',
   description: ''
@@ -265,17 +301,7 @@ async function createWorkflow() {
     const workflow = await workflowStore.createWorkflow({
       name: newWorkflow.value.name,
       description: newWorkflow.value.description || undefined,
-      start_node_name: 'trigger',
-      nodes: [
-        {
-          name: 'trigger',
-          node_type: {
-            Trigger: {
-              methods: ['POST']
-            }
-          }
-        }
-      ],
+      nodes: [],
       edges: []
     })
     
@@ -289,14 +315,59 @@ async function createWorkflow() {
   }
 }
 
-function duplicateWorkflow(workflow: Workflow) {
-  console.log('Duplicate workflow:', workflow)
-  // TODO: Implement duplication
+async function duplicateWorkflow(workflow: Workflow) {
+  if (duplicating.value) return
+  
+  duplicating.value = true
+  try {
+    // Fetch the complete workflow data directly from API
+    const fullWorkflow = await apiClient.getWorkflow(workflow.id)
+    if (!fullWorkflow) {
+      throw new Error('Failed to fetch workflow data')
+    }
+    
+    // Create a duplicate with a new name
+    const duplicatedWorkflow = {
+      name: `${workflow.name} (Copy)`,
+      description: workflow.description,
+      nodes: fullWorkflow.nodes.filter(node => !('Trigger' in node.node_type)), // Filter out trigger nodes since they're auto-created
+      edges: fullWorkflow.edges
+    }
+    
+    const newWorkflow = await workflowStore.createWorkflow(duplicatedWorkflow)
+    
+    // Navigate to the new workflow
+    navigateToDesigner(newWorkflow.id)
+  } catch (error) {
+    console.error('Failed to duplicate workflow:', error)
+  } finally {
+    duplicating.value = false
+  }
 }
 
-function showDeleteModal(workflow: Workflow) {
-  console.log('Delete workflow:', workflow)
-  // TODO: Implement delete modal
+function showDeleteModalHandler(workflow: Workflow) {
+  workflowToDelete.value = workflow
+  showDeleteModal.value = true
+}
+
+async function confirmDelete() {
+  if (!workflowToDelete.value || deleting.value) return
+  
+  deleting.value = true
+  try {
+    await workflowStore.deleteWorkflow(workflowToDelete.value.id)
+    showDeleteModal.value = false
+    workflowToDelete.value = null
+  } catch (error) {
+    console.error('Failed to delete workflow:', error)
+  } finally {
+    deleting.value = false
+  }
+}
+
+function cancelDelete() {
+  showDeleteModal.value = false
+  workflowToDelete.value = null
 }
 
 function handleLogout() {

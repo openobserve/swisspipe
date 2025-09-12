@@ -14,12 +14,12 @@ async fn test_input_synchronization_wait_for_all() {
     let input_sync = InputSyncService::new(db.clone());
     
     let execution_id = "test_exec_001";
-    let node_name = "merge_node";
+    let node_id = "merge_node";
     let expected_inputs = 2;
     let strategy = InputMergeStrategy::WaitForAll;
     
     // Initialize sync record
-    input_sync.initialize_node_sync(execution_id, node_name, expected_inputs, &strategy)
+    input_sync.initialize_node_sync(execution_id, node_id, expected_inputs, &strategy)
         .await
         .expect("Failed to initialize sync");
     
@@ -33,7 +33,7 @@ async fn test_input_synchronization_wait_for_all() {
     event1.metadata.insert("source".to_string(), "branch_a".to_string());
     
     // Add first input - should be waiting
-    let result1 = input_sync.add_input(execution_id, node_name, event1)
+    let result1 = input_sync.add_input(execution_id, node_id, event1)
         .await
         .expect("Failed to add first input");
     
@@ -54,7 +54,7 @@ async fn test_input_synchronization_wait_for_all() {
     event2.metadata.insert("source".to_string(), "branch_b".to_string());
     
     // Add second input - should be ready
-    let result2 = input_sync.add_input(execution_id, node_name, event2)
+    let result2 = input_sync.add_input(execution_id, node_id, event2)
         .await
         .expect("Failed to add second input");
     
@@ -108,12 +108,12 @@ async fn test_input_synchronization_first_wins() {
     let input_sync = InputSyncService::new(db.clone());
     
     let execution_id = "test_exec_002";
-    let node_name = "first_wins_node";
+    let node_id = "first_wins_node";
     let expected_inputs = 3;
     let strategy = InputMergeStrategy::FirstWins;
     
     // Initialize sync record
-    input_sync.initialize_node_sync(execution_id, node_name, expected_inputs, &strategy)
+    input_sync.initialize_node_sync(execution_id, node_id, expected_inputs, &strategy)
         .await
         .expect("Failed to initialize sync");
     
@@ -140,9 +140,9 @@ async fn test_input_synchronization_first_wins() {
     };
     
     // Add inputs
-    let _result1 = input_sync.add_input(execution_id, node_name, event1.clone()).await.expect("Failed to add input 1");
-    let _result2 = input_sync.add_input(execution_id, node_name, event2).await.expect("Failed to add input 2");
-    let result3 = input_sync.add_input(execution_id, node_name, event3).await.expect("Failed to add input 3");
+    let _result1 = input_sync.add_input(execution_id, node_id, event1.clone()).await.expect("Failed to add input 1");
+    let _result2 = input_sync.add_input(execution_id, node_id, event2).await.expect("Failed to add input 2");
+    let result3 = input_sync.add_input(execution_id, node_id, event3).await.expect("Failed to add input 3");
     
     match result3 {
         swisspipe::workflow::input_sync::InputSyncResult::Ready(inputs) => {
@@ -166,12 +166,12 @@ async fn test_timeout_based_strategy() {
     let input_sync = InputSyncService::new(db.clone());
     
     let execution_id = "test_exec_003";
-    let node_name = "timeout_node"; 
+    let node_id = "timeout_node"; 
     let expected_inputs = 2;
     let strategy = InputMergeStrategy::TimeoutBased(1); // 1 second timeout
     
     // Initialize sync record
-    input_sync.initialize_node_sync(execution_id, node_name, expected_inputs, &strategy)
+    input_sync.initialize_node_sync(execution_id, node_id, expected_inputs, &strategy)
         .await
         .expect("Failed to initialize sync");
     
@@ -183,7 +183,7 @@ async fn test_timeout_based_strategy() {
     };
     
     // Add only one input
-    let result1 = input_sync.add_input(execution_id, node_name, event1).await.expect("Failed to add input");
+    let result1 = input_sync.add_input(execution_id, node_id, event1).await.expect("Failed to add input");
     
     match result1 {
         swisspipe::workflow::input_sync::InputSyncResult::Waiting => {
@@ -200,7 +200,7 @@ async fn test_timeout_based_strategy() {
     
     if !timeouts.is_empty() {
         println!("✅ Timeout correctly detected for node waiting too long");
-        assert_eq!(timeouts[0].node_name, node_name);
+        assert_eq!(timeouts[0].node_id, node_id);
         assert_eq!(timeouts[0].execution_id, execution_id);
     } else {
         println!("ℹ️ Timeout check may need longer delay in real scenarios");

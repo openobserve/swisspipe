@@ -33,6 +33,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(EmailQueue::MaxWaitMinutes).integer().not_null().default(60))
                     .col(ColumnDef::new(EmailQueue::RetryCount).integer().not_null().default(0))
                     .col(ColumnDef::new(EmailQueue::MaxRetries).integer().not_null().default(3))
+                    .col(ColumnDef::new(EmailQueue::RetryDelaySeconds).integer().not_null().default(30))
                     .col(ColumnDef::new(EmailQueue::ErrorMessage).text())
                     .col(ColumnDef::new(EmailQueue::CreatedAt).big_integer().not_null())
                     .col(ColumnDef::new(EmailQueue::UpdatedAt).big_integer().not_null())

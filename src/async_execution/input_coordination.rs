@@ -11,10 +11,10 @@ pub trait InputCoordination {
     fn get_input_sync_service(&self) -> &Arc<InputSyncService>;
 
     /// Count incoming edges for a node
-    fn count_incoming_edges(&self, workflow: &Workflow, node_name: &str) -> usize {
+    fn count_incoming_edges(&self, workflow: &Workflow, node_id: &str) -> usize {
         workflow.edges
             .iter()
-            .filter(|edge| edge.to_node_name == node_name)
+            .filter(|edge| edge.to_node_id == node_id)
             .count()
     }
 
@@ -22,7 +22,7 @@ pub trait InputCoordination {
     async fn handle_input_synchronization(
         &self,
         execution_id: &str,
-        node_name: &str,
+        node_id: &str,
         event: &WorkflowEvent,
         expected_input_count: i32,
         merge_strategy: &InputMergeStrategy,
@@ -31,11 +31,11 @@ pub trait InputCoordination {
         
         // Try to initialize the sync record if it doesn't exist
         match input_sync_service
-            .initialize_node_sync(execution_id, node_name, expected_input_count, merge_strategy)
+            .initialize_node_sync(execution_id, node_id, expected_input_count, merge_strategy)
             .await
         {
             Ok(_) => {
-                tracing::debug!("Initialized input sync for node '{}' in execution '{}'", node_name, execution_id);
+                tracing::debug!("Initialized input sync for node with ID '{}' in execution '{}'", node_id, execution_id);
             }
             Err(e) => {
                 // Check if this is a database constraint violation (record already exists)
@@ -45,16 +45,16 @@ pub trait InputCoordination {
                         if error_msg.contains("unique constraint") || 
                            error_msg.contains("duplicate") ||
                            error_msg.contains("primary key") {
-                            tracing::debug!("Input sync record for node '{}' already exists, continuing", node_name);
+                            tracing::debug!("Input sync record for node with ID '{}' already exists, continuing", node_id);
                         } else {
                             // This is a different database error we should propagate
-                            tracing::error!("Database error initializing input sync for node '{}': {}", node_name, db_err);
+                            tracing::error!("Database error initializing input sync for node with ID '{}': {}", node_id, db_err);
                             return Err(e);
                         }
                     }
                     _ => {
                         // Non-database errors should always be propagated
-                        tracing::error!("Failed to initialize input sync for node '{}': {}", node_name, e);
+                        tracing::error!("Failed to initialize input sync for node with ID '{}': {}", node_id, e);
                         return Err(e);
                     }
                 }
@@ -63,13 +63,13 @@ pub trait InputCoordination {
 
         // Add this input to the synchronization
         let result = input_sync_service
-            .add_input(execution_id, node_name, event.clone())
+            .add_input(execution_id, node_id, event.clone())
             .await?;
 
         // Mark as completed if ready
         if let InputSyncResult::Ready(_) = result {
             input_sync_service
-                .mark_completed(execution_id, node_name)
+                .mark_completed(execution_id, node_id)
                 .await?;
         }
 
@@ -81,18 +81,24 @@ pub trait InputCoordination {
         &self,
         workflow: &Workflow,
         execution_id: &str,
-        node_name: &str,
+        node_id: &str,
         event: &WorkflowEvent,
         input_merge_strategy: Option<&InputMergeStrategy>,
     ) -> Result<(bool, WorkflowEvent)> {
-        let incoming_edge_count = self.count_incoming_edges(workflow, node_name);
+        let incoming_edge_count = self.count_incoming_edges(workflow, node_id);
         let merge_strategy = input_merge_strategy.unwrap_or(&InputMergeStrategy::WaitForAll);
+        
+        // Get node name for logging
+        let node_display_name = workflow.nodes.iter()
+            .find(|n| n.id == node_id)
+            .map(|n| n.name.as_str())
+            .unwrap_or("unknown");
         
         if incoming_edge_count > 1 {
             // Multiple inputs - check synchronization
             match self.handle_input_synchronization(
                 execution_id,
-                node_name,
+                node_id,
                 event,
                 incoming_edge_count as i32,
                 merge_strategy,
@@ -100,16 +106,16 @@ pub trait InputCoordination {
                 InputSyncResult::Ready(merged_inputs) => {
                     // Log the inputs being merged for debugging
                     tracing::debug!(
-                        "Node '{}' merging {} inputs using strategy {:?}",
-                        node_name, merged_inputs.len(), merge_strategy
+                        "Node '{}' (id: {}) merging {} inputs using strategy {:?}",
+                        node_display_name, node_id, merged_inputs.len(), merge_strategy
                     );
                     
                     // Merge the inputs based on strategy
                     let merged_event = InputSyncService::merge_inputs(merged_inputs, merge_strategy)?;
                     
                     tracing::debug!(
-                        "Node '{}' merged inputs into event with data keys: {:?}",
-                        node_name,
+                        "Node '{}' (id: {}) merged inputs into event with data keys: {:?}",
+                        node_display_name, node_id,
                         merged_event.data.as_object().map(|obj| obj.keys().collect::<Vec<_>>()).unwrap_or_default()
                     );
                     
@@ -117,17 +123,17 @@ pub trait InputCoordination {
                 }
                 InputSyncResult::Waiting => {
                     // Not all inputs received yet, skip this node for now
-                    tracing::debug!("Node '{}' waiting for more inputs, skipping execution", node_name);
+                    tracing::debug!("Node '{}' (id: {}) waiting for more inputs, skipping execution", node_display_name, node_id);
                     Ok((false, event.clone()))
                 }
                 InputSyncResult::AlreadyCompleted => {
                     // Node was already executed, skip
-                    tracing::debug!("Node '{}' already completed, skipping", node_name);
+                    tracing::debug!("Node '{}' (id: {}) already completed, skipping", node_display_name, node_id);
                     Ok((false, event.clone()))
                 }
                 InputSyncResult::TimedOut(partial_inputs) => {
                     // Timeout exceeded, execute with partial inputs
-                    tracing::warn!("Node '{}' timed out, executing with {} partial inputs", node_name, partial_inputs.len());
+                    tracing::warn!("Node '{}' (id: {}) timed out, executing with {} partial inputs", node_display_name, node_id, partial_inputs.len());
                     if partial_inputs.is_empty() {
                         // No inputs received, use original event
                         Ok((true, event.clone()))

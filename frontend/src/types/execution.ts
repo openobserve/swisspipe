@@ -6,7 +6,7 @@ export interface WorkflowExecution {
   id: string
   workflow_id: string
   status: ExecutionStatus
-  current_node_name?: string
+  current_node_id?: string
   input_data?: unknown
   output_data?: unknown
   error_message?: string

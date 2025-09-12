@@ -66,7 +66,6 @@ impl ExecutionService {
             id: Set(execution_id.clone()),
             workflow_id: Set(workflow_id),
             status: Set(ExecutionStatus::Pending.to_string()),
-            current_node_name: Set(None),
             current_node_id: Set(None),
             input_data: Set(Some(serialized_execution_data)),
             output_data: Set(None),
@@ -131,10 +130,10 @@ impl ExecutionService {
         &self,
         execution_id: &str,
         status: ExecutionStatus,
-        current_node_name: Option<String>,
+        current_node_id: Option<String>,
         error_message: Option<String>,
     ) -> Result<()> {
-        self.update_execution_status_with_txn(self.db.as_ref(), execution_id, status, current_node_name, error_message).await
+        self.update_execution_status_with_txn(self.db.as_ref(), execution_id, status, current_node_id, error_message).await
     }
 
     /// Update execution status with transaction support
@@ -143,7 +142,7 @@ impl ExecutionService {
         conn: &C,
         execution_id: &str,
         status: ExecutionStatus,
-        current_node_name: Option<String>,
+        current_node_id: Option<String>,
         error_message: Option<String>,
     ) -> Result<()>
     where
@@ -156,7 +155,7 @@ impl ExecutionService {
 
         let mut execution: workflow_executions::ActiveModel = current_execution.clone().into();
         execution.status = Set(status.to_string());
-        execution.current_node_name = Set(current_node_name);
+        execution.current_node_id = Set(current_node_id);
         execution.error_message = Set(error_message);
 
         let now = chrono::Utc::now().timestamp_micros();
@@ -185,7 +184,6 @@ impl ExecutionService {
         &self,
         execution_id: String,
         node_id: String,
-        node_name: String,
         input_data: Option<Value>,
     ) -> Result<String> {
         let step_id = Uuid::now_v7().to_string();
@@ -195,8 +193,6 @@ impl ExecutionService {
             id: Set(step_id.clone()),
             execution_id: Set(execution_id),
             node_id: Set(node_id),
-            node_name: Set(node_name),
-            node_id_ref: Set(None), // Will be populated after migration
             status: Set(StepStatus::Pending.to_string()),
             input_data: Set(input_data.map(|v| serde_json::to_string(&v).unwrap_or_default())),
             output_data: Set(None),

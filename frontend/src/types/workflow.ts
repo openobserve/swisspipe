@@ -8,10 +8,8 @@ export interface Node {
 
 export interface Edge {
   id: string
-  from_node_name: string
-  to_node_name: string
-  from_node_id?: string
-  to_node_id?: string
+  from_node_id: string
+  to_node_id: string
   condition_result?: boolean
 }
 
@@ -19,8 +17,7 @@ export interface Workflow {
   id: string
   name: string
   description?: string
-  start_node_name: string
-  start_node_id?: string
+  start_node_id: string
   endpoint_url: string
   created_at: string
   updated_at: string
@@ -35,13 +32,12 @@ export interface WorkflowListResponse {
 export interface CreateWorkflowRequest {
   name: string
   description?: string
-  start_node_name: string
-  start_node_id?: string
   nodes: NodeRequest[]
   edges: EdgeRequest[]
 }
 
 export interface NodeRequest {
+  id: string
   name: string
   node_type: NodeType
   position_x?: number
@@ -49,10 +45,8 @@ export interface NodeRequest {
 }
 
 export interface EdgeRequest {
-  from_node_name: string
-  to_node_name: string
-  from_node_id?: string
-  to_node_id?: string
+  from_node_id: string
+  to_node_id: string
   condition_result?: boolean
 }
 

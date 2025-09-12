@@ -9,9 +9,7 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
     pub execution_id: String,
-    pub node_id: String,        // Deprecated, points to old node.id 
-    pub node_name: String,      // Deprecated, use node_id_ref
-    pub node_id_ref: Option<String>, // New field pointing to nodes.id
+    pub node_id: String, // Node ID reference
     pub status: String, // 'pending', 'running', 'completed', 'failed', 'skipped', 'cancelled'
     pub input_data: Option<String>, // JSON
     pub output_data: Option<String>, // JSON

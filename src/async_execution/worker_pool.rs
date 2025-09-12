@@ -18,6 +18,23 @@ use std::sync::{
 use std::time::Duration;
 use tokio::{sync::RwLock, task::JoinHandle, time::sleep};
 
+// Configuration constants
+const DEFAULT_SHUTDOWN_TIMEOUT_SECS: u64 = 30;
+const DEFAULT_MAX_RETRIES: i32 = 0;
+const DELAY_TIME_MULTIPLIERS: DelayTimeMultipliers = DelayTimeMultipliers {
+    seconds: 1000,
+    minutes: 60_000,
+    hours: 3_600_000,
+    days: 86_400_000,
+};
+
+struct DelayTimeMultipliers {
+    seconds: u64,
+    minutes: u64,
+    hours: u64,
+    days: u64,
+}
+
 #[derive(Clone)]
 pub struct WorkerPool {
     db: Arc<DatabaseConnection>,
@@ -101,7 +118,7 @@ impl WorkerPool {
     }
 
     /// Execute workflow with step-by-step tracking
-    /// Supports resumption from a specific node if execution.current_node_name is set
+    /// Supports resumption from a specific node if execution.current_node_id is set
     async fn execute_workflow_with_tracking(
         &self,
         execution_id: &str,
@@ -116,15 +133,15 @@ impl WorkerPool {
             .await?
             .ok_or_else(|| SwissPipeError::WorkflowNotFound(execution_id.to_string()))?;
 
-        let is_resuming = execution.current_node_name.is_some();
-        let mut current_node_name = execution.current_node_name
-            .unwrap_or_else(|| workflow.start_node_name.clone());
+        let is_resuming = execution.current_node_id.is_some();
+        let mut current_node_id = execution.current_node_id
+            .unwrap_or_else(|| workflow.start_node_id.clone().unwrap_or_default());
 
         // If resuming from a specific node, log it
         if is_resuming {
-            tracing::info!("Resuming execution {} from node '{}'", execution_id, current_node_name);
+            tracing::info!("Resuming execution {} from node '{}'", execution_id, current_node_id);
         } else {
-            tracing::debug!("Starting execution {} from beginning at node '{}'", execution_id, current_node_name);
+            tracing::debug!("Starting execution {} from beginning at node '{}'", execution_id, current_node_id);
         }
 
         let mut visited = std::collections::HashSet::new();
@@ -134,36 +151,36 @@ impl WorkerPool {
         let completed_steps: std::collections::HashMap<String, _> = steps
             .into_iter()
             .filter(|step| matches!(step.status.as_str(), "completed" | "skipped" | "cancelled"))
-            .map(|step| (step.node_name.clone(), step))
+            .map(|step| (step.node_id.clone(), step))
             .collect();
         
         // Build node lookup for efficiency
         let node_map: std::collections::HashMap<String, &crate::workflow::models::Node> = workflow.nodes
             .iter()
-            .map(|node| (node.name.clone(), node))
+            .map(|node| (node.id.clone(), node))
             .collect();
         
         loop {
             // Prevent infinite loops
-            if visited.contains(&current_node_name) {
+            if visited.contains(&current_node_id) {
                 return Err(SwissPipeError::CycleDetected);
             }
-            visited.insert(current_node_name.clone());
+            visited.insert(current_node_id.clone());
             
             let node = node_map
-                .get(&current_node_name)
-                .ok_or_else(|| SwissPipeError::NodeNotFound(current_node_name.clone()))?;
+                .get(&current_node_id)
+                .ok_or_else(|| SwissPipeError::NodeNotFound(current_node_id.clone()))?;
             
             // Check if this step was already completed (resumption case)
-            if let Some(completed_step) = completed_steps.get(&current_node_name) {
-                tracing::debug!("Skipping already completed step '{}' for execution {}", current_node_name, execution_id);
+            if let Some(completed_step) = completed_steps.get(&current_node_id) {
+                tracing::debug!("Skipping already completed step '{}' for execution {}", current_node_id, execution_id);
                 
                 // Use the output data from the completed step as the current event
                 if let Some(output_data_str) = &completed_step.output_data {
                     if let Ok(output_value) = serde_json::from_str::<WorkflowEvent>(output_data_str) {
                         current_event = output_value;
                     } else {
-                        tracing::warn!("Failed to parse output data for completed step '{}', using current event", current_node_name);
+                        tracing::warn!("Failed to parse output data for completed step '{}', using current event", current_node_id);
                     }
                 }
             } else {
@@ -171,7 +188,7 @@ impl WorkerPool {
                 let (ready_to_execute, coordinated_event) = self.coordinate_node_inputs(
                     workflow,
                     execution_id,
-                    &current_node_name,
+                    &current_node_id,
                     &current_event,
                     node.input_merge_strategy.as_ref(),
                 ).await?;
@@ -188,7 +205,6 @@ impl WorkerPool {
                     .create_execution_step(
                         execution_id.to_string(),
                         node.id.clone(),
-                        node.name.clone(),
                         input_data,
                     )
                     .await?;
@@ -210,7 +226,7 @@ impl WorkerPool {
                         // Log the input → output transformation for debugging
                         tracing::debug!(
                             "Node '{}' transformed input → output: input_data_size={}, output_data_size={}",
-                            current_node_name,
+                            current_node_id,
                             serde_json::to_string(&current_event).map(|s| s.len()).unwrap_or(0),
                             serde_json::to_string(&result_event).map(|s| s.len()).unwrap_or(0)
                         );
@@ -235,16 +251,16 @@ impl WorkerPool {
             }
             
             // Get next nodes using the workflow engine's logic
-            let next_nodes = self.get_next_nodes(workflow, &current_node_name, &current_event)?;
+            let next_nodes = self.get_next_nodes(workflow, &current_node_id, &current_event)?;
             match next_nodes.len() {
                 0 => break, // End of workflow
-                1 => current_node_name = next_nodes[0].clone(),
+                1 => current_node_id = next_nodes[0].clone(),
                 _ => {
                     // Handle multiple outgoing paths by executing them in parallel
-                    tracing::debug!("Node '{}' has {} outgoing paths, executing in parallel", current_node_name, next_nodes.len());
+                    tracing::debug!("Node '{}' (id: {}) has {} outgoing paths, executing in parallel", node.name, current_node_id, next_nodes.len());
                     
                     let mut handles = Vec::new();
-                    for next_node_name in next_nodes {
+                    for next_node_id in next_nodes {
                         // Clone all necessary data for the spawned task
                         let execution_id_clone = execution_id.to_string();
                         let workflow_clone = workflow.clone();
@@ -262,11 +278,11 @@ impl WorkerPool {
                                 input_sync_service,
                             };
                             
-                            tracing::debug!("Starting parallel branch execution for node: {}", next_node_name);
+                            tracing::debug!("Starting parallel branch execution for node: {}", next_node_id);
                             let result = worker_pool.execute_branch_static(
                                 &execution_id_clone,
                                 &workflow_clone,
-                                next_node_name,
+                                next_node_id,
                                 event_clone
                             ).await;
                             
@@ -424,20 +440,20 @@ impl WorkerPool {
                 // Get DelayScheduler from WorkerPool
                 if let Some(delay_scheduler) = self.get_delay_scheduler().await {
                     // Find next node to continue execution
-                    let next_nodes = self.get_next_nodes(workflow, &node.name, &event)?;
-                    if let Some(next_node_name) = next_nodes.first() {
+                    let next_nodes = self.get_next_nodes(workflow, &node.id, &event)?;
+                    if let Some(next_node_id) = next_nodes.first() {
                         // Schedule the delay and pause execution
                         match delay_scheduler.schedule_delay(
                             execution_id.to_string(),
-                            node.name.clone(),
-                            next_node_name.clone(),
+                            node.id.clone(),
+                            next_node_id.clone(),
                             delay_duration,
                             event.clone(),
                         ).await {
                             Ok(delay_id) => {
                                 tracing::info!(
                                     "Delay node '{}' scheduled with ID '{}' - execution will resume at '{}'",
-                                    node.name, delay_id, next_node_name
+                                    node.name, delay_id, next_node_id
                                 );
                                 
                                 // Return a special signal to pause workflow execution here
@@ -458,10 +474,10 @@ impl WorkerPool {
                     // Fallback to old blocking behavior if scheduler is not available
                     use tokio::time::{sleep, Duration};
                     let delay_ms = match unit {
-                        DelayUnit::Seconds => duration.saturating_mul(1000),
-                        DelayUnit::Minutes => duration.saturating_mul(60).saturating_mul(1000),
-                        DelayUnit::Hours => duration.saturating_mul(60).saturating_mul(60).saturating_mul(1000),
-                        DelayUnit::Days => duration.saturating_mul(24).saturating_mul(60).saturating_mul(60).saturating_mul(1000),
+                        DelayUnit::Seconds => duration.saturating_mul(DELAY_TIME_MULTIPLIERS.seconds),
+                        DelayUnit::Minutes => duration.saturating_mul(DELAY_TIME_MULTIPLIERS.minutes),
+                        DelayUnit::Hours => duration.saturating_mul(DELAY_TIME_MULTIPLIERS.hours),
+                        DelayUnit::Days => duration.saturating_mul(DELAY_TIME_MULTIPLIERS.days),
                     };
                     // No artificial delay limit since DelayScheduler supports unlimited duration
                     sleep(Duration::from_millis(delay_ms)).await;
@@ -476,38 +492,37 @@ impl WorkerPool {
     fn get_next_nodes(
         &self,
         workflow: &Workflow,
-        current_node_name: &str,
+        current_node_id: &str,
         event: &WorkflowEvent,
     ) -> Result<Vec<String>> {
         let mut next_nodes = Vec::new();
         
-        tracing::info!("Finding next nodes from '{}'", current_node_name);
+        tracing::info!("Finding next nodes from node_id: {}", current_node_id);
         
         for edge in &workflow.edges {
-            if edge.from_node_name == current_node_name {
-                tracing::info!("Processing edge: {} -> {} (condition_result: {:?})", 
-                    edge.from_node_name, edge.to_node_name, edge.condition_result);
-                
+            if edge.from_node_id == current_node_id {
+                let to_node_id = &edge.to_node_id;
+
                 match edge.condition_result {
                     None => {
                         // Unconditional edge
-                        tracing::info!("Following unconditional edge to '{}'", edge.to_node_name);
-                        next_nodes.push(edge.to_node_name.clone());
+                        tracing::info!("Following unconditional edge to node_id: {}", to_node_id);
+                        next_nodes.push(to_node_id.clone());
                     }
                     Some(expected_result) => {
                         // Conditional edge - we need to evaluate the condition
-                        if self.should_follow_conditional_edge(workflow, current_node_name, expected_result, event)? {
-                            tracing::info!("Following conditional edge to '{}'", edge.to_node_name);
-                            next_nodes.push(edge.to_node_name.clone());
+                        if self.should_follow_conditional_edge(workflow, current_node_id, expected_result, event)? {
+                            tracing::info!("Following conditional edge to node_id: {}", to_node_id);
+                            next_nodes.push(to_node_id.clone());
                         } else {
-                            tracing::info!("Skipping conditional edge to '{}'", edge.to_node_name);
+                            tracing::info!("Skipping conditional edge to node_id: {}", to_node_id);
                         }
                     }
                 }
             }
         }
         
-        tracing::info!("Next nodes: {:?}", next_nodes);
+        tracing::info!("Next node IDs: {:?}", next_nodes);
         Ok(next_nodes)
     }
     
@@ -515,7 +530,7 @@ impl WorkerPool {
     fn should_follow_conditional_edge(
         &self,
         workflow: &Workflow,
-        current_node_name: &str,
+        current_node_id: &str,
         expected_result: bool,
         event: &WorkflowEvent,
     ) -> Result<bool> {
@@ -524,19 +539,19 @@ impl WorkerPool {
         // Find the current node to check if it's a condition node
         let node = workflow.nodes
             .iter()
-            .find(|n| n.name == current_node_name)
-            .ok_or_else(|| SwissPipeError::NodeNotFound(current_node_name.to_string()))?;
+            .find(|n| n.id == current_node_id)
+            .ok_or_else(|| SwissPipeError::NodeNotFound(current_node_id.to_string()))?;
         
         match &node.node_type {
             NodeType::Condition { .. } => {
-                // Get the actual condition result from the event
+                // Get the actual condition result from the event - use node ID as key
                 let actual_result = event.condition_results
-                    .get(current_node_name)
+                    .get(current_node_id)
                     .copied()
                     .unwrap_or(false); // Default to false if no result stored
                 
-                tracing::info!("Edge from '{}': expected={}, actual={}, follow={}", 
-                    current_node_name, expected_result, actual_result, actual_result == expected_result);
+                tracing::info!("Edge from '{}' (id: {}): expected={}, actual={}, follow={}", 
+                    node.name, current_node_id, expected_result, actual_result, actual_result == expected_result);
                 
                 // Only follow the edge if the actual result matches the expected result
                 Ok(actual_result == expected_result)
@@ -604,7 +619,7 @@ impl WorkerPool {
 
         // Wait for workers to finish with proper timeout and error handling
         let mut workers = self.workers.write().await;
-        let shutdown_timeout = Duration::from_secs(30); // 30 second timeout
+        let shutdown_timeout = Duration::from_secs(DEFAULT_SHUTDOWN_TIMEOUT_SECS);
         
         for worker in workers.iter_mut() {
             worker.status = WorkerStatus::Shutdown;
@@ -796,7 +811,7 @@ impl WorkerPool {
             // Reset execution status to pending
             let mut exec_model: crate::database::workflow_executions::ActiveModel = execution.clone().into();
             exec_model.status = Set("pending".to_string());
-            exec_model.current_node_name = Set(None);
+            exec_model.current_node_id = Set(None);
             exec_model.updated_at = Set(chrono::Utc::now().timestamp_micros());
             exec_model.update(self.db.as_ref()).await?;
             
@@ -814,7 +829,7 @@ impl WorkerPool {
                 let max_retries = std::env::var("SP_WORKFLOW_MAX_RETRIES")
                     .ok()
                     .and_then(|v| v.parse::<i32>().ok())
-                    .unwrap_or(0);
+                    .unwrap_or(DEFAULT_MAX_RETRIES);
                     
                 let job = crate::database::job_queue::ActiveModel {
                     id: Set(uuid::Uuid::now_v7().to_string()),
@@ -1001,34 +1016,34 @@ impl WorkerPoolForBranch {
         &self,
         execution_id: &str,
         workflow: &Workflow,
-        start_node_name: String,
+        start_node_id: String,
         mut event: WorkflowEvent,
     ) -> Result<()> {
-        let mut current_node_name = start_node_name;
+        let mut current_node_id = start_node_id;
         let mut visited = std::collections::HashSet::new();
         
         // Build node lookup for efficiency
         let node_map: std::collections::HashMap<String, &crate::workflow::models::Node> = workflow.nodes
             .iter()
-            .map(|node| (node.name.clone(), node))
+            .map(|node| (node.id.clone(), node))
             .collect();
         
         loop {
             // Prevent infinite loops
-            if visited.contains(&current_node_name) {
+            if visited.contains(&current_node_id) {
                 return Err(SwissPipeError::CycleDetected);
             }
-            visited.insert(current_node_name.clone());
+            visited.insert(current_node_id.clone());
             
             let node = node_map
-                .get(&current_node_name)
-                .ok_or_else(|| SwissPipeError::NodeNotFound(current_node_name.clone()))?;
+                .get(&current_node_id)
+                .ok_or_else(|| SwissPipeError::NodeNotFound(current_node_id.clone()))?;
             
             // Check if this node requires input coordination
             let (ready_to_execute, coordinated_event) = self.coordinate_node_inputs(
                 workflow,
                 execution_id,
-                &current_node_name,
+                &current_node_id,
                 &event,
                 node.input_merge_strategy.as_ref(),
             ).await?;
@@ -1045,7 +1060,6 @@ impl WorkerPoolForBranch {
                 .create_execution_step(
                     execution_id.to_string(),
                     node.id.clone(),
-                    node.name.clone(),
                     input_data,
                 )
                 .await?;
@@ -1081,17 +1095,17 @@ impl WorkerPoolForBranch {
             }
             
             // Get next nodes - use a simplified approach for parallel branches
-            let next_nodes = self.get_next_nodes_static(workflow, &current_node_name, &event)?;
+            let next_nodes = self.get_next_nodes_static(workflow, &current_node_id, &event)?;
             match next_nodes.len() {
                 0 => break, // End of branch
-                1 => current_node_name = next_nodes[0].clone(),
+                1 => current_node_id = next_nodes[0].clone(),
                 _ => {
                     // For nested branches within parallel execution, execute sequentially for now
-                    tracing::debug!("Nested branch node '{}' has {} outgoing paths, executing sequentially", current_node_name, next_nodes.len());
+                    tracing::debug!("Nested branch node '{}' has {} outgoing paths, executing sequentially", current_node_id, next_nodes.len());
                     
-                    for next_node_name in next_nodes {
-                        tracing::debug!("Starting nested branch execution for node: {}", next_node_name);
-                        match Box::pin(self.execute_branch_static(execution_id, workflow, next_node_name, event.clone())).await {
+                    for next_node_id in next_nodes {
+                        tracing::debug!("Starting nested branch execution for node: {}", next_node_id);
+                        match Box::pin(self.execute_branch_static(execution_id, workflow, next_node_id, event.clone())).await {
                             Ok(_) => {
                                 tracing::debug!("Nested branch execution completed successfully");
                             }
@@ -1216,19 +1230,19 @@ impl WorkerPoolForBranch {
                 if let Some(delay_scheduler) = self.get_delay_scheduler().await {
                     // Find next node to continue execution
                     let next_nodes = self.get_next_nodes_static(workflow, &node.name, &event)?;
-                    if let Some(next_node_name) = next_nodes.first() {
+                    if let Some(next_node_id) = next_nodes.first() {
                         // Schedule the delay and pause execution
                         match delay_scheduler.schedule_delay(
                             execution_id.to_string(),
                             node.name.clone(),
-                            next_node_name.clone(),
+                            next_node_id.clone(),
                             delay_duration,
                             event.clone(),
                         ).await {
                             Ok(delay_id) => {
                                 tracing::info!(
                                     "Delay node '{}' scheduled with ID '{}' - execution will resume at '{}'",
-                                    node.name, delay_id, next_node_name
+                                    node.name, delay_id, next_node_id
                                 );
                                 
                                 // Return a special signal to pause workflow execution here
@@ -1249,10 +1263,10 @@ impl WorkerPoolForBranch {
                     // Fallback to old blocking behavior if scheduler is not available
                     use tokio::time::{sleep, Duration};
                     let delay_ms = match unit {
-                        DelayUnit::Seconds => duration.saturating_mul(1000),
-                        DelayUnit::Minutes => duration.saturating_mul(60).saturating_mul(1000),
-                        DelayUnit::Hours => duration.saturating_mul(60).saturating_mul(60).saturating_mul(1000),
-                        DelayUnit::Days => duration.saturating_mul(24).saturating_mul(60).saturating_mul(60).saturating_mul(1000),
+                        DelayUnit::Seconds => duration.saturating_mul(DELAY_TIME_MULTIPLIERS.seconds),
+                        DelayUnit::Minutes => duration.saturating_mul(DELAY_TIME_MULTIPLIERS.minutes),
+                        DelayUnit::Hours => duration.saturating_mul(DELAY_TIME_MULTIPLIERS.hours),
+                        DelayUnit::Days => duration.saturating_mul(DELAY_TIME_MULTIPLIERS.days),
                     };
                     // No artificial delay limit since DelayScheduler supports unlimited duration
                     sleep(Duration::from_millis(delay_ms)).await;
@@ -1266,24 +1280,24 @@ impl WorkerPoolForBranch {
     fn get_next_nodes_static(
         &self,
         workflow: &Workflow,
-        current_node_name: &str,
+        current_node_id: &str,
         event: &WorkflowEvent,
     ) -> Result<Vec<String>> {
         let mut next_nodes = Vec::new();
         
         for edge in &workflow.edges {
-            if edge.from_node_name == current_node_name {
+            if edge.from_node_id == current_node_id {
                 // Check if this edge has a condition
                 if let Some(condition_result) = edge.condition_result {
                     // Look up the stored condition result for the current node
-                    if let Some(&stored_result) = event.condition_results.get(current_node_name) {
+                    if let Some(&stored_result) = event.condition_results.get(current_node_id) {
                         if stored_result == condition_result {
-                            next_nodes.push(edge.to_node_name.clone());
+                            next_nodes.push(edge.to_node_id.clone());
                         }
                     }
                 } else {
                     // Unconditional edge
-                    next_nodes.push(edge.to_node_name.clone());
+                    next_nodes.push(edge.to_node_id.clone());
                 }
             }
         }
@@ -1354,13 +1368,13 @@ impl WorkerPool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| SwissPipeError::Generic("Missing execution_id in workflow_resume payload".to_string()))?;
         
-        let current_node_name = payload.get("current_node_name")
+        let current_node_id = payload.get("current_node_id")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| SwissPipeError::Generic("Missing current_node_name in workflow_resume payload".to_string()))?;
+            .ok_or_else(|| SwissPipeError::Generic("Missing current_node_id in workflow_resume payload".to_string()))?;
         
-        let next_node_name = payload.get("next_node_name")
+        let next_node_id = payload.get("next_node_id")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| SwissPipeError::Generic("Missing next_node_name in workflow_resume payload".to_string()))?;
+            .ok_or_else(|| SwissPipeError::Generic("Missing next_node_id in workflow_resume payload".to_string()))?;
         
         let delay_id = payload.get("delay_id")
             .and_then(|v| v.as_str())
@@ -1374,7 +1388,7 @@ impl WorkerPool {
 
         // Mark the delay step as completed now that the delay has finished
         let steps = self.execution_service.get_execution_steps(execution_id).await?;
-        if let Some(delay_step) = steps.iter().find(|s| s.node_name == current_node_name && s.status == "running") {
+        if let Some(delay_step) = steps.iter().find(|s| s.node_id == current_node_id && s.status == "running") {
             let output_data = serde_json::json!({
                 "delay_completed": true,
                 "delay_id": delay_id,
@@ -1383,18 +1397,18 @@ impl WorkerPool {
             self.execution_service
                 .update_execution_step(&delay_step.id, StepStatus::Completed, Some(serde_json::to_value(&output_data).unwrap()), None)
                 .await?;
-            tracing::info!("Marked delay step '{}' as completed after delay {}", current_node_name, delay_id);
+            tracing::info!("Marked delay step '{}' as completed after delay {}", current_node_id, delay_id);
         } else {
-            tracing::warn!("Could not find running delay step '{}' for execution '{}'", current_node_name, execution_id);
+            tracing::warn!("Could not find running delay step '{}' for execution '{}'", current_node_id, execution_id);
         }
 
         tracing::info!(
             "Resuming workflow execution '{}' from node '{}' after delay {}",
-            execution_id, next_node_name, delay_id
+            execution_id, next_node_id, delay_id
         );
 
         // Resume execution from the specified node (execute_workflow_from_node handles execution status updates)
-        match self.execute_workflow_from_node(execution_id.to_string(), next_node_name.to_string(), workflow_state).await {
+        match self.execute_workflow_from_node(execution_id.to_string(), next_node_id.to_string(), workflow_state).await {
             Ok(()) => {
                 // Update execution as completed
                 self.execution_service
@@ -1433,7 +1447,7 @@ impl WorkerPool {
     pub async fn execute_workflow_from_node(
         &self,
         execution_id: String,
-        start_node_name: String, 
+        start_node_id: String, 
         event: WorkflowEvent,
     ) -> Result<()> {
         // Get the workflow from the execution record
@@ -1459,7 +1473,7 @@ impl WorkerPool {
         worker_pool_for_branch.execute_branch_static(
             &execution_id,
             &workflow,
-            start_node_name,
+            start_node_id,
             event,
         ).await?;
 

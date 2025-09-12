@@ -43,18 +43,9 @@ export function useWorkflowData() {
       
       // Convert API edges to VueFlow format
       workflow.edges.forEach(edge => {
-        // Prefer node IDs over names for edge connections
-        let sourceNode, targetNode
-        
-        if (edge.from_node_id && edge.to_node_id) {
-          // Use node IDs if available
-          sourceNode = workflow.nodes.find(n => n.id === edge.from_node_id)
-          targetNode = workflow.nodes.find(n => n.id === edge.to_node_id)
-        } else {
-          // Fall back to names for backward compatibility
-          sourceNode = workflow.nodes.find(n => n.name === edge.from_node_name)
-          targetNode = workflow.nodes.find(n => n.name === edge.to_node_name)
-        }
+        // Use node IDs for edge connections
+        const sourceNode = workflow.nodes.find(n => n.id === edge.from_node_id)
+        const targetNode = workflow.nodes.find(n => n.id === edge.to_node_id)
         
         if (sourceNode && targetNode) {
           const vueFlowEdge = {
@@ -68,23 +59,8 @@ export function useWorkflowData() {
           nodeStore.addEdge(vueFlowEdge)
         }
       })
-    } else if (nodeStore.nodes.length === 0) {
-      // Create default starter workflow only if no nodes exist and no workflow data
-      nodeStore.addNode({
-        id: 'trigger-1',
-        type: 'trigger',
-        position: { x: 100, y: 100 },
-        data: {
-          label: 'Start',
-          description: 'HTTP endpoint trigger',
-          config: {
-            type: 'trigger',
-            methods: ['POST']
-          },
-          status: 'ready' as const
-        }
-      })
     }
+    // Note: Start/trigger nodes are now auto-created by the backend
   }
 
   async function updateWorkflowName() {
@@ -111,6 +87,7 @@ export function useWorkflowData() {
         })
         
         const apiNode = {
+          id: node.id,
           name: node.type === 'trigger' ? 'Start' : (node.data.label || node.id),
           node_type: convertNodeToApiType(node),
           position_x: node.position.x,
@@ -133,26 +110,21 @@ export function useWorkflowData() {
 
       // Convert Vue Flow edges to API format
       const apiEdges = nodeStore.edges.map(edge => {
-        const sourceNode = nodeStore.getNodeById(edge.source)
-        const targetNode = nodeStore.getNodeById(edge.target)
         return {
-          from_node_name: sourceNode?.type === 'trigger' ? 'Start' : (sourceNode?.data.label || edge.source),
-          to_node_name: targetNode?.type === 'trigger' ? 'Start' : (targetNode?.data.label || edge.target),
           from_node_id: edge.source,
           to_node_id: edge.target,
           condition_result: edge.sourceHandle === 'true' ? true : edge.sourceHandle === 'false' ? false : undefined
         }
       })
 
-      const startNodeName = 'Start'
-      const startNodeId = nodeStore.nodes.find(n => n.type === 'trigger')?.id
-
       const workflowData = {
         name: workflowName.value || workflowStore.currentWorkflow.name,
         description: workflowStore.currentWorkflow.description,
-        start_node_name: startNodeName,
-        start_node_id: startNodeId,
-        nodes: apiNodes,
+        nodes: apiNodes.filter(node => {
+          // Filter out trigger nodes since they are auto-created by the backend
+          const nodeInStore = nodeStore.nodes.find(n => n.id === node.id)
+          return nodeInStore?.type !== 'trigger'
+        }),
         edges: apiEdges
       }
 

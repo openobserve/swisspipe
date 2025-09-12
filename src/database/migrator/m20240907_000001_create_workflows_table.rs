@@ -19,7 +19,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Workflows::Name).string().not_null())
                     .col(ColumnDef::new(Workflows::Description).string())
-                    .col(ColumnDef::new(Workflows::StartNodeName).string().not_null())
+                    .col(ColumnDef::new(Workflows::StartNodeId).string())
                     .col(
                         ColumnDef::new(Workflows::CreatedAt)
                             .timestamp()
@@ -48,7 +48,7 @@ pub enum Workflows {
     Id,
     Name,
     Description,
-    StartNodeName,
+    StartNodeId,
     CreatedAt,
     UpdatedAt,
 }

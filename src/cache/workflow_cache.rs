@@ -7,16 +7,16 @@ use chrono::{DateTime, Utc, Duration};
 #[derive(Clone, Debug)]
 pub struct WorkflowCacheEntry {
     pub workflow_id: String,
-    pub start_node_name: String,
+    pub start_node_id: String,
     pub cached_at: DateTime<Utc>,
     pub ttl_seconds: i64,
 }
 
 impl WorkflowCacheEntry {
-    pub fn new(workflow_id: String, start_node_name: String, ttl_seconds: i64) -> Self {
+    pub fn new(workflow_id: String, start_node_id: String, ttl_seconds: i64) -> Self {
         Self {
             workflow_id,
-            start_node_name,
+            start_node_id,
             cached_at: Utc::now(),
             ttl_seconds,
         }
@@ -61,16 +61,16 @@ impl WorkflowCache {
     }
 
     /// Put workflow into cache
-    pub async fn put(&self, workflow_id: String, start_node_name: String) {
-        let entry = WorkflowCacheEntry::new(workflow_id.clone(), start_node_name, self.default_ttl_seconds);
+    pub async fn put(&self, workflow_id: String, start_node_id: String) {
+        let entry = WorkflowCacheEntry::new(workflow_id.clone(), start_node_id, self.default_ttl_seconds);
         let mut cache = self.cache.write().await;
         cache.insert(workflow_id.clone(), entry);
         tracing::debug!("Cached workflow: {}", workflow_id);
     }
 
     /// Put workflow into cache with custom TTL
-    pub async fn put_with_ttl(&self, workflow_id: String, start_node_name: String, ttl_seconds: i64) {
-        let entry = WorkflowCacheEntry::new(workflow_id.clone(), start_node_name, ttl_seconds);
+    pub async fn put_with_ttl(&self, workflow_id: String, start_node_id: String, ttl_seconds: i64) {
+        let entry = WorkflowCacheEntry::new(workflow_id.clone(), start_node_id, ttl_seconds);
         let mut cache = self.cache.write().await;
         cache.insert(workflow_id.clone(), entry);
         tracing::debug!("Cached workflow: {} with TTL: {}s", workflow_id, ttl_seconds);
@@ -167,7 +167,7 @@ mod tests {
         assert!(entry.is_some());
         let entry = entry.unwrap();
         assert_eq!(entry.workflow_id, workflow_id);
-        assert_eq!(entry.start_node_name, start_node);
+        assert_eq!(entry.start_node_id, start_node);
 
         // Wait for expiration
         sleep(TokioDuration::from_secs(2)).await;

@@ -88,10 +88,10 @@ async fn execute_workflow_async(
     // Try to get workflow from cache first
     let cached_workflow = state.workflow_cache.get(workflow_id).await;
     
-    let start_node_name = if let Some(cached) = cached_workflow {
+    let start_node_id = if let Some(cached) = cached_workflow {
         // Use cached workflow metadata
         tracing::debug!("Using cached workflow metadata for {}", workflow_id);
-        cached.start_node_name
+        cached.start_node_id
     } else {
         // Cache miss - load from database and cache the result
         tracing::debug!("Cache miss - loading workflow {} from database", workflow_id);
@@ -107,16 +107,16 @@ async fn execute_workflow_async(
                 }
             })?;
 
-        let start_node = workflow.start_node_name.clone();
+        let start_node = workflow.start_node_id.clone();
         
         // Cache the workflow metadata for future requests
-        state.workflow_cache.put(workflow_id.to_string(), start_node.clone()).await;
+        state.workflow_cache.put(workflow_id.to_string(), start_node.clone().unwrap()).await;
         tracing::debug!("Cached workflow metadata for {}", workflow_id);
         
-        start_node
+        start_node.unwrap()
     };
 
-    tracing::info!("Workflow {} validated successfully (start_node: {})", workflow_id, start_node_name);
+    tracing::info!("Workflow {} validated successfully (start_node: {})", workflow_id, start_node_id);
 
     // Create execution service
     let execution_service = ExecutionService::new(state.db.clone());

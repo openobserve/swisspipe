@@ -23,8 +23,6 @@ use crate::{
 pub struct CreateWorkflowRequest {
     pub name: String,
     pub description: Option<String>,
-    pub start_node_name: String, // Deprecated: use start_node_id
-    pub start_node_id: Option<String>, // New: node ID to start from
     pub nodes: Vec<NodeRequest>,
     pub edges: Vec<EdgeRequest>,
 }
@@ -40,10 +38,8 @@ pub struct NodeRequest {
 
 #[derive(Deserialize)]
 pub struct EdgeRequest {
-    pub from_node_name: String, // Deprecated: use from_node_id
-    pub to_node_name: String,   // Deprecated: use to_node_id
-    pub from_node_id: Option<String>, // New: source node ID
-    pub to_node_id: Option<String>,   // New: target node ID
+    pub from_node_id: String, // Source node ID
+    pub to_node_id: String,   // Target node ID
     pub condition_result: Option<bool>,
 }
 
@@ -59,10 +55,8 @@ pub struct NodeResponse {
 #[derive(Serialize)]
 pub struct EdgeResponse {
     pub id: String,
-    pub from_node_name: String, // Deprecated: use from_node_id
-    pub to_node_name: String,   // Deprecated: use to_node_id  
-    pub from_node_id: String,   // New: source node ID
-    pub to_node_id: String,     // New: target node ID
+    pub from_node_id: String,   // Source node ID
+    pub to_node_id: String,     // Target node ID
     pub condition_result: Option<bool>,
 }
 
@@ -71,8 +65,7 @@ pub struct WorkflowResponse {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
-    pub start_node_name: String, // Deprecated: use start_node_id
-    pub start_node_id: String,   // New: starting node ID
+    pub start_node_id: String,   // Starting node ID
     pub endpoint_url: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
@@ -85,6 +78,12 @@ pub struct WorkflowListResponse {
     pub workflows: Vec<WorkflowResponse>,
 }
 
+#[derive(Serialize)]
+pub struct ErrorResponse {
+    pub error: String,
+    pub details: Option<String>,
+}
+
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_workflows).post(create_workflow))
@@ -93,21 +92,29 @@ pub fn routes() -> Router<AppState> {
 
 pub async fn list_workflows(
     State(state): State<AppState>,
-) -> std::result::Result<Json<WorkflowListResponse>, StatusCode> {
+) -> std::result::Result<Json<WorkflowListResponse>, (StatusCode, Json<ErrorResponse>)> {
     let workflows = entities::Entity::find()
         .all(&*state.db)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            tracing::error!("Database error in list_workflows: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "Failed to fetch workflows from database".to_string(),
+                details: Some(format!("Database error: {e}")),
+            }))
+        })?;
 
     let workflow_responses: Vec<WorkflowResponse> = workflows
         .into_iter()
         .map(|w| WorkflowResponse {
             endpoint_url: format!("/api/v1/{}/trigger", w.id),
-            id: w.id,
+            id: w.id.clone(),
             name: w.name,
             description: w.description,
-            start_node_name: w.start_node_name.clone(),
-            start_node_id: w.start_node_id.unwrap_or_else(|| w.start_node_name.clone()),
+            start_node_id: w.start_node_id.unwrap_or_else(|| {
+                tracing::warn!("Workflow {} has no start_node_id", w.id);
+                "".to_string()
+            }),
             created_at: w.created_at,
             updated_at: w.updated_at,
             nodes: vec![], // Not included in list view for performance
@@ -125,21 +132,32 @@ pub async fn create_workflow(
     Json(request): Json<CreateWorkflowRequest>,
 ) -> std::result::Result<(StatusCode, Json<WorkflowResponse>), StatusCode> {
     let workflow_id = Uuid::new_v4().to_string();
+    
+    // Auto-create start node
+    let start_node_id = Uuid::new_v4().to_string();
+    let start_node = Node {
+        id: start_node_id.clone(),
+        workflow_id: workflow_id.clone(),
+        name: "Start".to_string(),
+        node_type: NodeType::Trigger {
+            methods: vec![HttpMethod::Get, HttpMethod::Post, HttpMethod::Put]
+        },
+        input_merge_strategy: None,
+    };
 
-    // Convert request to internal models for validation
-    let nodes: Vec<Node> = request.nodes.iter().map(|n| Node {
-        id: workflow_id.clone(),
+    // Convert request nodes to internal models
+    let mut nodes: Vec<Node> = vec![start_node]; // Start with the auto-created start node
+    nodes.extend(request.nodes.iter().map(|n| Node {
+        id: n.id.clone().unwrap_or_else(|| Uuid::new_v4().to_string()),
         workflow_id: workflow_id.clone(),
         name: n.name.clone(),
         node_type: n.node_type.clone(),
         input_merge_strategy: None,
-    }).collect();
+    }));
     
     let edges: Vec<Edge> = request.edges.iter().map(|e| Edge {
-        id: workflow_id.clone(),
+        id: Uuid::new_v4().to_string(),
         workflow_id: workflow_id.clone(),
-        from_node_name: e.from_node_name.clone(),
-        to_node_name: e.to_node_name.clone(),
         from_node_id: e.from_node_id.clone(),
         to_node_id: e.to_node_id.clone(),
         condition_result: e.condition_result,
@@ -148,7 +166,7 @@ pub async fn create_workflow(
     // Validate workflow structure
     if let Err(validation_error) = WorkflowValidator::validate_workflow(
         &request.name,
-        &request.start_node_name,
+        &start_node_id,
         &nodes,
         &edges,
     ) {
@@ -167,8 +185,7 @@ pub async fn create_workflow(
         id: Set(workflow_id.clone()),
         name: Set(request.name.clone()),
         description: Set(request.description.clone()),
-        start_node_name: Set(request.start_node_name.clone()),
-        start_node_id: Set(request.start_node_id.clone()), // Will be updated later if needed
+        start_node_id: Set(Some(start_node_id.clone())),
         ..Default::default()
     };
 
@@ -177,20 +194,30 @@ pub async fn create_workflow(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Create nodes and track ID mappings
-    let mut node_id_to_name_mapping = std::collections::HashMap::new();
-    for node_req in request.nodes {
-        let node_config = serde_json::to_string(&node_req.node_type)
+    // Create all nodes (start node + user nodes)
+    for node in &nodes {
+        let node_config = serde_json::to_string(&node.node_type)
             .map_err(|_| StatusCode::BAD_REQUEST)?;
-        
-        let node_id = node_req.id.clone().unwrap_or_else(|| Uuid::new_v4().to_string());
-        node_id_to_name_mapping.insert(node_req.name.clone(), node_id.clone());
+
+        let (position_x, position_y) = if node.id == start_node_id {
+            // Position start node at top-middle of canvas
+            (400.0, 50.0)
+        } else {
+            // For user nodes, try to find position from request, otherwise default
+            let user_node = request.nodes.iter().find(|n| 
+                n.id.as_ref().unwrap_or(&String::new()) == &node.id || n.name == node.name
+            );
+            (
+                user_node.and_then(|n| n.position_x).unwrap_or(100.0),
+                user_node.and_then(|n| n.position_y).unwrap_or(100.0)
+            )
+        };
 
         let node_model = nodes::ActiveModel {
-            id: Set(node_id),
+            id: Set(node.id.clone()),
             workflow_id: Set(workflow_id.clone()),
-            name: Set(node_req.name.clone()),
-            node_type: Set(match node_req.node_type {
+            name: Set(node.name.clone()),
+            node_type: Set(match &node.node_type {
                 NodeType::Trigger { .. } => "trigger".to_string(),
                 NodeType::Condition { .. } => "condition".to_string(),
                 NodeType::Transformer { .. } => "transformer".to_string(),
@@ -200,8 +227,8 @@ pub async fn create_workflow(
                 NodeType::Delay { .. } => "delay".to_string(),
             }),
             config: Set(node_config),
-            position_x: Set(node_req.position_x.unwrap_or(100.0)),
-            position_y: Set(node_req.position_y.unwrap_or(100.0)),
+            position_x: Set(position_x),
+            position_y: Set(position_y),
             ..Default::default()
         };
 
@@ -210,42 +237,14 @@ pub async fn create_workflow(
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
-    
-    // Update workflow start_node_id if it wasn't provided but we can resolve it
-    if request.start_node_id.is_none() {
-        if let Some(start_node_id) = node_id_to_name_mapping.get(&request.start_node_name) {
-            let mut workflow_update: entities::ActiveModel = workflow.clone().into();
-            workflow_update.start_node_id = Set(Some(start_node_id.clone()));
-            workflow_update.update(&*state.db).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        }
-    }
 
-    // Create edges with node ID resolution
+    // Create edges using provided node IDs
     for edge_req in request.edges {
-        // Determine source and target node IDs
-        let from_node_id = if let Some(id) = &edge_req.from_node_id {
-            id.clone()
-        } else if let Some(id) = node_id_to_name_mapping.get(&edge_req.from_node_name) {
-            id.clone()
-        } else {
-            "unknown".to_string() // Will be handled by validation
-        };
-        
-        let to_node_id = if let Some(id) = &edge_req.to_node_id {
-            id.clone()
-        } else if let Some(id) = node_id_to_name_mapping.get(&edge_req.to_node_name) {
-            id.clone()
-        } else {
-            "unknown".to_string() // Will be handled by validation
-        };
-        
         let edge_model = edges::ActiveModel {
             id: Set(Uuid::new_v4().to_string()),
             workflow_id: Set(workflow_id.clone()),
-            from_node_name: Set(edge_req.from_node_name),
-            to_node_name: Set(edge_req.to_node_name),
-            from_node_id: Set(Some(from_node_id)),
-            to_node_id: Set(Some(to_node_id)),
+            from_node_id: Set(edge_req.from_node_id.clone()),
+            to_node_id: Set(edge_req.to_node_id.clone()),
             condition_result: Set(edge_req.condition_result),
             ..Default::default()
         };
@@ -298,10 +297,8 @@ pub async fn create_workflow(
         .into_iter()
         .map(|edge| EdgeResponse {
             id: edge.id.clone(),
-            from_node_name: edge.from_node_name.clone(),
-            to_node_name: edge.to_node_name.clone(),
-            from_node_id: edge.from_node_id.clone().unwrap_or_else(|| edge.from_node_name.clone()),
-            to_node_id: edge.to_node_id.clone().unwrap_or_else(|| edge.to_node_name.clone()),
+            from_node_id: edge.from_node_id.clone(),
+            to_node_id: edge.to_node_id.clone(),
             condition_result: edge.condition_result,
         })
         .collect();
@@ -310,8 +307,7 @@ pub async fn create_workflow(
         id: workflow.id.clone(),
         name: workflow.name,
         description: workflow.description,
-        start_node_name: workflow.start_node_name.clone(),
-        start_node_id: workflow.start_node_id.clone().unwrap_or_else(|| workflow.start_node_name.clone()),
+        start_node_id: start_node_id.clone(),
         endpoint_url: format!("/api/v1/{}/trigger", workflow.id),
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
@@ -320,7 +316,7 @@ pub async fn create_workflow(
     };
 
     // Cache the newly created workflow metadata for performance
-    state.workflow_cache.put(workflow_id.clone(), workflow.start_node_name).await;
+    state.workflow_cache.put(workflow_id.clone(), start_node_id.clone()).await;
 
     Ok((StatusCode::CREATED, Json(response)))
 }
@@ -377,10 +373,8 @@ pub async fn get_workflow(
         .into_iter()
         .map(|edge| EdgeResponse {
             id: edge.id.clone(),
-            from_node_name: edge.from_node_name.clone(),
-            to_node_name: edge.to_node_name.clone(),
-            from_node_id: edge.from_node_id.clone().unwrap_or_else(|| edge.from_node_name.clone()),
-            to_node_id: edge.to_node_id.clone().unwrap_or_else(|| edge.to_node_name.clone()),
+            from_node_id: edge.from_node_id.clone(),
+            to_node_id: edge.to_node_id.clone(),
             condition_result: edge.condition_result,
         })
         .collect();
@@ -389,8 +383,7 @@ pub async fn get_workflow(
         id: workflow.id.clone(),
         name: workflow.name,
         description: workflow.description,
-        start_node_name: workflow.start_node_name.clone(),
-        start_node_id: workflow.start_node_id.clone().unwrap_or_else(|| workflow.start_node_name.clone()),
+        start_node_id: workflow.start_node_id.clone().unwrap_or_default(),
         endpoint_url: format!("/api/v1/{}/trigger", workflow.id),
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
@@ -399,7 +392,7 @@ pub async fn get_workflow(
     };
 
     // Update cache with current workflow metadata
-    state.workflow_cache.put(id.clone(), workflow.start_node_name).await;
+    state.workflow_cache.put(id.clone(), workflow.start_node_id.clone().unwrap_or_default()).await;
 
     Ok(Json(response))
 }
@@ -415,20 +408,47 @@ pub async fn update_workflow(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    // Convert request to internal models for validation
-    let nodes: Vec<Node> = request.nodes.iter().map(|n| Node {
-        id: id.clone(),
+    let existing_start_node_id = workflow.start_node_id.clone()
+        .ok_or_else(|| {
+            tracing::error!("Workflow {} has no start_node_id", id);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    // Get existing start node to preserve it
+    let existing_start_node = nodes::Entity::find_by_id(&existing_start_node_id)
+        .one(&*state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or_else(|| {
+            tracing::error!("Start node {} not found for workflow {}", existing_start_node_id, id);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    // Convert existing start node to internal model
+    let start_node_config: NodeType = serde_json::from_str(&existing_start_node.config)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let start_node = Node {
+        id: existing_start_node_id.clone(),
+        workflow_id: id.clone(),
+        name: existing_start_node.name.clone(),
+        node_type: start_node_config,
+        input_merge_strategy: None,
+    };
+
+    // Convert request nodes to internal models and add start node
+    let mut nodes: Vec<Node> = vec![start_node]; // Start with the preserved start node
+    nodes.extend(request.nodes.iter().map(|n| Node {
+        id: n.id.clone().unwrap_or_else(|| Uuid::new_v4().to_string()),
         workflow_id: id.clone(),
         name: n.name.clone(),
         node_type: n.node_type.clone(),
         input_merge_strategy: None,
-    }).collect();
+    }));
     
     let edges: Vec<Edge> = request.edges.iter().map(|e| Edge {
-        id: id.clone(),
+        id: Uuid::new_v4().to_string(),
         workflow_id: id.clone(),
-        from_node_name: e.from_node_name.clone(),
-        to_node_name: e.to_node_name.clone(),
         from_node_id: e.from_node_id.clone(),
         to_node_id: e.to_node_id.clone(),
         condition_result: e.condition_result,
@@ -437,7 +457,7 @@ pub async fn update_workflow(
     // Validate workflow structure
     if let Err(validation_error) = WorkflowValidator::validate_workflow(
         &request.name,
-        &request.start_node_name,
+        &existing_start_node_id,
         &nodes,
         &edges,
     ) {
@@ -454,151 +474,78 @@ pub async fn update_workflow(
     let mut workflow: entities::ActiveModel = workflow.into();
     workflow.name = Set(request.name);
     workflow.description = Set(request.description);
-    workflow.start_node_name = Set(request.start_node_name.clone());
-    
-    // Use start_node_id if provided, otherwise try to resolve from start_node_name later
-    if let Some(start_node_id) = &request.start_node_id {
-        workflow.start_node_id = Set(Some(start_node_id.clone()));
-    }
+    // Keep existing start_node_id - don't update it
 
     let workflow = workflow
         .update(&*state.db)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Get existing nodes for comparison
-    let existing_nodes = nodes::Entity::find()
+    // Delete user nodes and edges (preserve start node)
+    nodes::Entity::delete_many()
         .filter(nodes::Column::WorkflowId.eq(&id))
-        .all(&*state.db)
+        .filter(nodes::Column::Id.ne(&existing_start_node_id))
+        .exec(&*state.db)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
 
-    // Simplified node processing: update if ID exists, create if no ID, then delete nodes not in request
-    let mut node_id_to_name_mapping = std::collections::HashMap::new();
-    let mut request_node_ids = std::collections::HashSet::new();
-    
-    for node_req in request.nodes {
-        let node_config = serde_json::to_string(&node_req.node_type)
-            .map_err(|_| StatusCode::BAD_REQUEST)?;
-        
-        let node_type_str = match node_req.node_type {
-            NodeType::Trigger { .. } => "trigger".to_string(),
-            NodeType::Condition { .. } => "condition".to_string(),
-            NodeType::Transformer { .. } => "transformer".to_string(),
-            NodeType::HttpRequest { .. } => "http_request".to_string(),
-            NodeType::OpenObserve { .. } => "openobserve".to_string(),
-            NodeType::Email { .. } => "email".to_string(),
-            NodeType::Delay { .. } => "delay".to_string(),
-        };
-        
-        if let Some(node_id) = &node_req.id {
-            // Node has ID -> update existing node
-            request_node_ids.insert(node_id.clone());
-            node_id_to_name_mapping.insert(node_req.name.clone(), node_id.clone());
-            
-            // Find and update the existing node
-            if let Some(existing_node) = existing_nodes.iter().find(|n| &n.id == node_id) {
-                let mut node_model: nodes::ActiveModel = existing_node.clone().into();
-                node_model.name = Set(node_req.name.clone());
-                node_model.node_type = Set(node_type_str);
-                node_model.config = Set(node_config);
-                node_model.position_x = Set(node_req.position_x.unwrap_or(100.0));
-                node_model.position_y = Set(node_req.position_y.unwrap_or(100.0));
-                
-                node_model
-                    .update(&*state.db)
-                    .await
-                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            } else {
-                // Node ID not found, treat as new node but use the provided ID
-                node_id_to_name_mapping.insert(node_req.name.clone(), node_id.clone());
-                
-                let node_model = nodes::ActiveModel {
-                    id: Set(node_id.clone()),
-                    workflow_id: Set(id.clone()),
-                    name: Set(node_req.name.clone()),
-                    node_type: Set(node_type_str),
-                    config: Set(node_config),
-                    position_x: Set(node_req.position_x.unwrap_or(100.0)),
-                    position_y: Set(node_req.position_y.unwrap_or(100.0)),
-                    ..Default::default()
-                };
-
-                node_model
-                    .insert(&*state.db)
-                    .await
-                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            }
-        } else {
-            // No ID -> create new node
-            let new_node_id = Uuid::new_v4().to_string();
-            request_node_ids.insert(new_node_id.clone());
-            node_id_to_name_mapping.insert(node_req.name.clone(), new_node_id.clone());
-            
-            let node_model = nodes::ActiveModel {
-                id: Set(new_node_id),
-                workflow_id: Set(id.clone()),
-                name: Set(node_req.name.clone()),
-                node_type: Set(node_type_str),
-                config: Set(node_config),
-                position_x: Set(node_req.position_x.unwrap_or(100.0)),
-                position_y: Set(node_req.position_y.unwrap_or(100.0)),
-                ..Default::default()
-            };
-
-            node_model
-                .insert(&*state.db)
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        }
-    }
-
-    // Delete nodes not in the request (set difference)
-    for existing_node in &existing_nodes {
-        if !request_node_ids.contains(&existing_node.id) {
-            nodes::Entity::delete_by_id(&existing_node.id)
-                .exec(&*state.db)
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        }
-    }
-    
-    // Update workflow start_node_id if it wasn't provided but we can resolve it
-    if request.start_node_id.is_none() {
-        if let Some(start_node_id) = node_id_to_name_mapping.get(&request.start_node_name) {
-            let mut workflow_update: entities::ActiveModel = workflow.clone().into();
-            workflow_update.start_node_id = Set(Some(start_node_id.clone()));
-            workflow_update.update(&*state.db).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        }
-    }
-
-    // Simplified edge processing: delete all existing edges, then create new ones from request
-    // Delete all existing edges for this workflow
     edges::Entity::delete_many()
         .filter(edges::Column::WorkflowId.eq(&id))
         .exec(&*state.db)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Create all edges from request (require node IDs)
+    // Create all nodes (start node is preserved, so we only create user nodes)
+    for node in &nodes {
+        if node.id == existing_start_node_id {
+            // Skip the start node - it's already preserved
+            continue;
+        }
+
+        let node_config = serde_json::to_string(&node.node_type)
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+        // Find position from request
+        let user_node = request.nodes.iter().find(|n| 
+            n.id.as_ref().unwrap_or(&String::new()) == &node.id || n.name == node.name
+        );
+        let (position_x, position_y) = (
+            user_node.and_then(|n| n.position_x).unwrap_or(100.0),
+            user_node.and_then(|n| n.position_y).unwrap_or(100.0)
+        );
+
+        let node_model = nodes::ActiveModel {
+            id: Set(node.id.clone()),
+            workflow_id: Set(id.clone()),
+            name: Set(node.name.clone()),
+            node_type: Set(match &node.node_type {
+                NodeType::Trigger { .. } => "trigger".to_string(),
+                NodeType::Condition { .. } => "condition".to_string(),
+                NodeType::Transformer { .. } => "transformer".to_string(),
+                NodeType::HttpRequest { .. } => "http_request".to_string(),
+                NodeType::OpenObserve { .. } => "openobserve".to_string(),
+                NodeType::Email { .. } => "email".to_string(),
+                NodeType::Delay { .. } => "delay".to_string(),
+            }),
+            config: Set(node_config),
+            position_x: Set(position_x),
+            position_y: Set(position_y),
+            ..Default::default()
+        };
+
+        node_model
+            .insert(&*state.db)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+
+    // Create edges
     for edge_req in request.edges {
-        // Resolve node IDs with proper error handling
-        let from_node_id = edge_req.from_node_id
-            .or_else(|| node_id_to_name_mapping.get(&edge_req.from_node_name).cloned())
-            .ok_or(StatusCode::BAD_REQUEST)?;
-        
-        let to_node_id = edge_req.to_node_id
-            .or_else(|| node_id_to_name_mapping.get(&edge_req.to_node_name).cloned())
-            .ok_or(StatusCode::BAD_REQUEST)?;
-        
         let edge_model = edges::ActiveModel {
             id: Set(Uuid::new_v4().to_string()),
             workflow_id: Set(id.clone()),
-            from_node_name: Set(edge_req.from_node_name),
-            to_node_name: Set(edge_req.to_node_name),
-            from_node_id: Set(Some(from_node_id)),
-            to_node_id: Set(Some(to_node_id)),
+            from_node_id: Set(edge_req.from_node_id.clone()),
+            to_node_id: Set(edge_req.to_node_id.clone()),
             condition_result: Set(edge_req.condition_result),
             ..Default::default()
         };
@@ -651,10 +598,8 @@ pub async fn update_workflow(
         .into_iter()
         .map(|edge| EdgeResponse {
             id: edge.id.clone(),
-            from_node_name: edge.from_node_name.clone(),
-            to_node_name: edge.to_node_name.clone(),
-            from_node_id: edge.from_node_id.clone().unwrap_or_else(|| edge.from_node_name.clone()),
-            to_node_id: edge.to_node_id.clone().unwrap_or_else(|| edge.to_node_name.clone()),
+            from_node_id: edge.from_node_id.clone(),
+            to_node_id: edge.to_node_id.clone(),
             condition_result: edge.condition_result,
         })
         .collect();
@@ -663,8 +608,7 @@ pub async fn update_workflow(
         id: workflow.id.clone(),
         name: workflow.name,
         description: workflow.description,
-        start_node_name: workflow.start_node_name.clone(),
-        start_node_id: workflow.start_node_id.clone().unwrap_or_else(|| workflow.start_node_name.clone()),
+        start_node_id: existing_start_node_id.clone(),
         endpoint_url: format!("/api/v1/{}/trigger", workflow.id),
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
@@ -674,7 +618,7 @@ pub async fn update_workflow(
 
     // Invalidate cache since workflow was updated, then cache new version
     state.workflow_cache.invalidate(&id).await;
-    state.workflow_cache.put(id.clone(), workflow.start_node_name).await;
+    state.workflow_cache.put(id.clone(), existing_start_node_id.clone()).await;
 
     Ok(Json(response))
 }

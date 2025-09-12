@@ -218,6 +218,7 @@ import { VueFlow } from '@vue-flow/core'
 import { Controls } from '@vue-flow/controls'
 import { Background } from '@vue-flow/background'
 import { ArrowLeftIcon, ClockIcon, Squares2X2Icon } from '@heroicons/vue/24/outline'
+import { v4 as uuidv4 } from 'uuid'
 import { useWorkflowStore } from '../stores/workflows'
 import { useNodeStore } from '../stores/nodes'
 import { useAuthStore } from '../stores/auth'
@@ -382,22 +383,34 @@ function closeNodeLibrary() {
 }
 
 function handleAddNode(nodeType: any) {
-  // Add node at the center of the viewport
-  const centerPosition = {
-    x: 400,
-    y: 300
+  // Find the bottom-most node position
+  let bottomMostY = 100 // Default starting position if no nodes exist
+  
+  if (nodeStore.nodes.length > 0) {
+    // Find the node with the highest Y position (bottom-most)
+    bottomMostY = Math.max(...nodeStore.nodes.map(node => node.position.y))
+    // Add node height (~70px) + 100px gap below the bottom-most node
+    bottomMostY += 70 + 100 // Node height + requested 100px gap
+  }
+  
+  const newPosition = {
+    x: 400, // Center horizontally
+    y: bottomMostY
   }
   
   // Create a unique ID for the node
-  const nodeId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  const nodeId = uuidv4()
+  
+  // Generate 12-digit random number for unique naming
+  const randomSuffix = Math.floor(Math.random() * 1000000000000).toString().padStart(12, '0')
   
   // Create the node data
   const newNode = {
     id: nodeId,
     type: nodeType.type,
-    position: centerPosition,
+    position: newPosition,
     data: {
-      label: nodeType.label,
+      label: `${nodeType.label} ${randomSuffix}`,
       description: nodeType.description,
       config: nodeType.defaultConfig,
       status: 'ready' as const

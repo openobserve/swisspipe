@@ -20,7 +20,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(WorkflowExecutions::WorkflowId).string().not_null())
                     .col(ColumnDef::new(WorkflowExecutions::Status).string().not_null())
-                    .col(ColumnDef::new(WorkflowExecutions::CurrentNodeName).string())
+                    .col(ColumnDef::new(WorkflowExecutions::CurrentNodeId).string())
                     .col(ColumnDef::new(WorkflowExecutions::InputData).text())
                     .col(ColumnDef::new(WorkflowExecutions::OutputData).text())
                     .col(ColumnDef::new(WorkflowExecutions::ErrorMessage).text())
@@ -94,7 +94,7 @@ pub enum WorkflowExecutions {
     Id,
     WorkflowId,
     Status,
-    CurrentNodeName,
+    CurrentNodeId,
     InputData,
     OutputData,
     ErrorMessage,

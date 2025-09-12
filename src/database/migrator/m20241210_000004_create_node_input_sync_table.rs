@@ -20,7 +20,7 @@ impl MigrationTrait for Migration {
                             .primary_key(),
                     )
                     .col(ColumnDef::new(NodeInputSync::ExecutionId).string().not_null())
-                    .col(ColumnDef::new(NodeInputSync::NodeName).string().not_null())
+                    .col(ColumnDef::new(NodeInputSync::NodeId).string().not_null())
                     .col(ColumnDef::new(NodeInputSync::ExpectedInputCount).integer().not_null())
                     .col(ColumnDef::new(NodeInputSync::ReceivedInputs).text().not_null().default("[]"))
                     .col(ColumnDef::new(NodeInputSync::TimeoutAt).timestamp())
@@ -46,7 +46,7 @@ impl MigrationTrait for Migration {
                         Index::create()
                             .name("idx-node_input_sync-execution-node")
                             .col(NodeInputSync::ExecutionId)
-                            .col(NodeInputSync::NodeName)
+                            .col(NodeInputSync::NodeId)
                             .unique(),
                     )
                     .to_owned(),
@@ -74,7 +74,7 @@ pub enum NodeInputSync {
     Table,
     Id,
     ExecutionId,
-    NodeName,
+    NodeId,
     ExpectedInputCount,
     ReceivedInputs,
     TimeoutAt,

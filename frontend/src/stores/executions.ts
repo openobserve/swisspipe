@@ -28,7 +28,7 @@ export const useExecutionStore = defineStore('executions', () => {
       execution.id.toLowerCase().includes(search) ||
       execution.workflow_id.toLowerCase().includes(search) ||
       execution.status.toLowerCase().includes(search) ||
-      execution.current_node_name?.toLowerCase().includes(search)
+      execution.current_node_id?.toLowerCase().includes(search)
     )
   })
 

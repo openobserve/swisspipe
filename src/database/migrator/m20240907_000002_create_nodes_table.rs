@@ -29,6 +29,7 @@ impl MigrationTrait for Migration {
                             .timestamp()
                             .default(Expr::current_timestamp()),
                     )
+                    .col(ColumnDef::new(Nodes::InputMergeStrategy).string().null())
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk-nodes-workflow_id")

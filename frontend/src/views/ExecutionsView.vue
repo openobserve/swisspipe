@@ -138,7 +138,7 @@
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                  {{ execution.current_node_name || '-' }}
+                  {{ execution.current_node_id || '-' }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                   {{ executionStore.formatTimestamp(execution.started_at) }}

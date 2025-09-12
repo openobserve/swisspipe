@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { useVueFlow } from '@vue-flow/core'
 import { useNodeStore } from '../stores/nodes'
 import { deepClone } from '../utils/comparison'
+import { v4 as uuidv4 } from 'uuid'
 
 export function useVueFlowInteraction() {
   const nodeStore = useNodeStore()
@@ -68,13 +69,16 @@ export function useVueFlowInteraction() {
         y: event.clientY - rect.top
       })
       
-      const nodeId = `${nodeTypeData.type}-${Date.now()}`
+      const nodeId = uuidv4()
+      // Generate 12-digit random number for unique naming
+      const randomSuffix = Math.floor(Math.random() * 1000000000000).toString().padStart(12, '0')
+      
       const newNode = {
         id: nodeId,
         type: nodeTypeData.type,
         position,
         data: {
-          label: nodeTypeData.label,
+          label: `${nodeTypeData.label} ${randomSuffix}`,
           description: nodeTypeData.description,
           config: deepClone(nodeTypeData.defaultConfig),
           status: 'ready' as const

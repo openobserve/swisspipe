@@ -32,6 +32,7 @@ impl MigrationTrait for Migration {
                             .default("pending"),
                     )
                     .col(ColumnDef::new(JobQueue::ErrorMessage).text())
+                    .col(ColumnDef::new(JobQueue::Payload).text().null())
                     .col(ColumnDef::new(JobQueue::CreatedAt).big_integer().not_null())
                     .col(ColumnDef::new(JobQueue::UpdatedAt).big_integer().not_null())
                     .foreign_key(
@@ -122,6 +123,7 @@ pub enum JobQueue {
     RetryCount,
     Status,
     ErrorMessage,
+    Payload,
     CreatedAt,
     UpdatedAt,
 }

@@ -19,8 +19,8 @@ impl MigrationTrait for Migration {
                             .primary_key(),
                     )
                     .col(ColumnDef::new(Edges::WorkflowId).string().not_null())
-                    .col(ColumnDef::new(Edges::FromNodeName).string().not_null())
-                    .col(ColumnDef::new(Edges::ToNodeName).string().not_null())
+                    .col(ColumnDef::new(Edges::FromNodeId).string().not_null())
+                    .col(ColumnDef::new(Edges::ToNodeId).string().not_null())
                     .col(ColumnDef::new(Edges::ConditionResult).boolean())
                     .col(
                         ColumnDef::new(Edges::CreatedAt)
@@ -51,8 +51,8 @@ pub enum Edges {
     Table,
     Id,
     WorkflowId,
-    FromNodeName,
-    ToNodeName,
+    FromNodeId,
+    ToNodeId,
     ConditionResult,
     CreatedAt,
 }

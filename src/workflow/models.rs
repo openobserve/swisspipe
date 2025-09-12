@@ -112,10 +112,8 @@ pub struct Node {
 pub struct Edge {
     pub id: String,
     pub workflow_id: String,
-    pub from_node_name: String, // Deprecated: use from_node_id
-    pub to_node_name: String,   // Deprecated: use to_node_id
-    pub from_node_id: Option<String>, // New: node ID reference
-    pub to_node_id: Option<String>,   // New: node ID reference
+    pub from_node_id: String,
+    pub to_node_id: String,
     pub condition_result: Option<bool>,
 }
 
@@ -124,7 +122,6 @@ pub struct Workflow {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
-    pub start_node_name: String, // Deprecated: use start_node_id
     pub start_node_id: Option<String>, // New: node ID reference
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
