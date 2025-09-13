@@ -85,7 +85,7 @@ export const useNodeStore = defineStore('nodes', () => {
             // Override the subject to match the existing node library template
             subject: 'Workflow completed',
             // Override the body template to match the existing node library template  
-            body_template: '<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Data: {{json event.data}}</p></body></html>',
+            body_template: '<!DOCTYPE html><html>\n<body>\n\n<h1>Workflow Results</h1>\n<p>Data: {{json event.data}}</p>\n\n</body>\n</html>',
             text_body_template: 'Workflow Results\nData: {{json event.data}}'
           }
         }
