@@ -80,77 +80,32 @@
       <!-- Condition Node Configuration -->
       <div v-if="selectedNodeData.type === 'condition'">
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Condition Configuration</h3>
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">JavaScript Code</label>
-          <div class="h-80">
-            <CodeEditor
-              v-model="localNodeData.config.script"
-              :language="'javascript'"
-              @update:modelValue="onScriptChange"
-              @save="updateNodeData"
-            />
-          </div>
-        </div>
+        <ConditionConfig
+          v-model="localNodeData.config"
+          @update="updateNodeData"
+        />
       </div>
 
       <!-- Transformer Node Configuration -->
       <div v-if="selectedNodeData.type === 'transformer'">
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Transformer Configuration</h3>
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">JavaScript Code</label>
-          <div class="h-80">
-            <CodeEditor
-              v-model="localNodeData.config.script"
-              :language="'javascript'"
-              @update:modelValue="onScriptChange"
-              @save="updateNodeData"
-            />
-          </div>
-        </div>
+        <TransformerConfig
+          v-model="localNodeData.config"
+          @update="updateNodeData"
+        />
       </div>
 
       <!-- HTTP Request Node Configuration -->
       <div v-if="selectedNodeData.type === 'http-request'">
         <h3 class="text-sm font-semibold text-gray-300 mb-3">HTTP Request Configuration</h3>
-        <HttpRequestConfig
-          v-model="localNodeData.config"
-          @update="updateNodeData"
-        />
-        
-        <div class="mt-4">
-          <label class="block text-sm font-medium text-gray-300 mb-2">Timeout (seconds)</label>
-          <input
-            v-model.number="localNodeData.config.timeout_seconds"
-            @blur="updateNodeData"
-            type="number"
-            min="1"
-            max="300"
-            class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+        <div class="space-y-4">
+          <HttpRequestConfig
+            v-model="localNodeData.config"
+            @update="updateNodeData"
           />
-        </div>
-        
-        <div class="mt-4">
-          <label class="block text-sm font-medium text-gray-300 mb-2">On Failure</label>
-          <select
-            v-model="localNodeData.config.failure_action"
-            @change="updateNodeData"
-            class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="Stop">Stop Workflow</option>
-            <option value="Continue">Continue to Next Node</option>
-            <option value="Retry">Retry This Node</option>
-          </select>
-        </div>
-        
-        <div v-if="localNodeData.config.failure_action === 'Retry'" class="mt-4">
-          <label class="block text-sm font-medium text-gray-300 mb-2">Retry Attempts</label>
-          <input
-            v-model.number="localNodeData.config.retry_config.max_attempts"
-            @blur="updateNodeData"
-            type="number"
-            min="1"
-            max="10"
-            class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          <CommonConfigFields
+            v-model="localNodeData.config"
+            @update="updateNodeData"
           />
         </div>
       </div>
@@ -158,118 +113,18 @@
       <!-- OpenObserve Node Configuration -->
       <div v-if="selectedNodeData.type === 'openobserve'">
         <h3 class="text-sm font-semibold text-gray-300 mb-3">OpenObserve Configuration</h3>
-        <OpenObserveConfig
-          v-model="localNodeData.config"
-          @update="updateNodeData"
-        />
-        
-        <div class="mt-4">
-          <label class="block text-sm font-medium text-gray-300 mb-2">Timeout (seconds)</label>
-          <input
-            v-model.number="localNodeData.config.timeout_seconds"
-            @blur="updateNodeData"
-            type="number"
-            min="1"
-            max="300"
-            class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+        <div class="space-y-4">
+          <OpenObserveConfig
+            v-model="localNodeData.config"
+            @update="updateNodeData"
           />
-        </div>
-        
-        <div class="mt-4">
-          <label class="block text-sm font-medium text-gray-300 mb-2">On Failure</label>
-          <select
-            v-model="localNodeData.config.failure_action"
-            @change="updateNodeData"
-            class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="Stop">Stop Workflow</option>
-            <option value="Continue">Continue to Next Node</option>
-            <option value="Retry">Retry This Node</option>
-          </select>
-        </div>
-        
-        <div v-if="localNodeData.config.failure_action === 'Retry'" class="mt-4">
-          <label class="block text-sm font-medium text-gray-300 mb-2">Retry Attempts</label>
-          <input
-            v-model.number="localNodeData.config.retry_config.max_attempts"
-            @blur="updateNodeData"
-            type="number"
-            min="1"
-            max="10"
-            class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          <CommonConfigFields
+            v-model="localNodeData.config"
+            @update="updateNodeData"
           />
         </div>
       </div>
 
-      <!-- Legacy App Node Configuration -->
-      <div v-if="selectedNodeData.type === 'app'">
-        <h3 class="text-sm font-semibold text-gray-300 mb-3">App Configuration</h3>
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">App Type</label>
-            <select
-              v-model="localNodeData.config.app_type"
-              @change="updateNodeData"
-              class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="HttpRequest">HTTP Request</option>
-              <option value="OpenObserve">OpenObserve</option>
-            </select>
-          </div>
-          
-          <!-- App-specific configuration -->
-          <div class="mt-4">
-            <HttpRequestConfig
-              v-if="localNodeData.config.app_type === 'HttpRequest'"
-              v-model="localNodeData.config"
-              @update="updateNodeData"
-            />
-            
-            <OpenObserveConfig
-              v-else-if="localNodeData.config.app_type === 'OpenObserve'"
-              v-model="localNodeData.config"
-              @update="updateNodeData"
-            />
-          </div>
-          
-          <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">Timeout (seconds)</label>
-            <input
-              v-model.number="localNodeData.config.timeout_seconds"
-              @blur="updateNodeData"
-              type="number"
-              min="1"
-              max="300"
-              class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-          
-          <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">On Failure</label>
-            <select
-              v-model="localNodeData.config.failure_action"
-              @change="updateNodeData"
-              class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="Stop">Stop Workflow</option>
-              <option value="Continue">Continue to Next Node</option>
-              <option value="Retry">Retry This Node</option>
-            </select>
-          </div>
-          
-          <div v-if="localNodeData.config.failure_action === 'Retry'">
-            <label class="block text-sm font-medium text-gray-300 mb-2">Retry Attempts</label>
-            <input
-              v-model.number="localNodeData.config.retry_config.max_attempts"
-              @blur="updateNodeData"
-              type="number"
-              min="1"
-              max="10"
-              class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-        </div>
-      </div>
 
       <!-- Email Node Configuration -->
       <div v-if="selectedNodeData.type === 'email'">
@@ -283,34 +138,10 @@
       <!-- Delay Node Configuration -->
       <div v-if="selectedNodeData.type === 'delay'">
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Delay Configuration</h3>
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">Duration</label>
-            <input
-              v-model.number="localNodeData.config.duration"
-              @blur="updateNodeData"
-              type="number"
-              min="1"
-              class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">Unit</label>
-            <select
-              v-model="localNodeData.config.unit"
-              @change="updateNodeData"
-              class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="Seconds">Seconds</option>
-              <option value="Minutes">Minutes</option>
-              <option value="Hours">Hours</option>
-              <option value="Days">Days</option>
-            </select>
-          </div>
-          <div class="text-sm text-gray-400">
-            The workflow will pause for {{ localNodeData.config.duration }} {{ localNodeData.config.unit.toLowerCase() }} before continuing.
-          </div>
-        </div>
+        <DelayConfig
+          v-model="localNodeData.config"
+          @update="updateNodeData"
+        />
       </div>
     </div>
 
@@ -343,8 +174,11 @@
 import { ref, computed, watch } from 'vue'
 import { XMarkIcon } from '@heroicons/vue/24/outline'
 import { useNodeStore } from '../../stores/nodes'
-import CodeEditor from '../common/CodeEditor.vue'
+import CommonConfigFields from '../common/CommonConfigFields.vue'
 import TriggerConfig from '../app-configs/TriggerConfig.vue'
+import ConditionConfig from '../app-configs/ConditionConfig.vue'
+import TransformerConfig from '../app-configs/TransformerConfig.vue'
+import DelayConfig from '../app-configs/DelayConfig.vue'
 import HttpRequestConfig from '../app-configs/HttpRequestConfig.vue'
 import OpenObserveConfig from '../app-configs/OpenObserveConfig.vue'
 import EmailConfig from '../email-configs/EmailConfig.vue'
@@ -394,17 +228,6 @@ function updateNodeData() {
   }
 }
 
-function onScriptChange(newScript: string) {
-  console.log('Script changed to:', newScript)
-  if (localNodeData.value.config) {
-    localNodeData.value.config.script = newScript
-    console.log('Updated localNodeData.config.script:', localNodeData.value.config.script)
-    // Immediately update the node store so changes are reflected in saves
-    updateNodeData()
-  } else {
-    console.error('localNodeData.config is undefined!')
-  }
-}
 
 function deleteNode() {
   if (selectedNodeData.value) {
