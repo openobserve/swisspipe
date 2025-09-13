@@ -1,45 +1,37 @@
 <template>
-  <div class="node-email px-4 py-3 rounded-lg shadow-2xl min-w-[180px] border-2" :class="nodeClasses">
-    <div class="flex items-center justify-between mb-2">
-      <div class="flex-1">
-        <div class="text-sm font-medium">{{ data.label || 'Email' }}</div>
-        <div class="text-xs text-blue-200 opacity-80">{{ getEmailSummary() }}</div>
-      </div>
-      <div class="flex items-center space-x-1">
-        <!-- Execution status indicator -->
-        <div v-if="data.isTracing && data.executionStatus" :class="statusIndicatorClasses" class="w-3 h-3 rounded-full"></div>
-        <!-- Priority indicator -->
-        <div 
-          v-if="data.config?.priority && data.config.priority !== 'normal'"
-          class="w-2 h-2 rounded-full"
-          :class="getPriorityColor()"
-          :title="`Priority: ${data.config.priority}`"
-        ></div>
-      </div>
-    </div>
-    
-    <div v-if="data.isTracing && data.executionStatus" class="text-xs text-gray-400 mt-1">
-      <div>Status: {{ data.executionStatus }}</div>
-      <div v-if="data.executionDuration">Duration: {{ formatDuration(data.executionDuration) }}</div>
-    </div>
-    
-    <!-- Connection handles -->
-    <Handle
-      type="target"
-      :position="Position.Top"
-      :style="{ background: '#ddd' }"
-    />
-    <Handle
-      type="source"
-      :position="Position.Bottom"
-      :style="{ background: '#ddd' }"
-    />
-  </div>
+  <BaseNode
+    node-type="email"
+    :data="data"
+    :subtitle="getEmailSummary()"
+    default-label="Email"
+  >
+    <template #handles>
+      <!-- Connection handles with custom styling -->
+      <Handle
+        type="target"
+        :position="Position.Top"
+        :style="{ background: '#ddd' }"
+      />
+      <Handle
+        type="source"
+        :position="Position.Bottom"
+        :style="{ background: '#ddd' }"
+      />
+      
+      <!-- Priority indicator -->
+      <div 
+        v-if="data.config?.priority && data.config.priority !== 'normal'"
+        class="absolute top-2 right-8 w-2 h-2 rounded-full"
+        :class="getPriorityColor()"
+        :title="`Priority: ${data.config.priority}`"
+      ></div>
+    </template>
+  </BaseNode>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
+import BaseNode from './BaseNode.vue'
 import type { EmailConfig } from '../../types/nodes'
 
 interface Props {
@@ -56,42 +48,6 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-
-const nodeClasses = computed(() => {
-  const baseClasses = 'border-blue-400/30'
-  
-  if (!props.data.isTracing || !props.data.executionStatus) {
-    return baseClasses
-  }
-  
-  switch (props.data.executionStatus) {
-    case 'completed':
-      return 'border-green-400 bg-green-900/20'
-    case 'failed':
-      return 'border-red-400 bg-red-900/20'
-    case 'running':
-      return 'border-blue-400 bg-blue-900/20 animate-pulse'
-    case 'pending':
-      return 'border-yellow-400 bg-yellow-900/20'
-    case 'skipped':
-      return 'border-gray-400 bg-gray-900/20'
-    default:
-      return baseClasses
-  }
-})
-
-const statusIndicatorClasses = computed(() => {
-  if (!props.data.executionStatus) return ''
-  
-  switch (props.data.executionStatus) {
-    case 'completed': return 'bg-green-400'
-    case 'failed': return 'bg-red-400'
-    case 'running': return 'bg-blue-400 animate-pulse'
-    case 'pending': return 'bg-yellow-400'
-    case 'skipped': return 'bg-gray-400'
-    default: return 'bg-gray-400'
-  }
-})
 
 function getEmailSummary() {
   const config = props.data.config

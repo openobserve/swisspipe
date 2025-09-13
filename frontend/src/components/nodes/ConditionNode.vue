@@ -1,49 +1,43 @@
 <template>
-  <div class="node-condition px-4 py-3 rounded-lg shadow-2xl min-w-[180px] border-2" :class="nodeClasses">
-    <div class="flex items-center justify-between mb-2">
-      <div class="flex-1">
-        <div class="text-sm font-medium">{{ data.label || 'Condition' }}</div>
-        <div class="text-xs text-amber-200 opacity-80">{{ getConditionType() }}</div>
+  <BaseNode
+    node-type="condition"
+    :data="data"
+    :subtitle="getConditionType()"
+    default-label="Condition"
+  >
+    <template #content>
+      <!-- True/False labels -->
+      <div class="flex justify-between text-xs">
+        <span class="text-green-200">True</span>
+        <span class="text-red-200">False</span>
       </div>
-      <div v-if="data.isTracing" class="flex items-center space-x-1">
-        <div v-if="data.executionStatus" :class="statusIndicatorClasses" class="w-3 h-3 rounded-full"></div>
-      </div>
-    </div>
+    </template>
     
-    <div v-if="data.isTracing && data.executionStatus" class="text-xs text-gray-400 mt-1">
-      <div>Status: {{ data.executionStatus }}</div>
-      <div v-if="data.executionDuration">Duration: {{ formatDuration(data.executionDuration) }}</div>
-    </div>
-    
-    <!-- True/False labels -->
-    <div class="flex justify-between text-xs">
-      <span class="text-green-200">True</span>
-      <span class="text-red-200">False</span>
-    </div>
-    
-    <!-- Connection handles -->
-    <Handle
-      type="target"
-      :position="Position.Top"
-    />
-    <Handle
-      id="true"
-      type="source"
-      :position="Position.Bottom"
-      :style="{ left: '30%' }"
-    />
-    <Handle
-      id="false"
-      type="source"
-      :position="Position.Bottom"
-      :style="{ left: '70%' }"
-    />
-  </div>
+    <template #handles>
+      <!-- Connection handles -->
+      <Handle
+        type="target"
+        :position="Position.Top"
+      />
+      <Handle
+        id="true"
+        type="source"
+        :position="Position.Bottom"
+        :style="{ left: '30%' }"
+      />
+      <Handle
+        id="false"
+        type="source"
+        :position="Position.Bottom"
+        :style="{ left: '70%' }"
+      />
+    </template>
+  </BaseNode>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
+import BaseNode from './BaseNode.vue'
 
 interface Props {
   data: {
@@ -60,42 +54,6 @@ interface Props {
 
 const props = defineProps<Props>()
 
-const nodeClasses = computed(() => {
-  const baseClasses = 'border-amber-400/30'
-  
-  if (!props.data.isTracing || !props.data.executionStatus) {
-    return baseClasses
-  }
-  
-  switch (props.data.executionStatus) {
-    case 'completed':
-      return 'border-green-400 bg-green-900/20'
-    case 'failed':
-      return 'border-red-400 bg-red-900/20'
-    case 'running':
-      return 'border-blue-400 bg-blue-900/20 animate-pulse'
-    case 'pending':
-      return 'border-yellow-400 bg-yellow-900/20'
-    case 'skipped':
-      return 'border-gray-400 bg-gray-900/20'
-    default:
-      return baseClasses
-  }
-})
-
-const statusIndicatorClasses = computed(() => {
-  if (!props.data.executionStatus) return ''
-  
-  switch (props.data.executionStatus) {
-    case 'completed': return 'bg-green-400'
-    case 'failed': return 'bg-red-400'
-    case 'running': return 'bg-blue-400 animate-pulse'
-    case 'pending': return 'bg-yellow-400'
-    case 'skipped': return 'bg-gray-400'
-    default: return 'bg-gray-400'
-  }
-})
-
 function getConditionType() {
   if (props.data.config?.condition_type) {
     return props.data.config.condition_type
@@ -105,34 +63,4 @@ function getConditionType() {
   }
   return 'If/Then'
 }
-
-function formatDuration(durationMs: number | null): string {
-  if (!durationMs) return 'N/A'
-  
-  if (durationMs < 1000) return `${durationMs}ms`
-  if (durationMs < 60000) return `${(durationMs / 1000).toFixed(1)}s`
-  return `${(durationMs / 60000).toFixed(1)}m`
-}
 </script>
-
-<style scoped>
-.node-condition {
-  background: rgba(245, 158, 11, 0.12);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(245, 158, 11, 0.25);
-  box-shadow: 
-    0 8px 32px rgba(245, 158, 11, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  position: relative;
-  transition: all 0.3s ease;
-}
-
-.node-condition:hover {
-  background: rgba(245, 158, 11, 0.18);
-  box-shadow: 
-    0 12px 40px rgba(245, 158, 11, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  transform: translateY(-1px);
-}
-</style>
