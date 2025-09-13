@@ -19,6 +19,12 @@
               {{ copied ? 'Copied!' : 'Copy' }}
             </button>
             <button
+              @click="downloadJson"
+              class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors"
+            >
+              Download
+            </button>
+            <button
               @click="$emit('close')"
               class="text-gray-400 hover:text-gray-200 transition-colors"
             >
@@ -91,6 +97,32 @@ async function copyToClipboard() {
     }, 2000)
   } catch (error) {
     console.error('Failed to copy to clipboard:', error)
+  }
+}
+
+function downloadJson() {
+  try {
+    const dataStr = formattedJson.value
+    const dataBlob = new Blob([dataStr], { type: 'application/json' })
+    const url = URL.createObjectURL(dataBlob)
+    
+    // Create filename from workflow name and timestamp
+    const workflowName = props.jsonData?.name || 'workflow'
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const filename = `${workflowName}_${timestamp}.json`
+    
+    // Create download link and trigger download
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    
+    // Cleanup
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('Failed to download JSON:', error)
   }
 }
 
