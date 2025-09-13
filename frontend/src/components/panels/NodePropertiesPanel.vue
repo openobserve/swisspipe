@@ -10,6 +10,7 @@
       <!-- Modal Header -->
       <div class="flex items-center justify-between p-6 border-b border-slate-700/50">
         <div class="flex items-center space-x-4">
+          
           <h2 class="text-xl font-semibold text-white">Node Properties</h2>
           <div class="flex items-center space-x-3">
             <div
@@ -18,6 +19,16 @@
             ></div>
             <span class="text-sm font-medium text-gray-300">{{ nodeTypeDefinition?.label || 'Node' }}</span>
           </div>
+          <button
+            v-if="selectedNodeData?.type !== 'trigger'"
+            @click="deleteNode"
+            class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center space-x-2"
+          >
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            <span>Delete</span>
+          </button>
         </div>
         <button
           @click="handleClose"
@@ -143,25 +154,6 @@
       </div>
     </div>
 
-    <!-- Actions -->
-    <div v-if="selectedNodeData?.type !== 'trigger'" class="mt-8 pt-4 border-t border-slate-600">
-      <button
-        @click="deleteNode"
-        class="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-      >
-        Delete Node
-      </button>
-    </div>
-    
-    <!-- Info for trigger nodes -->
-    <div v-else class="mt-8 pt-4 border-t border-slate-600">
-      <div class="flex items-center space-x-2 text-sm text-gray-400">
-        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <span>Trigger nodes cannot be deleted</span>
-      </div>
-    </div>
 
       </div> <!-- Modal Body -->
     </div> <!-- Modal Content -->

@@ -47,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { XMarkIcon } from '@heroicons/vue/24/outline'
 import CodeEditor from './CodeEditor.vue'
 
