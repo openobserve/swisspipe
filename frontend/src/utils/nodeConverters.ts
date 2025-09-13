@@ -1,0 +1,288 @@
+import { DEFAULT_CONDITION_SCRIPT, DEFAULT_TRANSFORMER_SCRIPT } from '../constants/defaults'
+import { 
+  DEFAULT_RETRY_CONFIG,
+  DEFAULT_EMAIL_CONFIG,
+  DEFAULT_HTTP_CONFIG,
+  DEFAULT_OPENOBSERVE_CONFIG,
+  DEFAULT_DELAY_CONFIG,
+  NODE_TYPE_DESCRIPTIONS
+} from '../constants/nodeDefaults'
+import type { NodeConfig } from '../types/nodes'
+import { debugLog } from './debug'
+
+export type ApiNodeType = 'trigger' | 'condition' | 'transformer' | 'http-request' | 'openobserve' | 'email' | 'delay'
+
+export function convertApiNodeTypeToVueFlowType(nodeType: any): ApiNodeType {
+  if (nodeType.Trigger) return 'trigger'
+  if (nodeType.Condition) return 'condition'
+  if (nodeType.Transformer) return 'transformer'
+  if (nodeType.HttpRequest) return 'http-request'
+  if (nodeType.OpenObserve) return 'openobserve'
+  if (nodeType.Email) return 'email'
+  if (nodeType.Delay) return 'delay'
+  
+  // Legacy support for old App nodes
+  if (nodeType.App) {
+    if (typeof nodeType.App.app_type === 'object' && nodeType.App.app_type.OpenObserve) {
+      return 'openobserve'
+    }
+    return 'http-request'
+  }
+  
+  return 'http-request'
+}
+
+export function getNodeDescription(nodeType: any): string {
+  if (nodeType.Trigger) return NODE_TYPE_DESCRIPTIONS.Trigger
+  if (nodeType.Condition) return NODE_TYPE_DESCRIPTIONS.Condition
+  if (nodeType.Transformer) return NODE_TYPE_DESCRIPTIONS.Transformer
+  if (nodeType.HttpRequest) return NODE_TYPE_DESCRIPTIONS.HttpRequest
+  if (nodeType.OpenObserve) return NODE_TYPE_DESCRIPTIONS.OpenObserve
+  if (nodeType.Email) return NODE_TYPE_DESCRIPTIONS.Email
+  if (nodeType.Delay) return NODE_TYPE_DESCRIPTIONS.Delay
+  if (nodeType.App) return NODE_TYPE_DESCRIPTIONS.App
+  return 'Unknown node type'
+}
+
+export function convertApiNodeConfigToVueFlowConfig(nodeType: any): NodeConfig {
+  if (nodeType.Trigger) {
+    return {
+      type: 'trigger',
+      methods: nodeType.Trigger.methods || ['POST']
+    }
+  }
+  
+  if (nodeType.Condition) {
+    return {
+      type: 'condition',
+      script: nodeType.Condition.script || DEFAULT_CONDITION_SCRIPT
+    }
+  }
+  
+  if (nodeType.Transformer) {
+    return {
+      type: 'transformer',
+      script: nodeType.Transformer.script || DEFAULT_TRANSFORMER_SCRIPT
+    }
+  }
+  
+  if (nodeType.HttpRequest) {
+    return {
+      type: 'http-request' as const,
+      ...DEFAULT_HTTP_CONFIG,
+      url: nodeType.HttpRequest.url || DEFAULT_HTTP_CONFIG.url,
+      method: nodeType.HttpRequest.method || DEFAULT_HTTP_CONFIG.method,
+      timeout_seconds: nodeType.HttpRequest.timeout_seconds || DEFAULT_HTTP_CONFIG.timeout_seconds,
+      failure_action: nodeType.HttpRequest.failure_action || DEFAULT_HTTP_CONFIG.failure_action,
+      headers: nodeType.HttpRequest.headers || DEFAULT_HTTP_CONFIG.headers,
+      retry_config: nodeType.HttpRequest.retry_config || DEFAULT_HTTP_CONFIG.retry_config
+    }
+  }
+  
+  if (nodeType.OpenObserve) {
+    return {
+      type: 'openobserve' as const,
+      ...DEFAULT_OPENOBSERVE_CONFIG,
+      url: nodeType.OpenObserve.url || DEFAULT_OPENOBSERVE_CONFIG.url,
+      authorization_header: nodeType.OpenObserve.authorization_header || DEFAULT_OPENOBSERVE_CONFIG.authorization_header,
+      timeout_seconds: nodeType.OpenObserve.timeout_seconds || DEFAULT_OPENOBSERVE_CONFIG.timeout_seconds,
+      failure_action: nodeType.OpenObserve.failure_action || DEFAULT_OPENOBSERVE_CONFIG.failure_action,
+      retry_config: nodeType.OpenObserve.retry_config || DEFAULT_OPENOBSERVE_CONFIG.retry_config
+    }
+  }
+  
+  if (nodeType.Email) {
+    const emailConfig = nodeType.Email.config
+    return {
+      type: 'email' as const,
+      ...DEFAULT_EMAIL_CONFIG,
+      smtp_config: emailConfig.smtp_config || DEFAULT_EMAIL_CONFIG.smtp_config,
+      from: emailConfig.from || DEFAULT_EMAIL_CONFIG.from,
+      to: emailConfig.to || DEFAULT_EMAIL_CONFIG.to,
+      cc: emailConfig.cc || DEFAULT_EMAIL_CONFIG.cc,
+      bcc: emailConfig.bcc || DEFAULT_EMAIL_CONFIG.bcc,
+      subject: emailConfig.subject || DEFAULT_EMAIL_CONFIG.subject,
+      template_type: emailConfig.template_type || DEFAULT_EMAIL_CONFIG.template_type,
+      body_template: emailConfig.body_template || DEFAULT_EMAIL_CONFIG.body_template,
+      text_body_template: emailConfig.text_body_template,
+      attachments: emailConfig.attachments || DEFAULT_EMAIL_CONFIG.attachments,
+      priority: emailConfig.priority ? emailConfig.priority.toLowerCase() : DEFAULT_EMAIL_CONFIG.priority,
+      delivery_receipt: emailConfig.delivery_receipt || DEFAULT_EMAIL_CONFIG.delivery_receipt,
+      read_receipt: emailConfig.read_receipt || DEFAULT_EMAIL_CONFIG.read_receipt,
+      queue_if_rate_limited: emailConfig.queue_if_rate_limited !== undefined ? emailConfig.queue_if_rate_limited : DEFAULT_EMAIL_CONFIG.queue_if_rate_limited,
+      max_queue_wait_minutes: emailConfig.max_queue_wait_minutes || DEFAULT_EMAIL_CONFIG.max_queue_wait_minutes,
+      bypass_rate_limit: emailConfig.bypass_rate_limit || DEFAULT_EMAIL_CONFIG.bypass_rate_limit
+    }
+  }
+  
+  if (nodeType.Delay) {
+    return {
+      type: 'delay' as const,
+      duration: nodeType.Delay.duration || DEFAULT_DELAY_CONFIG.duration,
+      unit: nodeType.Delay.unit || DEFAULT_DELAY_CONFIG.unit
+    }
+  }
+  
+  // Legacy support for old App nodes
+  if (nodeType.App) {
+    const config = {
+      type: 'app' as const,
+      app_type: nodeType.App.app_type || 'HttpRequest',
+      ...DEFAULT_HTTP_CONFIG,
+      url: nodeType.App.url || DEFAULT_HTTP_CONFIG.url,
+      method: nodeType.App.method || DEFAULT_HTTP_CONFIG.method,
+      timeout_seconds: nodeType.App.timeout_seconds || DEFAULT_HTTP_CONFIG.timeout_seconds,
+      failure_action: nodeType.App.failure_action || DEFAULT_HTTP_CONFIG.failure_action,
+      headers: nodeType.App.headers || DEFAULT_HTTP_CONFIG.headers,
+      openobserve_url: '',
+      authorization_header: '',
+      retry_config: nodeType.App.retry_config || DEFAULT_RETRY_CONFIG
+    }
+    
+    if (typeof nodeType.App.app_type === 'object' && nodeType.App.app_type.OpenObserve) {
+      config.app_type = 'OpenObserve'
+      config.openobserve_url = nodeType.App.app_type.OpenObserve.url || ''
+      config.authorization_header = nodeType.App.app_type.OpenObserve.authorization_header || ''
+    }
+    
+    return config
+  }
+  
+  return {
+    type: 'trigger' as const,
+    methods: ['POST']
+  } as NodeConfig
+}
+
+export function convertNodeToApiType(node: { type: string; data: { config: any } }) {
+  switch (node.type) {
+    case 'trigger':
+      return {
+        Trigger: {
+          methods: node.data.config.methods || ['POST']
+        }
+      }
+      
+    case 'condition':
+      return {
+        Condition: {
+          script: node.data.config.script || DEFAULT_CONDITION_SCRIPT
+        }
+      }
+      
+    case 'transformer':
+      return {
+        Transformer: {
+          script: node.data.config.script || DEFAULT_TRANSFORMER_SCRIPT
+        }
+      }
+      
+    case 'http-request':
+      const httpRequestConfig = node.data.config as any
+      return {
+        HttpRequest: {
+          url: httpRequestConfig.url || DEFAULT_HTTP_CONFIG.url,
+          method: httpRequestConfig.method || DEFAULT_HTTP_CONFIG.method,
+          timeout_seconds: httpRequestConfig.timeout_seconds || DEFAULT_HTTP_CONFIG.timeout_seconds,
+          failure_action: httpRequestConfig.failure_action || DEFAULT_HTTP_CONFIG.failure_action,
+          headers: httpRequestConfig.headers || DEFAULT_HTTP_CONFIG.headers,
+          retry_config: httpRequestConfig.retry_config || DEFAULT_RETRY_CONFIG
+        }
+      }
+      
+    case 'openobserve':
+      const openobserveConfig = node.data.config as any
+      return {
+        OpenObserve: {
+          url: openobserveConfig.url || DEFAULT_OPENOBSERVE_CONFIG.url,
+          authorization_header: openobserveConfig.authorization_header || DEFAULT_OPENOBSERVE_CONFIG.authorization_header,
+          timeout_seconds: openobserveConfig.timeout_seconds || DEFAULT_OPENOBSERVE_CONFIG.timeout_seconds,
+          failure_action: openobserveConfig.failure_action || DEFAULT_OPENOBSERVE_CONFIG.failure_action,
+          retry_config: openobserveConfig.retry_config || DEFAULT_RETRY_CONFIG
+        }
+      }
+      
+    case 'email':
+      const emailConfig = node.data.config as any
+      debugLog.transform('email-config-to-api', {
+        nodeId: (node as any).id || 'unknown',
+        hasFrom: !!emailConfig.from,
+        hasTo: !!emailConfig.to,
+        toCount: emailConfig.to?.length || 0,
+        hasCC: !!emailConfig.cc,
+        ccCount: emailConfig.cc?.length || 0,
+        hasBCC: !!emailConfig.bcc,
+        bccCount: emailConfig.bcc?.length || 0
+      })
+      
+      const result = {
+        Email: {
+          config: {
+            smtp_config: emailConfig.smtp_config || DEFAULT_EMAIL_CONFIG.smtp_config,
+            from: emailConfig.from || DEFAULT_EMAIL_CONFIG.from,
+            to: emailConfig.to || DEFAULT_EMAIL_CONFIG.to,
+            cc: emailConfig.cc || DEFAULT_EMAIL_CONFIG.cc,
+            bcc: emailConfig.bcc || DEFAULT_EMAIL_CONFIG.bcc,
+            subject: emailConfig.subject || DEFAULT_EMAIL_CONFIG.subject,
+            template_type: emailConfig.template_type || DEFAULT_EMAIL_CONFIG.template_type,
+            body_template: emailConfig.body_template || DEFAULT_EMAIL_CONFIG.body_template,
+            text_body_template: emailConfig.text_body_template,
+            attachments: emailConfig.attachments || DEFAULT_EMAIL_CONFIG.attachments,
+            priority: emailConfig.priority ? emailConfig.priority.charAt(0).toUpperCase() + emailConfig.priority.slice(1).toLowerCase() : 'Normal',
+            delivery_receipt: emailConfig.delivery_receipt || DEFAULT_EMAIL_CONFIG.delivery_receipt,
+            read_receipt: emailConfig.read_receipt || DEFAULT_EMAIL_CONFIG.read_receipt,
+            queue_if_rate_limited: emailConfig.queue_if_rate_limited !== undefined ? emailConfig.queue_if_rate_limited : DEFAULT_EMAIL_CONFIG.queue_if_rate_limited,
+            max_queue_wait_minutes: emailConfig.max_queue_wait_minutes || DEFAULT_EMAIL_CONFIG.max_queue_wait_minutes,
+            bypass_rate_limit: emailConfig.bypass_rate_limit || DEFAULT_EMAIL_CONFIG.bypass_rate_limit
+          }
+        }
+      }
+      
+      debugLog.transform('email-api-result', {
+        hasResult: !!result,
+        hasEmailConfig: !!result.Email?.config,
+        finalToCount: result.Email?.config?.to?.length || 0,
+        finalFromExists: !!result.Email?.config?.from
+      })
+      
+      return result
+      
+    case 'delay':
+      const delayConfig = node.data.config as any
+      return {
+        Delay: {
+          duration: delayConfig.duration || DEFAULT_DELAY_CONFIG.duration,
+          unit: delayConfig.unit || DEFAULT_DELAY_CONFIG.unit
+        }
+      }
+      
+    case 'app':
+      // Legacy support for old App nodes
+      const appConfig = node.data.config as any
+      let app_type = appConfig.app_type || 'HttpRequest'
+      
+      if (appConfig.app_type === 'OpenObserve') {
+        app_type = {
+          OpenObserve: {
+            url: appConfig.openobserve_url || '',
+            authorization_header: appConfig.authorization_header || ''
+          }
+        }
+      }
+      
+      return {
+        App: {
+          app_type: app_type,
+          url: appConfig.url || DEFAULT_HTTP_CONFIG.url,
+          method: appConfig.method || DEFAULT_HTTP_CONFIG.method,
+          timeout_seconds: appConfig.timeout_seconds || DEFAULT_HTTP_CONFIG.timeout_seconds,
+          failure_action: appConfig.failure_action || DEFAULT_HTTP_CONFIG.failure_action,
+          headers: appConfig.headers || DEFAULT_HTTP_CONFIG.headers,
+          retry_config: appConfig.retry_config || DEFAULT_RETRY_CONFIG
+        }
+      }
+      
+    default:
+      throw new Error(`Unknown node type: ${node.type}`)
+  }
+}

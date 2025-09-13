@@ -138,12 +138,14 @@
 
 
       <!-- Email Node Configuration -->
-      <div v-if="selectedNodeData.type === 'email'">
+      <div v-if="selectedNodeData.type === 'email'" class="h-full flex flex-col">
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Email Configuration</h3>
-        <EmailConfig
-          v-model="localNodeData.config"
-          @update="updateNodeData"
-        />
+        <div class="flex-1 min-h-0 overflow-y-auto">
+          <EmailConfig
+            v-model="localNodeData.config"
+            @update="updateNodeData"
+          />
+        </div>
       </div>
 
       <!-- Delay Node Configuration -->
@@ -175,6 +177,7 @@ import HttpRequestConfig from '../app-configs/HttpRequestConfig.vue'
 import OpenObserveConfig from '../app-configs/OpenObserveConfig.vue'
 import EmailConfig from '../email-configs/EmailConfig.vue'
 import { debugLog } from '../../utils/debug'
+import type { NodeStatus } from '../../types/nodes'
 
 const nodeStore = useNodeStore()
 
@@ -228,7 +231,10 @@ function updateNodeData() {
       // Create a completely new node object to force Vue reactivity
       const updatedNode = {
         ...currentNode,
-        data: { ...localNodeData.value }
+        data: { 
+          ...localNodeData.value,
+          status: localNodeData.value.status as NodeStatus || 'ready'
+        }
       }
       
       // Force reactivity by replacing the entire node

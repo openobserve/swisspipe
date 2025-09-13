@@ -2,6 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { WorkflowNode, WorkflowEdge, NodeTypeDefinition, ValidationState } from '../types/nodes'
 import { DEFAULT_CONDITION_SCRIPT, DEFAULT_TRANSFORMER_SCRIPT } from '../constants/defaults'
+import { 
+  DEFAULT_EMAIL_CONFIG,
+  DEFAULT_HTTP_CONFIG,
+  DEFAULT_OPENOBSERVE_CONFIG,
+  DEFAULT_DELAY_CONFIG,
+  NODE_LIBRARY_DEFINITIONS
+} from '../constants/nodeDefaults'
 
 export const useNodeStore = defineStore('nodes', () => {
   // State
@@ -14,126 +21,98 @@ export const useNodeStore = defineStore('nodes', () => {
     warnings: []
   })
 
-  // Node type definitions
-  const nodeTypes = ref<NodeTypeDefinition[]>([
-    {
-      type: 'trigger',
-      label: 'Trigger',
-      description: 'Input data from configured sources',
-      color: '#3b82f6',
-      icon: 'play',
-      defaultConfig: {
-        type: 'trigger',
-        methods: ['POST']
-      }
-    },
-    {
-      type: 'condition',
-      label: 'Condition',
-      description: 'Branch workflow based on conditions',
-      color: '#f59e0b',
-      icon: 'question-mark-circle',
-      defaultConfig: {
-        type: 'condition',
-        script: DEFAULT_CONDITION_SCRIPT
-      }
-    },
-    {
-      type: 'transformer',
-      label: 'Transformer',
-      description: 'Process and modify data',
-      color: '#8b5cf6',
-      icon: 'arrow-path',
-      defaultConfig: {
-        type: 'transformer',
-        script: DEFAULT_TRANSFORMER_SCRIPT
-      }
-    },
-    {
-      type: 'http-request',
-      label: 'HTTP Request',
-      description: 'Send HTTP requests to external APIs',
-      color: '#10b981',
-      icon: 'globe-alt',
-      defaultConfig: {
-        type: 'http-request',
-        url: 'https://httpbin.org/post',
-        method: 'POST',
-        timeout_seconds: 30,
-        failure_action: 'Stop',
-        headers: {},
-        retry_config: {
-          max_attempts: 3,
-          initial_delay_ms: 100,
-          max_delay_ms: 5000,
-          backoff_multiplier: 2.0
+  // Helper function to create node type definitions
+  function createNodeTypeDefinition(type: keyof typeof NODE_LIBRARY_DEFINITIONS): NodeTypeDefinition {
+    const libraryDef = NODE_LIBRARY_DEFINITIONS[type]
+
+    // Add type-specific default configurations
+    switch (type) {
+      case 'trigger':
+        return {
+          type: 'trigger',
+          ...libraryDef,
+          defaultConfig: {
+            type: 'trigger',
+            methods: ['POST']
+          }
         }
-      }
-    },
-    {
-      type: 'openobserve',
-      label: 'OpenObserve',
-      description: 'Send logs and data to OpenObserve platform',
-      color: '#f97316',
-      icon: 'chart-bar',
-      defaultConfig: {
-        type: 'openobserve',
-        url: 'https://api.openobserve.ai/api/default/logs/_json',
-        authorization_header: 'Basic <your-token>',
-        timeout_seconds: 30,
-        failure_action: 'Stop',
-        retry_config: {
-          max_attempts: 3,
-          initial_delay_ms: 100,
-          max_delay_ms: 5000,
-          backoff_multiplier: 2.0
+      case 'condition':
+        return {
+          type: 'condition',
+          ...libraryDef,
+          defaultConfig: {
+            type: 'condition',
+            script: DEFAULT_CONDITION_SCRIPT
+          }
         }
-      }
-    },
-    {
-      type: 'email',
-      label: 'Email',
-      description: 'Send email notifications and reports',
-      color: '#2196F3',
-      icon: 'envelope',
-      defaultConfig: {
-        type: 'email',
-        smtp_config: 'default',
-        from: {
-          email: 'noreply@company.com',
-          name: 'SwissPipe Workflow'
-        },
-        to: [{
-          email: '{{ event.data.user_email }}',
-          name: '{{ event.data.user_name }}'
-        }],
-        cc: [],
-        bcc: [],
-        subject: 'Workflow completed',
-        template_type: 'html',
-        body_template: '<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Data: {{json event.data}}</p></body></html>',
-        text_body_template: 'Workflow Results\nData: {{json event.data}}',
-        attachments: [],
-        priority: 'normal',
-        delivery_receipt: false,
-        read_receipt: false,
-        queue_if_rate_limited: true,
-        max_queue_wait_minutes: 60,
-        bypass_rate_limit: false
-      }
-    },
-    {
-      type: 'delay',
-      label: 'Delay',
-      description: 'Pause workflow execution for a specified duration',
-      color: '#6b7280',
-      icon: 'clock',
-      defaultConfig: {
-        type: 'delay',
-        duration: 5,
-        unit: 'Seconds'
-      }
+      case 'transformer':
+        return {
+          type: 'transformer',
+          ...libraryDef,
+          defaultConfig: {
+            type: 'transformer',
+            script: DEFAULT_TRANSFORMER_SCRIPT
+          }
+        }
+      case 'http-request':
+        return {
+          type: 'http-request',
+          ...libraryDef,
+          defaultConfig: {
+            type: 'http-request',
+            ...DEFAULT_HTTP_CONFIG
+          }
+        }
+      case 'openobserve':
+        return {
+          type: 'openobserve',
+          ...libraryDef,
+          defaultConfig: {
+            type: 'openobserve',
+            ...DEFAULT_OPENOBSERVE_CONFIG,
+            // Override with node library specific URL and auth
+            url: 'https://api.openobserve.ai/api/default/logs/_json',
+            authorization_header: 'Basic <your-token>'
+          }
+        }
+      case 'email':
+        return {
+          type: 'email',
+          ...libraryDef,
+          defaultConfig: {
+            type: 'email',
+            ...DEFAULT_EMAIL_CONFIG,
+            // Override the subject to match the existing node library template
+            subject: 'Workflow completed',
+            // Override the body template to match the existing node library template  
+            body_template: '<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Data: {{json event.data}}</p></body></html>',
+            text_body_template: 'Workflow Results\nData: {{json event.data}}'
+          }
+        }
+      case 'delay':
+        return {
+          type: 'delay',
+          ...libraryDef,
+          defaultConfig: {
+            type: 'delay',
+            ...DEFAULT_DELAY_CONFIG
+          }
+        }
+      default:
+        // This should never happen, but TypeScript requires it
+        throw new Error(`Unknown node type: ${type}`)
     }
+  }
+
+  // Node type definitions using centralized constants
+  const nodeTypes = ref<NodeTypeDefinition[]>([
+    createNodeTypeDefinition('trigger'),
+    createNodeTypeDefinition('condition'),
+    createNodeTypeDefinition('transformer'),
+    createNodeTypeDefinition('http-request'),
+    createNodeTypeDefinition('openobserve'),
+    createNodeTypeDefinition('email'),
+    createNodeTypeDefinition('delay')
   ])
 
   // Getters

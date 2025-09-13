@@ -4,7 +4,7 @@
       <label class="block text-sm font-medium text-gray-300 mb-2">JavaScript Code</label>
       <div class="h-80">
         <CodeEditor
-          v-model="localConfig.script"
+          :modelValue="localConfig.script || ''"
           :language="'javascript'"
           @update:modelValue="onScriptChange"
           @save="$emit('update')"
