@@ -76,7 +76,7 @@ The System
     
     // Test body content
     if let Some(text_body) = result.text_body {
-        println!("Body:\n{}", text_body);
+        println!("Body:\n{text_body}");
         
         // Verify direct access works
         assert!(text_body.contains("Company: Acme Corp"));
@@ -145,7 +145,7 @@ Raw array: {{json event.data}}
         .expect("Failed to render email with array data");
     
     if let Some(text_body) = result.text_body {
-        println!("Array template result:\n{}", text_body);
+        println!("Array template result:\n{text_body}");
         
         // Should contain both companies
         assert!(text_body.contains("Company A: $1000"));

@@ -1,7 +1,7 @@
 use swisspipe::{
     database::establish_connection,
     workflow::{
-        models::{Workflow, Node, Edge, NodeType, WorkflowEvent, InputMergeStrategy, HttpMethod},
+        models::{WorkflowEvent, InputMergeStrategy},
         input_sync::InputSyncService,
     },
 };

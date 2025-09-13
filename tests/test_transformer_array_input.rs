@@ -134,7 +134,7 @@ async fn test_transformer_return_data_only() {
         .expect("Failed to execute transformer");
     
     // Verify the result has complete WorkflowEvent structure
-    assert_eq!(result.data.get("processed").unwrap().as_bool().unwrap(), true);
+    assert!(result.data.get("processed").unwrap().as_bool().unwrap());
     assert_eq!(result.data.get("original_value").unwrap().as_i64().unwrap(), 42);
     assert_eq!(result.data.get("doubled_value").unwrap().as_i64().unwrap(), 84);
     
