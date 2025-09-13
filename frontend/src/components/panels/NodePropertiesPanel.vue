@@ -3,7 +3,7 @@
   <div
     v-if="selectedNodeData"
     class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-    @click.self="nodeStore.setSelectedNode(null)"
+    @click.self="handleClose"
   >
     <!-- Modal Content -->
     <div class="bg-slate-800 rounded-xl border border-slate-700 w-[90vw] h-[90vh] overflow-hidden shadow-2xl">
@@ -20,7 +20,7 @@
           </div>
         </div>
         <button
-          @click="nodeStore.setSelectedNode(null)"
+          @click="handleClose"
           class="text-gray-400 hover:text-gray-200 transition-colors p-2 rounded-md hover:bg-slate-700/30"
           aria-label="Close"
         >
@@ -34,12 +34,11 @@
     <!-- Node Basic Info -->
     <div class="mb-6">
       
-      <div class="grid gap-4" style="grid-template-columns: 30% 70%">
+      <div class="grid grid-cols-[30%_70%] gap-4">
         <div>
           <label class="block text-sm font-medium text-gray-300 mb-2">Node Name</label>
           <input
             v-model="localNodeData.label"
-            @blur="updateNodeData"
             type="text"
             :readonly="selectedNodeData?.type === 'trigger'"
             :class="[
@@ -58,7 +57,6 @@
           <label class="block text-sm font-medium text-gray-300 mb-2">Description</label>
           <textarea
             v-model="localNodeData.description"
-            @blur="updateNodeData"
             rows="2"
             class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
           ></textarea>
@@ -131,7 +129,7 @@
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Email Configuration</h3>
         <EmailConfig
           v-model="localNodeData.config"
-          @update:modelValue="updateNodeData"
+          @update="updateNodeData"
         />
       </div>
 
@@ -191,7 +189,14 @@ const nodeTypeDefinition = computed(() =>
   selectedNodeData.value ? nodeStore.nodeTypeByType(selectedNodeData.value.type) : null
 )
 
-const localNodeData = ref<any>({})
+interface NodeData {
+  label: string
+  description: string
+  config: any
+  status: string
+}
+
+const localNodeData = ref<NodeData>({} as NodeData)
 
 // Watch for selected node changes
 watch(selectedNodeData, (newNode) => {
@@ -206,7 +211,8 @@ function updateNodeData() {
       nodeId: selectedNodeData.value.id,
       nodeType: selectedNodeData.value.type,
       hasLocalData: !!localNodeData.value,
-      isEmailNode: selectedNodeData.value.type === 'email'
+      isEmailNode: selectedNodeData.value.type === 'email',
+      labelChange: localNodeData.value.label !== selectedNodeData.value.data.label
     })
     
     if (selectedNodeData.value.type === 'email') {
@@ -222,19 +228,36 @@ function updateNodeData() {
       })
     }
     
-    nodeStore.updateNode(selectedNodeData.value.id, {
-      data: localNodeData.value
-    })
+    // Get the current node from store
+    const currentNode = nodeStore.getNodeById(selectedNodeData.value.id)
+    if (currentNode) {
+      // Create a completely new node object to force Vue reactivity
+      const updatedNode = {
+        ...currentNode,
+        data: { ...localNodeData.value }
+      }
+      
+      // Force reactivity by replacing the entire node
+      nodeStore.updateNode(selectedNodeData.value.id, updatedNode)
+      
+    }
   }
 }
 
+
+function handleClose() {
+  // Update node data before closing
+  updateNodeData()
+  // Close the modal
+  nodeStore.setSelectedNode(null)
+}
 
 function deleteNode() {
   if (selectedNodeData.value) {
     const success = nodeStore.deleteNode(selectedNodeData.value.id)
     if (!success) {
       // Could show a toast notification here in the future
-      console.log('Node deletion prevented')
+      console.warn('Node deletion prevented: Cannot delete trigger nodes')
     }
   }
 }

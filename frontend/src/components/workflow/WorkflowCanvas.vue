@@ -6,8 +6,10 @@
     @dragenter.prevent
   >
     <VueFlow
-      v-model:nodes="nodes"
-      v-model:edges="edges"
+      :nodes="nodes"
+      :edges="edges"
+      @update:nodes="$emit('update:nodes', $event)"
+      @update:edges="$emit('update:edges', $event)"
       @node-click="$emit('node-click', $event)"
       @edge-click="$emit('edge-click', $event)"
       @pane-click="$emit('pane-click', $event)"

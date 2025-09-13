@@ -151,7 +151,13 @@ export const useNodeStore = defineStore('nodes', () => {
   function updateNode(id: string, updates: Partial<WorkflowNode>) {
     const index = nodes.value.findIndex(node => node.id === id)
     if (index !== -1) {
-      nodes.value[index] = { ...nodes.value[index], ...updates }
+      const updatedNode = { ...nodes.value[index], ...updates }
+      
+      // Force array reactivity by creating a new array
+      const newNodes = [...nodes.value]
+      newNodes[index] = updatedNode
+      nodes.value = newNodes
+      
       validateWorkflow()
     }
   }
