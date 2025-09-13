@@ -1,71 +1,18 @@
 <template>
   <div class="h-screen text-gray-100 flex flex-col">
     <!-- Header -->
-    <header class="glass-dark border-b border-slate-700/50 flex-shrink-0">
-      <div class="px-6 py-4 flex items-center justify-between">
-        <div class="flex items-center space-x-4">
-          <button
-            @click="navigateBack"
-            class="text-gray-400 hover:text-gray-200 transition-colors"
-          >
-            <ArrowLeftIcon class="h-6 w-6" />
-          </button>
-          <input
-            v-model="workflowName"
-            @blur="updateWorkflowName"
-            class="bg-transparent text-xl font-medium text-white focus:outline-none focus:bg-white/5 focus:backdrop-blur-sm px-2 py-1 rounded transition-all duration-200"
-            placeholder="Workflow Name"
-          />
-        </div>
-        <div class="flex items-center space-x-3">
-          <button
-            @click="saveWorkflow"
-            :disabled="saving"
-            class="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-md font-medium transition-colors"
-          >
-            {{ saving ? 'Saving...' : 'Save' }}
-          </button>
-          <button
-            @click="showJsonView"
-            class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-          >
-            JSON View
-          </button>
-          <button
-            @click="resetWorkflow"
-            class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-          >
-            Reset
-          </button>
-          <button
-            @click="toggleNodeLibrary"
-            class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center space-x-2"
-            title="Node Library"
-          >
-            <Squares2X2Icon class="h-4 w-4" />
-            <span>Node Library</span>
-          </button>
-          <button
-            @click="toggleExecutionsPanel"
-            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center space-x-2"
-          >
-            <ClockIcon class="h-4 w-4" />
-            <span>Executions</span>
-          </button>
-          <div class="flex items-center space-x-3 ml-4 border-l border-gray-600 pl-4">
-            <span class="text-sm text-gray-300">
-              {{ authStore.user?.username }}
-            </span>
-            <button
-              @click="handleLogout"
-              class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </div>
-    </header>
+    <WorkflowDesignerHeader
+      v-model:workflow-name="workflowName"
+      :saving="saving"
+      @navigate-back="navigateBack"
+      @update-workflow-name="updateWorkflowName"
+      @save-workflow="saveWorkflow"
+      @show-json-view="showJsonView"
+      @reset-workflow="resetWorkflow"
+      @toggle-node-library="toggleNodeLibrary"
+      @toggle-executions-panel="toggleExecutionsPanel"
+      @logout="handleLogout"
+    />
 
     <!-- Main Content -->
     <div class="flex flex-1 overflow-hidden">
@@ -90,57 +37,17 @@
       </Transition>
 
       <!-- Canvas Area -->
-      <div
-        class="flex-1 relative"
+      <WorkflowCanvas
+        v-model:nodes="nodeStore.nodes"
+        v-model:edges="nodeStore.edges"
+        @node-click="handleNodeClick"
+        @edge-click="onEdgeClick"
+        @pane-click="onPaneClick"
+        @connect="onConnect"
+        @nodes-initialized="onNodesInitialized"
+        @nodes-delete="onNodesDelete"
         @drop="onDrop"
-        @dragover.prevent
-        @dragenter.prevent
-      >
-        <VueFlow
-          v-model:nodes="nodeStore.nodes"
-          v-model:edges="nodeStore.edges"
-          @node-click="handleNodeClick"
-          @edge-click="onEdgeClick"
-          @pane-click="onPaneClick"
-          @connect="onConnect"
-          @nodes-initialized="onNodesInitialized"
-          @nodes-delete="onNodesDelete"
-          class="vue-flow-dark"
-          :default-viewport="{ zoom: 1 }"
-          :min-zoom="0.2"
-          :max-zoom="4"
-          :delete-key-code="null"
-        >
-          <Background pattern-color="#a7abb0" :gap="20" />
-          <Controls />
-          
-          <!-- Custom Node Types -->
-          <template #node-trigger="{ data }">
-            <TriggerNode :data="data" />
-          </template>
-          <template #node-condition="{ data }">
-            <ConditionNode :data="data" />
-          </template>
-          <template #node-transformer="{ data }">
-            <TransformerNode :data="data" />
-          </template>
-          <template #node-http-request="{ data }">
-            <HttpRequestNode :data="data" />
-          </template>
-          <template #node-openobserve="{ data }">
-            <OpenObserveNode :data="data" />
-          </template>
-          <template #node-app="{ data }">
-            <AppNode :data="data" />
-          </template>
-          <template #node-email="{ data }">
-            <EmailNode :data="data" />
-          </template>
-          <template #node-delay="{ data }">
-            <DelayNode :data="data" />
-          </template>
-        </VueFlow>
-      </div>
+      />
 
 
       <!-- Executions Panel (slide out when executions button clicked) -->
@@ -158,34 +65,7 @@
     </div>
 
     <!-- Validation Errors/Warnings -->
-    <div
-      v-if="!nodeStore.validation.isValid || nodeStore.validation.warnings.length"
-      class="fixed bottom-4 right-4 max-w-md"
-    >
-      <div
-        v-if="!nodeStore.validation.isValid"
-        class="glass-dark bg-red-900/50 border border-red-700/50 text-red-100 px-4 py-3 rounded-lg mb-2 shadow-2xl"
-      >
-        <h4 class="font-medium">Validation Errors:</h4>
-        <ul class="mt-1 text-sm">
-          <li v-for="error in nodeStore.validation.errors" :key="error">
-            • {{ error }}
-          </li>
-        </ul>
-      </div>
-      
-      <div
-        v-if="nodeStore.validation.warnings.length"
-        class="glass-dark bg-yellow-900/50 border border-yellow-700/50 text-yellow-100 px-4 py-3 rounded-lg shadow-2xl"
-      >
-        <h4 class="font-medium">Warnings:</h4>
-        <ul class="mt-1 text-sm">
-          <li v-for="warning in nodeStore.validation.warnings" :key="warning">
-            • {{ warning }}
-          </li>
-        </ul>
-      </div>
-    </div>
+    <ValidationNotifications :validation="nodeStore.validation" />
 
     <!-- Node Inspector Modal -->
     <NodeInspector
@@ -209,27 +89,18 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, watch, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { VueFlow } from '@vue-flow/core'
-import { Controls } from '@vue-flow/controls'
-import { Background } from '@vue-flow/background'
-import { ArrowLeftIcon, ClockIcon, Squares2X2Icon } from '@heroicons/vue/24/outline'
 import { v4 as uuidv4 } from 'uuid'
 import { useWorkflowStore } from '../stores/workflows'
 import { useNodeStore } from '../stores/nodes'
 import { useAuthStore } from '../stores/auth'
+import WorkflowDesignerHeader from '../components/workflow/WorkflowDesignerHeader.vue'
+import WorkflowCanvas from '../components/workflow/WorkflowCanvas.vue'
+import ValidationNotifications from '../components/workflow/ValidationNotifications.vue'
 import NodeLibraryModal from '../components/panels/NodeLibraryModal.vue'
 import NodePropertiesPanel from '../components/panels/NodePropertiesPanel.vue'
 import ExecutionSidePanel from '../components/panels/ExecutionSidePanel.vue'
 import NodeInspector from '../components/panels/NodeInspector.vue'
 import JsonViewModal from '../components/common/JsonViewModal.vue'
-import TriggerNode from '../components/nodes/TriggerNode.vue'
-import ConditionNode from '../components/nodes/ConditionNode.vue'
-import TransformerNode from '../components/nodes/TransformerNode.vue'
-import HttpRequestNode from '../components/nodes/HttpRequestNode.vue'
-import OpenObserveNode from '../components/nodes/OpenObserveNode.vue'
-import AppNode from '../components/nodes/AppNode.vue'
-import EmailNode from '../components/nodes/EmailNode.vue'
-import DelayNode from '../components/nodes/DelayNode.vue'
 import { useWorkflowData } from '../composables/useWorkflowData'
 import { useExecutionTracing } from '../composables/useExecutionTracing'
 import { useVueFlowInteraction } from '../composables/useVueFlowInteraction'
@@ -273,7 +144,6 @@ const {
 } = usePanelState()
 
 const {
-  selectedEdgeId,
   onNodeClick,
   onEdgeClick,
   onPaneClick,
@@ -438,25 +308,5 @@ function handleLogout() {
 
 .slide-left-leave-to {
   transform: translateX(100%);
-}
-
-.vue-flow-dark {
-  background: #1a1a2e;
-}
-
-.vue-flow-dark .vue-flow__minimap {
-  background-color: #16213e;
-}
-
-.vue-flow-dark .vue-flow__controls {
-  button {
-    background-color: #374151;
-    border-color: #4b5563;
-    color: #d1d5db;
-  }
-  
-  button:hover {
-    background-color: #4b5563;
-  }
 }
 </style>
