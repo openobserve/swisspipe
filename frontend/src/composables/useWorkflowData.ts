@@ -5,12 +5,14 @@ import { useNodeStore } from '../stores/nodes'
 import { DEFAULT_CONDITION_SCRIPT, DEFAULT_TRANSFORMER_SCRIPT } from '../constants/defaults'
 import type { NodeConfig, WorkflowNode } from '../types/nodes'
 import { debugLog } from '../utils/debug'
+import { useToast } from './useToast'
 
 export function useWorkflowData() {
   const router = useRouter()
   const route = useRoute()
   const workflowStore = useWorkflowStore()
   const nodeStore = useNodeStore()
+  const toast = useToast()
 
   const workflowId = computed(() => route.params.id as string)
   const workflowName = ref('')
@@ -129,8 +131,10 @@ export function useWorkflowData() {
       }
 
       await workflowStore.updateWorkflow(workflowStore.currentWorkflow.id, workflowData)
+      toast.success('Workflow Saved', 'Your workflow has been saved successfully.')
     } catch (error) {
       console.error('Failed to save workflow:', error)
+      toast.error('Save Failed', error instanceof Error ? error.message : 'Failed to save workflow. Please try again.')
     } finally {
       saving.value = false
     }

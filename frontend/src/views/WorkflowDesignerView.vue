@@ -83,6 +83,9 @@
 
     <!-- Node Properties Modal -->
     <NodePropertiesPanel />
+    
+    <!-- Toast Notifications -->
+    <ToastContainer />
   </div>
 </template>
 
@@ -105,6 +108,7 @@ import { useWorkflowData } from '../composables/useWorkflowData'
 import { useExecutionTracing } from '../composables/useExecutionTracing'
 import { useVueFlowInteraction } from '../composables/useVueFlowInteraction'
 import { usePanelState } from '../composables/usePanelState'
+import ToastContainer from '../components/common/ToastContainer.vue'
 
 const route = useRoute()
 const router = useRouter()
