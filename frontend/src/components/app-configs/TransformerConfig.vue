@@ -3,7 +3,7 @@
     <!-- 3 Column Grid -->
     <div class="grid grid-cols-3 gap-4 h-full">
       <!-- Input Column -->
-      <div class="flex flex-col">
+      <div class="flex flex-col border-2 border-blue-500/30 rounded-lg p-3 bg-blue-500/5">
         <div class="mb-2">
           <div class="flex items-center justify-between mb-2">
             <label class="block text-sm font-medium text-gray-300">Past Executions</label>
@@ -49,7 +49,7 @@
       </div>
 
       <!-- Code Column -->
-      <div class="flex flex-col">
+      <div class="flex flex-col border-2 border-purple-500/30 rounded-lg p-3 bg-purple-500/5">
         <label class="block text-sm font-medium text-gray-300 mb-2">JavaScript Code</label>
         <div class="flex-1 min-h-0">
           <CodeEditor
@@ -66,7 +66,7 @@
       </div>
 
       <!-- Output Column -->
-      <div class="flex flex-col">
+      <div class="flex flex-col border-2 border-green-500/30 rounded-lg p-3 bg-green-500/5">
         <label class="block text-sm font-medium text-gray-300 mb-2">Output Preview</label>
         <div class="flex-1 min-h-0">
           <CodeEditor
