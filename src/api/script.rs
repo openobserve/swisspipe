@@ -4,7 +4,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::utils::javascript::JavaScriptExecutor;
-use crate::workflow::models::WorkflowEvent;
+use crate::workflow::{models::WorkflowEvent, errors::JavaScriptError};
 use crate::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -23,6 +23,14 @@ pub struct ScriptExecuteError {
 pub fn routes() -> Router<AppState> {
     Router::new().route("/execute", axum::routing::post(execute_script))
 }
+
+/// Execute a transformer script with input data for testing purposes.
+/// 
+/// This endpoint accepts either:
+/// - Raw input data (will be wrapped in a WorkflowEvent)
+/// - Complete WorkflowEvent structure (will be used directly)
+/// 
+/// Returns the transformed WorkflowEvent or error details.
 
 pub async fn execute_script(
     State(_state): State<AppState>,
@@ -86,7 +94,7 @@ pub async fn execute_script(
             let error_message = error.to_string();
             
             // Check if it's an event dropped error (transformer returned null)
-            if error_message.contains("EventDropped") {
+            if matches!(error, JavaScriptError::EventDropped) {
                 Ok(Json(serde_json::json!({ "dropped": true, "message": "Event was dropped (transformer returned null)" })))
             } else {
                 Err((
