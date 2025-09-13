@@ -27,12 +27,7 @@
             <span class="text-sm text-gray-300">
               Welcome, {{ authStore.user?.username }}
             </span>
-            <button
-              @click="showCreateModal = true"
-              class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-            >
-              Create Workflow
-            </button>
+            
             <button
               @click="handleLogout"
               class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
@@ -59,8 +54,16 @@
             <MagnifyingGlassIcon class="h-5 w-5 text-gray-400 absolute left-3 top-2.5" />
           </div>
         </div>
-        <div class="text-sm text-gray-400">
-          {{ workflowStore.workflowCount }} workflows
+        <div class="flex items-center space-x-4">
+          <div class="text-sm text-gray-400">
+            {{ workflowStore.workflowCount }} workflows
+          </div>
+          <button
+              @click="showCreateModal = true"
+              class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+            >
+              Create Workflow
+            </button>
         </div>
       </div>
 

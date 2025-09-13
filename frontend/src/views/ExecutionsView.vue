@@ -27,14 +27,7 @@
             <span class="text-sm text-gray-300">
               Welcome, {{ authStore.user?.username }}
             </span>
-            <button
-              @click="executionStore.fetchExecutions()"
-              class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-              :disabled="executionStore.loading"
-            >
-              <ArrowPathIcon v-if="executionStore.loading" class="h-4 w-4 animate-spin" />
-              <span v-else>Refresh</span>
-            </button>
+            
             <button
               @click="handleLogout"
               class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
@@ -61,8 +54,20 @@
             <MagnifyingGlassIcon class="h-5 w-5 text-gray-400 absolute left-3 top-2.5" />
           </div>
         </div>
-        <div class="text-sm text-gray-400">
-          {{ executionStore.executionCount }} executions
+        <div class="flex items-center space-x-4">
+          <div class="text-sm text-gray-400">
+            {{ executionStore.executionCount }} executions
+          </div>
+          
+          <button
+              @click="executionStore.fetchExecutions()"
+              class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+              :disabled="executionStore.loading"
+            >
+              <ArrowPathIcon v-if="executionStore.loading" class="h-4 w-4 animate-spin" />
+              <span v-else>Refresh</span>
+            </button>
+
         </div>
       </div>
 
