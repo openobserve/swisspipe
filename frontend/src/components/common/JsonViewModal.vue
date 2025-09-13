@@ -39,28 +39,15 @@
         <CodeEditor
           v-model="formattedJson"
           language="json"
-          :readonly="true"
-          @save="() => {}"
         />
       </div>
 
-      <!-- Footer -->
-      <div class="bg-slate-700 px-6 py-4 border-t border-slate-600 flex-shrink-0">
-        <div class="flex justify-end">
-          <button
-            @click="$emit('close')"
-            class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-          >
-            Close
-          </button>
-        </div>
-      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { XMarkIcon } from '@heroicons/vue/24/outline'
 import CodeEditor from './CodeEditor.vue'
 
@@ -78,15 +65,21 @@ const emit = defineEmits<Emits>()
 
 const copied = ref(false)
 
-const formattedJson = computed(() => {
-  if (!props.jsonData) return ''
-  try {
-    return JSON.stringify(props.jsonData, null, 2)
-  } catch (error) {
-    console.error('Error formatting JSON:', error)
-    return 'Error formatting JSON'
+const formattedJson = ref('')
+
+// Watch for changes in jsonData to update the editor
+watch(() => props.jsonData, (newData) => {
+  if (newData) {
+    try {
+      formattedJson.value = JSON.stringify(newData, null, 2)
+    } catch (error) {
+      console.error('Error formatting JSON:', error)
+      formattedJson.value = 'Error formatting JSON'
+    }
+  } else {
+    formattedJson.value = ''
   }
-})
+}, { immediate: true })
 
 async function copyToClipboard() {
   try {
