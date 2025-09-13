@@ -8,12 +8,40 @@
       </div>
       <div class="flex items-center space-x-2">
         <button
+          v-if="showRunButton"
+          @click="runCode"
+          :disabled="runLoading"
+          class="text-sm bg-green-600 hover:bg-green-700 disabled:bg-green-800 text-white px-3 py-1 rounded transition-colors flex items-center space-x-1"
+        >
+          <svg 
+            v-if="runLoading"
+            class="animate-spin h-3 w-3" 
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <svg 
+            v-else
+            class="h-3 w-3" 
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m-6-8h1m4 0h1M9 18h6" />
+          </svg>
+          <span>{{ runLoading ? 'Running...' : 'Run' }}</span>
+        </button>
+        <button
+          v-if="showFormatButton"
           @click="formatCode"
           class="text-sm bg-slate-700 hover:bg-slate-600 text-gray-300 px-3 py-1 rounded transition-colors"
         >
           Format
         </button>
         <button
+          v-if="showSaveButton"
           @click="saveCode"
           class="text-sm bg-primary-600 hover:bg-primary-700 text-white px-3 py-1 rounded transition-colors"
         >
@@ -32,16 +60,25 @@ interface Props {
   modelValue: string
   language: string
   readonly?: boolean
+  showFormatButton?: boolean
+  showSaveButton?: boolean
+  showRunButton?: boolean
+  runLoading?: boolean
 }
 
 interface Emits {
   (e: 'update:modelValue', value: string): void
   (e: 'save', value: string): void
+  (e: 'run', value: string): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   language: 'javascript',
-  readonly: false
+  readonly: false,
+  showFormatButton: true,
+  showSaveButton: true,
+  showRunButton: false,
+  runLoading: false
 })
 
 const emit = defineEmits<Emits>()
@@ -233,6 +270,13 @@ function saveCode() {
   if (editor) {
     const value = editor.getValue()
     emit('save', value)
+  }
+}
+
+function runCode() {
+  if (editor) {
+    const value = editor.getValue()
+    emit('run', value)
   }
 }
 </script>

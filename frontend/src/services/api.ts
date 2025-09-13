@@ -140,6 +140,15 @@ class ApiClient {
     return response.data
   }
 
+  // Script execution endpoint
+  async executeScript(script: string, input: any): Promise<any> {
+    const response = await this.client.post('/api/admin/v1/script/execute', {
+      script,
+      input
+    })
+    return response.data
+  }
+
   // Auth validation endpoint
   async validateCredentials(credentials: string): Promise<boolean> {
     try {

@@ -4,8 +4,11 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowEvent {
     pub data: serde_json::Value,
+    #[serde(default)]
     pub metadata: HashMap<String, String>,
+    #[serde(default)]
     pub headers: HashMap<String, String>,
+    #[serde(default)]
     pub condition_results: HashMap<String, bool>, // Store condition results by node name/ID
 }
 

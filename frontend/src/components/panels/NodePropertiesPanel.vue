@@ -40,7 +40,7 @@
       </div>
 
       <!-- Modal Body -->
-      <div class="p-6 overflow-y-auto h-[calc(90vh-120px)]">
+      <div class="p-6 h-[calc(90vh-120px)] flex flex-col">
 
     <!-- Node Basic Info -->
     <div class="mb-6">
@@ -76,7 +76,7 @@
     </div>
 
     <!-- Node-specific Configuration -->
-    <div class="space-y-6">
+    <div class="flex-1 min-h-0">
       <!-- Trigger Node Configuration -->
       <div v-if="selectedNodeData.type === 'trigger'">
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Trigger Configuration</h3>
@@ -96,12 +96,14 @@
       </div>
 
       <!-- Transformer Node Configuration -->
-      <div v-if="selectedNodeData.type === 'transformer'">
+      <div v-if="selectedNodeData.type === 'transformer'" class="h-full flex flex-col">
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Transformer Configuration</h3>
-        <TransformerConfig
-          v-model="localNodeData.config"
-          @update="updateNodeData"
-        />
+        <div class="flex-1 min-h-0">
+          <TransformerConfig
+            v-model="localNodeData.config"
+            @update="updateNodeData"
+          />
+        </div>
       </div>
 
       <!-- HTTP Request Node Configuration -->
