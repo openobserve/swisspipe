@@ -11,7 +11,7 @@
       <div class="flex items-center justify-between p-6 border-b border-slate-700/50">
         <div class="flex items-center space-x-4">
           
-          <h2 class="text-xl font-semibold text-white">Node Properties</h2>
+          <h2 class="text-lg font-semibold text-white">Node Properties</h2>
           <div class="flex items-center space-x-3">
             <div
               class="w-4 h-4 rounded-full"
@@ -40,7 +40,7 @@
       </div>
 
       <!-- Modal Body -->
-      <div class="p-6 h-[calc(90vh-120px)] flex flex-col">
+      <div class="px-6 py-1 h-[calc(90vh-120px)] flex flex-col">
 
     <!-- Node Basic Info -->
     <div class="mb-6">

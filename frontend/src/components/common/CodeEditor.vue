@@ -139,7 +139,7 @@ function initializeEditor() {
     automaticLayout: true,
     minimap: { enabled: true },
     scrollBeyondLastLine: false,
-    fontSize: 14,
+    fontSize: 11,
     lineNumbers: 'on',
     renderWhitespace: 'selection',
     tabSize: 2,
