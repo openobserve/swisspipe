@@ -56,24 +56,32 @@ echo ""
 TEMP_PAYLOAD=$(mktemp)
 echo "${TEST_PAYLOAD}" > "${TEMP_PAYLOAD}"
 
-# Run single performance test with 100 runs
-echo -e "${BLUE}Running: Performance Test (100 runs)${NC}"
-echo -e "Runs: 100, Warmup: 5"
+# Run single performance test with 10000 runs
+echo -e "${BLUE}Running: Performance Test (10000 runs)${NC}"
+echo -e "Runs: 10000, Warmup: 5"
 echo ""
+
+# Record start time
+START_TIME=$(date +%s)
 
 hyperfine \
     --runs 1000 \
     --warmup 5 \
-    --export-json "performance_1000_runs.json" \
-    --export-markdown "performance_1000_runs.md" \
     "curl -s -X POST '${FULL_URL}' \
      -H 'Content-Type: application/json' \
      -H 'Custom-Test-Header: performance-test' \
      -H 'User-Agent: SwissPipe-Performance-Test/1.0' \
      --data @${TEMP_PAYLOAD}"
 
+# Record end time and calculate duration
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+MINUTES=$((DURATION / 60))
+SECONDS=$((DURATION % 60))
+
 echo ""
 echo -e "${GREEN}Performance test completed${NC}"
+echo -e "${YELLOW}Total test execution time: ${MINUTES}m ${SECONDS}s (${DURATION} seconds)${NC}"
 echo ""
 
 # Cleanup
@@ -83,10 +91,6 @@ rm -f "${TEMP_PAYLOAD}"
 echo -e "${BLUE}Performance Test Summary${NC}"
 echo -e "${BLUE}========================${NC}"
 echo ""
-echo -e "${GREEN}✓ Performance Test (100 runs) completed${NC}"
-echo ""
-echo -e "${YELLOW}Results exported to:${NC}"
-echo -e "  - performance_100_runs.json"
-echo -e "  - performance_100_runs.md"
+echo -e "${GREEN}✓ Performance Test (1000 runs) completed${NC}"
 echo ""
 echo -e "${BLUE}Performance testing completed successfully!${NC}"
