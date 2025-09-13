@@ -22,13 +22,12 @@
           </nav>
         </div>
         <div class="flex items-center space-x-4">
-          <span class="text-sm text-gray-300">
-            Welcome, {{ authStore.user?.username }}
-          </span>
-          
+          <span class="text-sm text-gray-300">Welcome, </span>
+
+            <span class="text-sm font-medium text-primary-300">{{ authStore.user?.username }}</span>
           <button
             @click="handleLogout"
-            class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
+            class="bg-red-600/20 hover:bg-red-600/30 text-red-300 hover:text-red-200 border border-red-600/30 hover:border-red-600/50 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 backdrop-blur-sm"
           >
             Logout
           </button>
