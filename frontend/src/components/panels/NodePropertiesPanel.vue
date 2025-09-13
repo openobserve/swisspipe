@@ -163,7 +163,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { XMarkIcon } from '@heroicons/vue/24/outline'
 import { useNodeStore } from '../../stores/nodes'
 import CommonConfigFields from '../common/CommonConfigFields.vue'
@@ -255,6 +255,20 @@ function deleteNode() {
     }
   }
 }
+
+function handleKeyDown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    handleClose()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeyDown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleKeyDown)
+})
 
 
 </script>

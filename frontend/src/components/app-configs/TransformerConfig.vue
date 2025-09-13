@@ -56,6 +56,7 @@
             v-model="localConfig.script"
             :language="'javascript'"
             :show-run-button="true"
+            :show-save-button="false"
             :run-loading="runLoading"
             @update:modelValue="onScriptChange"
             @save="$emit('update')"
