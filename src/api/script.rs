@@ -31,7 +31,6 @@ pub fn routes() -> Router<AppState> {
 /// - Complete WorkflowEvent structure (will be used directly)
 /// 
 /// Returns the transformed WorkflowEvent or error details.
-
 pub async fn execute_script(
     State(_state): State<AppState>,
     Json(request): Json<ScriptExecuteRequest>,
