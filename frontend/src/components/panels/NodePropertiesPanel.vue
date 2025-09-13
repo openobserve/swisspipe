@@ -6,10 +6,19 @@
     @click.self="nodeStore.setSelectedNode(null)"
   >
     <!-- Modal Content -->
-    <div class="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl">
+    <div class="bg-slate-800 rounded-xl border border-slate-700 w-[90vw] h-[90vh] overflow-hidden shadow-2xl">
       <!-- Modal Header -->
       <div class="flex items-center justify-between p-6 border-b border-slate-700/50">
-        <h2 class="text-xl font-semibold text-white">Node Properties</h2>
+        <div class="flex items-center space-x-4">
+          <h2 class="text-xl font-semibold text-white">Node Properties</h2>
+          <div class="flex items-center space-x-3">
+            <div
+              class="w-4 h-4 rounded-full"
+              :style="{ backgroundColor: nodeTypeDefinition?.color || '#6b7280' }"
+            ></div>
+            <span class="text-sm font-medium text-gray-300">{{ nodeTypeDefinition?.label || 'Node' }}</span>
+          </div>
+        </div>
         <button
           @click="nodeStore.setSelectedNode(null)"
           class="text-gray-400 hover:text-gray-200 transition-colors p-2 rounded-md hover:bg-slate-700/30"
@@ -20,19 +29,12 @@
       </div>
 
       <!-- Modal Body -->
-      <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+      <div class="p-6 overflow-y-auto h-[calc(90vh-120px)]">
 
     <!-- Node Basic Info -->
     <div class="mb-6">
-      <div class="flex items-center space-x-3 mb-4">
-        <div
-          class="w-4 h-4 rounded-full"
-          :style="{ backgroundColor: nodeTypeDefinition?.color || '#6b7280' }"
-        ></div>
-        <span class="text-sm font-medium text-gray-300">{{ nodeTypeDefinition?.label || 'Node' }}</span>
-      </div>
       
-      <div class="space-y-4">
+      <div class="grid gap-4" style="grid-template-columns: 30% 70%">
         <div>
           <label class="block text-sm font-medium text-gray-300 mb-2">Node Name</label>
           <input

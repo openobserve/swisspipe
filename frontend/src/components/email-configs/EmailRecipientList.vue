@@ -11,14 +11,14 @@
         @blur="(event) => onFieldBlur(event, index)"
         placeholder="email@example.com or {{ event.data.email }}"
         type="text"
-        class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        class="w-1/2 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       <input
         v-model="recipient.name"
         @input="(event) => onNameInputDebug(event, index)"
         @blur="(event) => onFieldBlur(event, index)"
         placeholder="Name (optional)"
-        class="w-40 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        class="w-1/2 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       <button
         @click="removeRecipient(index)"
