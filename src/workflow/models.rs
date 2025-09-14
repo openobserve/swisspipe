@@ -9,7 +9,7 @@ pub struct WorkflowEvent {
     #[serde(default)]
     pub headers: HashMap<String, String>,
     #[serde(default)]
-    pub condition_results: HashMap<String, bool>, // Store condition results by node name/ID
+    pub condition_results: HashMap<String, bool>, // Store condition results by node ID
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

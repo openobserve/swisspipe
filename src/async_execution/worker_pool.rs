@@ -339,7 +339,7 @@ impl WorkerPool {
                 tracing::info!("Condition node '{}' evaluated to: {}", node.name, condition_result);
 
                 // Store the condition result in the event for edge routing
-                event.condition_results.insert(node.name.clone(), condition_result);
+                event.condition_results.insert(node.id.clone(), condition_result);
 
                 // Condition nodes pass through event with stored condition result
                 Ok(event)
@@ -1192,7 +1192,7 @@ impl WorkerPoolForBranch {
             NodeType::Trigger { .. } => Ok(event),
             NodeType::Condition { script } => {
                 let condition_result = self.workflow_engine.js_executor.execute_condition(script, &event).await?;
-                event.condition_results.insert(node.name.clone(), condition_result);
+                event.condition_results.insert(node.id.clone(), condition_result);
                 Ok(event)
             }
             NodeType::Transformer { script } => {
@@ -1389,12 +1389,12 @@ impl WorkerPoolForBranch {
         event: &WorkflowEvent,
     ) -> Result<Vec<String>> {
         let mut next_nodes = Vec::new();
-        
+
         for edge in &workflow.edges {
             if edge.from_node_id == current_node_id {
                 // Check if this edge has a condition
                 if let Some(condition_result) = edge.condition_result {
-                    // Look up the stored condition result for the current node
+                    // Look up the stored condition result for the current node - use node ID as key
                     if let Some(&stored_result) = event.condition_results.get(current_node_id) {
                         if stored_result == condition_result {
                             next_nodes.push(edge.to_node_id.clone());

@@ -295,7 +295,7 @@ impl WorkflowEngine {
         _completed_nodes: &HashSet<String>,
     ) -> Result<Vec<WorkflowEvent>> {
         let mut inputs = Vec::new();
-        
+
         for pred_id in predecessors {
             if let Some(pred_output) = node_outputs.get(pred_id) {
                 // Check if this edge should be followed based on conditions
@@ -303,12 +303,17 @@ impl WorkflowEngine {
                     for (succ_id, condition_result) in pred_successors {
                         if succ_id == node_id {
                             if let Some(expected_result) = condition_result {
-                                // Check if condition matches
+                                // Check if condition matches - use node ID as key
                                 let actual_result = pred_output.condition_results
                                     .get(pred_id)
                                     .copied()
                                     .unwrap_or(false);
-                                
+
+                                tracing::debug!(
+                                    "Condition edge: pred_id='{}', expected={}, actual={}, follow={}",
+                                    pred_id, expected_result, actual_result, actual_result == *expected_result
+                                );
+
                                 if actual_result == *expected_result {
                                     inputs.push(pred_output.clone());
                                 }
@@ -382,7 +387,7 @@ impl WorkflowEngine {
             NodeType::Condition { script } => {
                 let condition_result = js_executor.execute_condition(script, &event).await?;
                 tracing::info!("Condition node '{}' evaluated to: {}", node.name, condition_result);
-                event.condition_results.insert(node.name.clone(), condition_result);
+                event.condition_results.insert(node.id.clone(), condition_result);
                 Ok(event)
             }
             NodeType::Transformer { script } => {
