@@ -1,37 +1,35 @@
+// Workflow engine - refactored for modularity and maintainability
+// This file has been broken down into focused modules for better organization
+
+// Import and re-export the modules
+mod workflow_loader;
+mod node_executor;
+mod dag_executor;
+
 use crate::{
-    database::{edges, entities, nodes},
+    anthropic::AnthropicService,
+    email::service::EmailService,
     utils::{http_client::AppExecutor, javascript::JavaScriptExecutor},
     workflow::{
         errors::{Result, SwissPipeError},
-        models::{Edge, Node, NodeType, Workflow, WorkflowEvent, InputMergeStrategy},
+        models::{Workflow, WorkflowEvent},
         input_sync::InputSyncService,
     },
-    email::service::EmailService,
 };
-use crate::anthropic::{AnthropicService, AnthropicCallConfig};
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait};
-use std::{collections::{HashMap, HashSet}, sync::Arc};
-use tokio::task::JoinSet;
-use uuid::Uuid;
+use sea_orm::DatabaseConnection;
+use std::sync::Arc;
 
-struct ExecutionContext<'a> {
-    predecessors: &'a HashMap<String, Vec<String>>,
-    successors: &'a HashMap<String, Vec<(String, Option<bool>)>>,
-    completed_nodes: &'a HashSet<String>,
-    node_outputs: &'a HashMap<String, WorkflowEvent>,
-    pending_executions: &'a mut JoinSet<Result<(String, WorkflowEvent)>>,
-    execution_id: &'a str,
-}
+pub use workflow_loader::WorkflowLoader;
+pub use node_executor::NodeExecutor;
+pub use dag_executor::DagExecutor;
 
-struct Services {
-    js_executor: Arc<JavaScriptExecutor>,
-    app_executor: Arc<AppExecutor>,
-    email_service: Arc<EmailService>,
-    anthropic_service: Arc<AnthropicService>,
-}
-
+/// Main WorkflowEngine struct - now acts as a coordinator for the modular components
 pub struct WorkflowEngine {
-    db: Arc<DatabaseConnection>,
+    workflow_loader: Arc<WorkflowLoader>,
+    node_executor: Arc<NodeExecutor>,
+    dag_executor: Arc<DagExecutor>,
+
+    // Keep public fields for backward compatibility with existing code
     pub js_executor: Arc<JavaScriptExecutor>,
     pub app_executor: Arc<AppExecutor>,
     pub email_service: Arc<EmailService>,
@@ -40,7 +38,9 @@ pub struct WorkflowEngine {
 }
 
 impl WorkflowEngine {
+    /// Create a new workflow engine with all necessary services
     pub fn new(db: Arc<DatabaseConnection>) -> Result<Self> {
+        // Initialize all services
         let js_executor = Arc::new(JavaScriptExecutor::new()?);
         let app_executor = Arc::new(AppExecutor::new());
         let email_service = Arc::new(EmailService::new(db.clone())
@@ -48,8 +48,25 @@ impl WorkflowEngine {
         let anthropic_service = Arc::new(AnthropicService::new());
         let input_sync_service = Arc::new(InputSyncService::new(db.clone()));
 
+        // Create modular components
+        let workflow_loader = Arc::new(WorkflowLoader::new(db));
+
+        let node_executor = Arc::new(NodeExecutor::new(
+            js_executor.clone(),
+            app_executor.clone(),
+            email_service.clone(),
+            anthropic_service.clone(),
+        ));
+
+        let dag_executor = Arc::new(DagExecutor::new(
+            node_executor.clone(),
+            input_sync_service.clone(),
+        ));
+
         Ok(Self {
-            db,
+            workflow_loader,
+            node_executor,
+            dag_executor,
             js_executor,
             app_executor,
             email_service,
@@ -57,513 +74,34 @@ impl WorkflowEngine {
             input_sync_service,
         })
     }
-    
+
+    /// Load a workflow from the database
     pub async fn load_workflow(&self, workflow_id: &str) -> Result<Workflow> {
-        // Load workflow
-        let workflow_model = entities::Entity::find_by_id(workflow_id)
-            .one(self.db.as_ref())
-            .await?
-            .ok_or_else(|| SwissPipeError::WorkflowNotFound(workflow_id.to_string()))?;
-        
-        // Load nodes
-        let node_models = nodes::Entity::find()
-            .filter(nodes::Column::WorkflowId.eq(workflow_id))
-            .all(self.db.as_ref())
-            .await?;
-        
-        let mut nodes = Vec::new();
-        for node_model in node_models {
-            let node_type: NodeType = serde_json::from_str(&node_model.config)?;
-            nodes.push(Node {
-                id: node_model.id,
-                workflow_id: node_model.workflow_id,
-                name: node_model.name,
-                node_type,
-                input_merge_strategy: node_model.input_merge_strategy
-                    .as_deref()
-                    .and_then(|s| serde_json::from_str(s).ok()),
-            });
-        }
-        
-        // Load edges
-        let edge_models = edges::Entity::find()
-            .filter(edges::Column::WorkflowId.eq(workflow_id))
-            .all(self.db.as_ref())
-            .await?;
-        
-        let edges = edge_models
-            .into_iter()
-            .map(|edge_model| Edge {
-                id: edge_model.id,
-                workflow_id: edge_model.workflow_id,
-                from_node_id: edge_model.from_node_id,
-                to_node_id: edge_model.to_node_id,
-                condition_result: edge_model.condition_result,
-            })
-            .collect();
-        
-        Ok(Workflow {
-            id: workflow_model.id,
-            name: workflow_model.name,
-            description: workflow_model.description,
-            start_node_id: workflow_model.start_node_id,
-            nodes,
-            edges,
-        })
+        self.workflow_loader.load_workflow(workflow_id).await
     }
-    
+
+    /// Get a workflow, returning None if not found
     pub async fn get_workflow(&self, workflow_id: &str) -> Result<Option<Workflow>> {
-        match self.load_workflow(workflow_id).await {
-            Ok(workflow) => Ok(Some(workflow)),
-            Err(SwissPipeError::WorkflowNotFound(_)) => Ok(None),
-            Err(e) => Err(e),
-        }
+        self.workflow_loader.get_workflow(workflow_id).await
     }
-    
+
+    /// Execute a workflow using DAG traversal
     pub async fn execute_workflow(&self, workflow: &Workflow, event: WorkflowEvent) -> Result<WorkflowEvent> {
-        let execution_id = Uuid::new_v4().to_string();
-        tracing::info!("Starting DAG execution for workflow '{}' with execution_id '{}'", workflow.name, execution_id);
-
-        // Build graph structures for DAG traversal
-        let node_map: HashMap<String, &Node> = workflow.nodes
-            .iter()
-            .map(|node| (node.id.clone(), node))
-            .collect();
-
-        let predecessors = self.build_predecessor_map(workflow);
-        let successors = self.build_successor_map(workflow);
-        
-        // Initialize execution state
-        let mut completed_nodes: HashSet<String> = HashSet::new();
-        let mut node_outputs: HashMap<String, WorkflowEvent> = HashMap::new();
-        let mut pending_executions: JoinSet<Result<(String, WorkflowEvent)>> = JoinSet::new();
-        
-        // Start with the trigger node
-        let start_node_id = workflow.start_node_id.as_ref()
-            .ok_or_else(|| SwissPipeError::Config("Workflow missing start_node_id".to_string()))?;
-        let start_node = node_map.get(start_node_id)
-            .ok_or_else(|| SwissPipeError::NodeNotFound(start_node_id.clone()))?;
-        
-        // Execute trigger node first
-        let trigger_result = self.execute_single_node(start_node, vec![event], &execution_id).await?;
-        completed_nodes.insert(start_node_id.clone());
-        node_outputs.insert(start_node_id.clone(), trigger_result.clone());
-        
-        tracing::info!("Completed trigger node '{}' (id: {}), looking for next nodes", start_node.name, start_node_id);
-
-        // Schedule immediately ready nodes for concurrent execution
-        let mut execution_context = ExecutionContext {
-            predecessors: &predecessors,
-            successors: &successors,
-            completed_nodes: &completed_nodes,
-            node_outputs: &node_outputs,
-            pending_executions: &mut pending_executions,
-            execution_id: &execution_id,
-        };
-        self.schedule_ready_nodes(workflow, &mut execution_context).await?;
-
-        // Main execution loop for DAG traversal
-        while !pending_executions.is_empty() {
-            // Wait for any node to complete
-            if let Some(result) = pending_executions.join_next().await {
-                match result {
-                    Ok(Ok((node_id, output))) => {
-                        tracing::info!("Node '{}' completed successfully", node_id);
-                        completed_nodes.insert(node_id.clone());
-                        node_outputs.insert(node_id.clone(), output);
-
-                        // Schedule any newly ready nodes
-                        let mut execution_context = ExecutionContext {
-                            predecessors: &predecessors,
-                            successors: &successors,
-                            completed_nodes: &completed_nodes,
-                            node_outputs: &node_outputs,
-                            pending_executions: &mut pending_executions,
-                            execution_id: &execution_id,
-                        };
-                        self.schedule_ready_nodes(workflow, &mut execution_context).await?;
-                    }
-                    Ok(Err(e)) => {
-                        // Node execution failed, cancel remaining tasks
-                        pending_executions.abort_all();
-                        return Err(e);
-                    }
-                    Err(join_error) => {
-                        // Task join failed
-                        pending_executions.abort_all();
-                        return Err(SwissPipeError::Generic(format!("Task join error: {join_error}")));
-                    }
-                }
-            }
-        }
-
-        tracing::info!("DAG execution completed successfully for execution_id '{}'", execution_id);
-
-        // Return the final output (last completed node or aggregate)
-        self.get_final_output(workflow, &completed_nodes, &node_outputs)
+        self.dag_executor.execute_workflow(workflow, event).await
     }
 
-    fn build_predecessor_map(&self, workflow: &Workflow) -> HashMap<String, Vec<String>> {
-        let mut predecessors: HashMap<String, Vec<String>> = HashMap::new();
-        
-        for edge in &workflow.edges {
-            let from_id = &edge.from_node_id;
-            let to_id = &edge.to_node_id;
-            predecessors
-                .entry(to_id.clone())
-                .or_default()
-                .push(from_id.clone());
-        }
-        
-        predecessors
+    /// Get direct access to the workflow loader
+    pub fn workflow_loader(&self) -> &Arc<WorkflowLoader> {
+        &self.workflow_loader
     }
 
-    fn build_successor_map(&self, workflow: &Workflow) -> HashMap<String, Vec<(String, Option<bool>)>> {
-        let mut successors: HashMap<String, Vec<(String, Option<bool>)>> = HashMap::new();
-        
-        for edge in &workflow.edges {
-            let from_id = &edge.from_node_id;
-            let to_id = &edge.to_node_id;
-            successors
-                .entry(from_id.clone())
-                .or_default()
-                .push((to_id.clone(), edge.condition_result));
-        }
-        
-        successors
+    /// Get direct access to the node executor
+    pub fn node_executor(&self) -> &Arc<NodeExecutor> {
+        &self.node_executor
     }
 
-    async fn schedule_ready_nodes(
-        &self,
-        workflow: &Workflow,
-        execution_context: &mut ExecutionContext<'_>,
-    ) -> Result<()> {
-        // Find all nodes that are ready to execute
-        for node in &workflow.nodes {
-            if execution_context.completed_nodes.contains(&node.id) {
-                continue; // Already completed
-            }
-            
-            // Check if all predecessors are completed
-            let node_predecessors = execution_context.predecessors.get(&node.id).cloned().unwrap_or_default();
-            let all_predecessors_ready = node_predecessors.iter().all(|pred| execution_context.completed_nodes.contains(pred));
-            
-            if all_predecessors_ready {
-                tracing::info!("Node '{}' (id: {}) is ready for execution", node.name, node.id);
-                
-                // Collect inputs from predecessors
-                let inputs = self.collect_node_inputs(
-                    &node.id,
-                    &node_predecessors,
-                    execution_context.successors,
-                    execution_context.node_outputs,
-                    execution_context.completed_nodes,
-                )?;
-                
-                // Clone necessary data for the async task
-                let node_clone = node.clone();
-                let execution_id = execution_context.execution_id.to_string();
-                let engine_components = Services {
-                    js_executor: self.js_executor.clone(),
-                    app_executor: self.app_executor.clone(),
-                    email_service: self.email_service.clone(),
-                    anthropic_service: self.anthropic_service.clone(),
-                };
-                
-                // Spawn async execution
-                execution_context.pending_executions.spawn(async move {
-                    let result = Self::execute_node_with_components(
-                        &node_clone,
-                        inputs,
-                        &execution_id,
-                        &engine_components,
-                    ).await?;
-                    Ok((node_clone.id, result))
-                });
-            }
-        }
-        
-        Ok(())
+    /// Get direct access to the DAG executor
+    pub fn dag_executor(&self) -> &Arc<DagExecutor> {
+        &self.dag_executor
     }
-
-    fn collect_node_inputs(
-        &self,
-        node_id: &str,
-        predecessors: &[String],
-        successors: &HashMap<String, Vec<(String, Option<bool>)>>,
-        node_outputs: &HashMap<String, WorkflowEvent>,
-        _completed_nodes: &HashSet<String>,
-    ) -> Result<Vec<WorkflowEvent>> {
-        let mut inputs = Vec::new();
-
-        for pred_id in predecessors {
-            if let Some(pred_output) = node_outputs.get(pred_id) {
-                // Check if this edge should be followed based on conditions
-                if let Some(pred_successors) = successors.get(pred_id) {
-                    for (succ_id, condition_result) in pred_successors {
-                        if succ_id == node_id {
-                            if let Some(expected_result) = condition_result {
-                                // Check if condition matches - use node ID as key
-                                let actual_result = pred_output.condition_results
-                                    .get(pred_id)
-                                    .copied()
-                                    .unwrap_or(false);
-
-                                tracing::debug!(
-                                    "Condition edge: pred_id='{}', expected={}, actual={}, follow={}",
-                                    pred_id, expected_result, actual_result, actual_result == *expected_result
-                                );
-
-                                if actual_result == *expected_result {
-                                    inputs.push(pred_output.clone());
-                                }
-                            } else {
-                                // Unconditional edge
-                                inputs.push(pred_output.clone());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        Ok(inputs)
-    }
-
-    async fn execute_single_node(
-        &self,
-        node: &Node,
-        inputs: Vec<WorkflowEvent>,
-        execution_id: &str,
-    ) -> Result<WorkflowEvent> {
-        let components = Services {
-            js_executor: self.js_executor.clone(),
-            app_executor: self.app_executor.clone(),
-            email_service: self.email_service.clone(),
-            anthropic_service: self.anthropic_service.clone(),
-        };
-
-        Self::execute_node_with_components(node, inputs, execution_id, &components).await
-    }
-
-    async fn execute_node_with_components(
-        node: &Node,
-        inputs: Vec<WorkflowEvent>,
-        _execution_id: &str,
-        services: &Services,
-    ) -> Result<WorkflowEvent> {
-        tracing::info!("Executing node '{}' with {} inputs", node.name, inputs.len());
-
-        // Merge inputs based on strategy
-        let input_event = if inputs.len() <= 1 {
-            inputs.into_iter().next().unwrap_or_else(|| WorkflowEvent {
-                data: serde_json::Value::Object(serde_json::Map::new()),
-                metadata: HashMap::new(),
-                headers: HashMap::new(),
-                condition_results: HashMap::new(),
-            })
-        } else {
-            let merge_strategy = node.input_merge_strategy
-                .as_ref()
-                .unwrap_or(&InputMergeStrategy::WaitForAll);
-            
-            InputSyncService::merge_inputs(inputs, merge_strategy)?
-        };
-
-        // Execute the node based on its type
-        Self::execute_node_by_type(node, input_event, services.js_executor.clone(), services.app_executor.clone(), services.email_service.clone(), services.anthropic_service.clone()).await
-    }
-
-    async fn execute_node_by_type(
-        node: &Node,
-        mut event: WorkflowEvent,
-        js_executor: Arc<JavaScriptExecutor>,
-        app_executor: Arc<AppExecutor>,
-        email_service: Arc<EmailService>,
-        anthropic_service: Arc<AnthropicService>,
-    ) -> Result<WorkflowEvent> {
-        match &node.node_type {
-            NodeType::Trigger { .. } => Ok(event),
-            NodeType::Condition { script } => {
-                let condition_result = js_executor.execute_condition(script, &event).await?;
-                tracing::info!("Condition node '{}' evaluated to: {}", node.name, condition_result);
-                event.condition_results.insert(node.id.clone(), condition_result);
-                Ok(event)
-            }
-            NodeType::Transformer { script } => {
-                let mut transformed_event = js_executor.execute_transformer(script, event.clone()).await
-                    .map_err(SwissPipeError::JavaScript)?;
-                transformed_event.condition_results = event.condition_results;
-                Ok(transformed_event)
-            }
-            NodeType::HttpRequest { url, method, timeout_seconds, failure_action, retry_config, headers } => {
-                match failure_action {
-                    crate::workflow::models::FailureAction::Retry => {
-                        app_executor
-                            .execute_http_request(url, method, *timeout_seconds, retry_config, event, headers)
-                            .await
-                    },
-                    crate::workflow::models::FailureAction::Continue => {
-                        match app_executor
-                            .execute_http_request(url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event.clone(), headers)
-                            .await 
-                        {
-                            Ok(result) => Ok(result),
-                            Err(e) => {
-                                tracing::warn!("HTTP request node '{}' failed but continuing: {}", node.name, e);
-                                Ok(event)
-                            }
-                        }
-                    },
-                    crate::workflow::models::FailureAction::Stop => {
-                        app_executor
-                            .execute_http_request(url, method, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event, headers)
-                            .await
-                    }
-                }
-            }
-            NodeType::OpenObserve { url, authorization_header, timeout_seconds, failure_action, retry_config } => {
-                match failure_action {
-                    crate::workflow::models::FailureAction::Retry => {
-                        app_executor
-                            .execute_openobserve(url, authorization_header, *timeout_seconds, retry_config, event)
-                            .await
-                    },
-                    crate::workflow::models::FailureAction::Continue => {
-                        match app_executor
-                            .execute_openobserve(url, authorization_header, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event.clone())
-                            .await 
-                        {
-                            Ok(result) => Ok(result),
-                            Err(e) => {
-                                tracing::warn!("OpenObserve node '{}' failed but continuing: {}", node.name, e);
-                                Ok(event)
-                            }
-                        }
-                    },
-                    crate::workflow::models::FailureAction::Stop => {
-                        app_executor
-                            .execute_openobserve(url, authorization_header, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() }, event)
-                            .await
-                    }
-                }
-            }
-            NodeType::Email { config } => {
-                match email_service.send_email(config, &event, &node.workflow_id, &node.id).await {
-                    Ok(result) => {
-                        tracing::info!("Email node '{}' executed successfully: {:?}", node.name, result);
-                        Ok(event)
-                    }
-                    Err(e) => {
-                        tracing::error!("Email node '{}' failed: {}", node.name, e);
-                        Err(SwissPipeError::Generic(format!("Email node failed: {e}")))
-                    }
-                }
-            }
-            NodeType::Delay { duration, unit } => {
-                use crate::workflow::models::DelayUnit;
-                use tokio::time::{sleep, Duration};
-
-                let delay_ms = match unit {
-                    DelayUnit::Seconds => duration * 1000,
-                    DelayUnit::Minutes => duration * 60 * 1000,
-                    DelayUnit::Hours => duration * 60 * 60 * 1000,
-                    DelayUnit::Days => duration * 24 * 60 * 60 * 1000,
-                };
-
-                tracing::info!("Delay node '{}' waiting for {} {:?} ({} ms)",
-                    node.name, duration, unit, delay_ms);
-
-                sleep(Duration::from_millis(delay_ms)).await;
-                tracing::debug!("Delay node '{}' completed", node.name);
-
-                Ok(event)
-            }
-            NodeType::Anthropic { model, max_tokens, temperature, system_prompt, user_prompt, timeout_seconds, failure_action, retry_config } => {
-                match failure_action {
-                    crate::workflow::models::FailureAction::Retry => {
-                        anthropic_service
-                            .call_anthropic(&AnthropicCallConfig {
-                                model,
-                                max_tokens: *max_tokens,
-                                temperature: *temperature,
-                                system_prompt: system_prompt.as_deref(),
-                                user_prompt,
-                                timeout_seconds: *timeout_seconds,
-                                retry_config,
-                            }, &event)
-                            .await
-                    },
-                    crate::workflow::models::FailureAction::Continue => {
-                        match anthropic_service
-                            .call_anthropic(&AnthropicCallConfig {
-                                model,
-                                max_tokens: *max_tokens,
-                                temperature: *temperature,
-                                system_prompt: system_prompt.as_deref(),
-                                user_prompt,
-                                timeout_seconds: *timeout_seconds,
-                                retry_config: &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() },
-                            }, &event)
-                            .await
-                        {
-                            Ok(result) => Ok(result),
-                            Err(e) => {
-                                tracing::warn!("Anthropic node '{}' failed but continuing: {}", node.name, e);
-                                Ok(event)
-                            }
-                        }
-                    },
-                    crate::workflow::models::FailureAction::Stop => {
-                        anthropic_service
-                            .call_anthropic(&AnthropicCallConfig {
-                                model,
-                                max_tokens: *max_tokens,
-                                temperature: *temperature,
-                                system_prompt: system_prompt.as_deref(),
-                                user_prompt,
-                                timeout_seconds: *timeout_seconds,
-                                retry_config: &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() },
-                            }, &event)
-                            .await
-                    }
-                }
-            }
-        }
-    }
-
-    fn get_final_output(
-        &self,
-        workflow: &Workflow,
-        completed_nodes: &HashSet<String>,
-        node_outputs: &HashMap<String, WorkflowEvent>,
-    ) -> Result<WorkflowEvent> {
-        // Find leaf nodes (nodes with no successors)
-        let successors = self.build_successor_map(workflow);
-        let mut leaf_nodes = Vec::new();
-        
-        for node in &workflow.nodes {
-            if completed_nodes.contains(&node.id)
-                && (!successors.contains_key(&node.id) || successors[&node.id].is_empty()) {
-                    leaf_nodes.push(node.id.clone());
-                }
-        }
-        
-        if leaf_nodes.len() == 1 {
-            // Single leaf node - return its output
-            Ok(node_outputs[&leaf_nodes[0]].clone())
-        } else if leaf_nodes.len() > 1 {
-            // Multiple leaf nodes - merge their outputs
-            let leaf_outputs: Vec<WorkflowEvent> = leaf_nodes.iter()
-                .filter_map(|name| node_outputs.get(name).cloned())
-                .collect();
-            
-            InputSyncService::merge_inputs(leaf_outputs, &InputMergeStrategy::WaitForAll)
-        } else {
-            // No leaf nodes found - this shouldn't happen in a valid DAG
-            Err(SwissPipeError::Generic("No leaf nodes found in completed workflow".to_string()))
-        }
-    }
-    
-    
 }
