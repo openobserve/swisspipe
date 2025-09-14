@@ -1,11 +1,25 @@
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios'
 import type { ApiError } from '../types/api'
 import type { Workflow, WorkflowListResponse, CreateWorkflowRequest } from '../types/workflow'
-import type { 
-  WorkflowExecution, 
-  ExecutionListResponse, 
-  ExecutionStepsResponse 
+import type {
+  WorkflowExecution,
+  ExecutionListResponse,
+  ExecutionStepsResponse
 } from '../types/execution'
+
+// AI Code Generation types
+interface GenerateCodeRequest {
+  system_prompt: string
+  user_prompt: string
+  model?: string
+  max_tokens?: number
+  temperature?: number
+}
+
+interface GenerateCodeResponse {
+  response: string
+  usage?: unknown
+}
 
 class ApiClient {
   private client: AxiosInstance
@@ -145,6 +159,14 @@ class ApiClient {
     const response = await this.client.post('/api/admin/v1/script/execute', {
       script,
       input
+    })
+    return response.data
+  }
+
+  // AI Code generation endpoint
+  async generateCode(request: GenerateCodeRequest): Promise<GenerateCodeResponse> {
+    const response = await this.client.post<GenerateCodeResponse>('/api/v1/ai/generate-code', request, {
+      timeout: 120000 // 120 seconds for AI generation requests
     })
     return response.data
   }

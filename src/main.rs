@@ -198,9 +198,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let port = config.port;
     
     // Create app state
-    let state = AppState { 
-        db, 
-        engine, 
+    let state = AppState {
+        db,
+        engine,
         config: Arc::new(config),
         worker_pool: worker_pool.clone(),
         workflow_cache: workflow_cache.clone(),
