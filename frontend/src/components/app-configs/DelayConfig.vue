@@ -43,7 +43,7 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'update:modelValue', value: any): void
+  (e: 'update:modelValue', value: Props['modelValue']): void
   (e: 'update'): void
 }
 

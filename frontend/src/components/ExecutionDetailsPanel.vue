@@ -390,7 +390,7 @@ function getStepStatusColorClass(status: StepStatus): string {
   }
 }
 
-function formatJson(data: any): string {
+function formatJson(data: unknown): string {
   if (typeof data === 'string') {
     try {
       return JSON.stringify(JSON.parse(data), null, 2)

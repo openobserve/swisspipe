@@ -82,8 +82,8 @@ interface Emits {
   (e: 'update'): void
 }
 
-const _props = defineProps<Props>()
-const _emit = defineEmits<Emits>()
+defineProps<Props>()
+defineEmits<Emits>()
 
 const workflowStore = useWorkflowStore()
 

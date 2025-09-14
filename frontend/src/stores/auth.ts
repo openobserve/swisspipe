@@ -45,7 +45,7 @@ export const useAuthStore = defineStore('auth', () => {
         const decoded = atob(credentials)
         const [username] = decoded.split(':')
         user.value = { username }
-      } catch (error) {
+      } catch {
         // Invalid credentials in localStorage, remove them
         localStorage.removeItem('auth_credentials')
       }

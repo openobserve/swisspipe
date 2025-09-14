@@ -93,6 +93,7 @@
 import { onMounted, onUnmounted, watch, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { v4 as uuidv4 } from 'uuid'
+import type { NodeMouseEvent } from '@vue-flow/core'
 import { useWorkflowStore } from '../stores/workflows'
 import { useNodeStore } from '../stores/nodes'
 import { useAuthStore } from '../stores/auth'
@@ -226,12 +227,12 @@ function onNodesInitialized() {
   console.log('Nodes initialized')
 }
 
-function handleInspectNode(node: any) {
+function handleInspectNode(node: unknown) {
   inspectedNode.value = node
   showNodeInspector.value = true
 }
 
-function handleNodeClick(event: any) {
+function handleNodeClick(event: NodeMouseEvent) {
   onNodeClick(event, tracingExecution, handleInspectNode)
 }
 
@@ -251,7 +252,7 @@ function closeNodeLibrary() {
   showNodeLibrary.value = false
 }
 
-function handleAddNode(nodeType: any) {
+function handleAddNode(nodeType: string) {
   // Find the bottom-most node position
   let bottomMostY = 100 // Default starting position if no nodes exist
   

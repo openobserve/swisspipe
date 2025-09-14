@@ -12,7 +12,7 @@ export const debugLog = {
   /**
    * Log general debug information
    */
-  info(message: string, data?: any) {
+  info(message: string, data?: unknown) {
     if (isDevelopment) {
       console.log(`[DEBUG] ${message}`, data)
     }
@@ -21,7 +21,7 @@ export const debugLog = {
   /**
    * Log component-specific events
    */
-  component(componentName: string, event: string, data?: any) {
+  component(componentName: string, event: string, data?: unknown) {
     if (isDevelopment) {
       console.log(`[${componentName}] ${event}`, data)
     }
@@ -30,7 +30,7 @@ export const debugLog = {
   /**
    * Log data transformation events
    */
-  transform(operation: string, input: any, output?: any) {
+  transform(operation: string, input: unknown, output?: unknown) {
     if (isDevelopment) {
       console.log(`[TRANSFORM] ${operation}`, {
         input: this.summarizeData(input),
@@ -42,7 +42,7 @@ export const debugLog = {
   /**
    * Log user interaction events
    */
-  interaction(element: string, action: string, data?: any) {
+  interaction(element: string, action: string, data?: unknown) {
     if (isDevelopment) {
       console.log(`[INTERACTION] ${element} ${action}`, this.summarizeData(data))
     }
@@ -51,7 +51,7 @@ export const debugLog = {
   /**
    * Log errors with context
    */
-  error(message: string, error: any, context?: any) {
+  error(message: string, error: unknown, context?: unknown) {
     if (isDevelopment) {
       console.error(`[ERROR] ${message}`, {
         error,
@@ -63,7 +63,7 @@ export const debugLog = {
   /**
    * Summarize large data objects for cleaner logging
    */
-  summarizeData(data: any): any {
+  summarizeData(data: unknown): unknown {
     if (!isDevelopment) return undefined
     
     if (data === null || data === undefined) return data
@@ -77,12 +77,13 @@ export const debugLog = {
       }
     }
     
-    const keys = Object.keys(data)
+    const obj = data as Record<string, unknown>
+    const keys = Object.keys(obj)
     if (keys.length > 5) {
       return {
         type: 'Object',
         keys: keys.slice(0, 5).concat(['...']),
-        preview: Object.fromEntries(keys.slice(0, 3).map(k => [k, data[k]]))
+        preview: Object.fromEntries(keys.slice(0, 3).map(k => [k, obj[k]]))
       }
     }
     

@@ -155,7 +155,7 @@ class ApiClient {
   }
 
   // Script execution endpoint
-  async executeScript(script: string, input: any): Promise<any> {
+  async executeScript(script: string, input: unknown): Promise<unknown> {
     const response = await this.client.post('/api/admin/v1/script/execute', {
       script,
       input
@@ -180,7 +180,7 @@ class ApiClient {
         }
       })
       return response.status === 200
-    } catch (error) {
+    } catch {
       return false
     }
   }

@@ -193,12 +193,12 @@ export function safeSync<T>(
 /**
  * Component error boundary utility
  */
-export function withErrorHandling<T extends (...args: any[]) => any>(
+export function withErrorHandling<T extends (...args: unknown[]) => unknown>(
   fn: T,
   context: string,
   onError?: (error: Error) => void
 ): T {
-  return ((...args: any[]) => {
+  return ((...args: unknown[]) => {
     try {
       return fn(...args)
     } catch (error) {

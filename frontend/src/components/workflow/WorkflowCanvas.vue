@@ -58,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { VueFlow } from '@vue-flow/core'
+import { VueFlow, Node, Edge, Connection, NodeMouseEvent, EdgeMouseEvent } from '@vue-flow/core'
 import { Controls } from '@vue-flow/controls'
 import { Background } from '@vue-flow/background'
 import TriggerNode from '../nodes/TriggerNode.vue'
@@ -72,19 +72,19 @@ import DelayNode from '../nodes/DelayNode.vue'
 import AnthropicNode from '../nodes/AnthropicNode.vue'
 
 interface Props {
-  nodes: any[]
-  edges: any[]
+  nodes: Node[]
+  edges: Edge[]
 }
 
 interface Emits {
-  (e: 'update:nodes', value: any[]): void
-  (e: 'update:edges', value: any[]): void
-  (e: 'node-click', event: any): void
-  (e: 'edge-click', event: any): void
-  (e: 'pane-click', event: any): void
-  (e: 'connect', event: any): void
+  (e: 'update:nodes', value: Node[]): void
+  (e: 'update:edges', value: Edge[]): void
+  (e: 'node-click', event: NodeMouseEvent): void
+  (e: 'edge-click', event: EdgeMouseEvent): void
+  (e: 'pane-click', event: MouseEvent): void
+  (e: 'connect', event: Connection): void
   (e: 'nodes-initialized'): void
-  (e: 'nodes-delete', event: any): void
+  (e: 'nodes-delete', event: { nodes: Node[] }): void
   (e: 'drop', event: DragEvent): void
 }
 

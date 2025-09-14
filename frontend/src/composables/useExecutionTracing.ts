@@ -1,16 +1,18 @@
 import { ref } from 'vue'
 import { useNodeStore } from '../stores/nodes'
 import { apiClient } from '../services/api'
+import type { WorkflowExecution, ExecutionStep } from '../types/execution'
+import type { Node, Edge } from '@vue-flow/core'
 
 export function useExecutionTracing() {
   const nodeStore = useNodeStore()
   
-  const tracingExecution = ref<any>(null)
-  const executionSteps = ref<any[]>([])
+  const tracingExecution = ref<WorkflowExecution | null>(null)
+  const executionSteps = ref<ExecutionStep[]>([])
   const showNodeInspector = ref(false)
-  const inspectedNode = ref<any>(null)
+  const inspectedNode = ref<unknown>(null)
 
-  async function onTraceExecution(executionData: any) {
+  async function onTraceExecution(executionData: WorkflowExecution) {
     tracingExecution.value = executionData
     
     try {
@@ -78,7 +80,7 @@ export function useExecutionTracing() {
   function updateEdgeExecutionStyles() {
     const executedNodeIds = new Set(executionSteps.value.map(step => step.node_id))
     
-    nodeStore.edges.forEach((edge: any) => {
+    nodeStore.edges.forEach((edge: Edge) => {
       const sourceNode = nodeStore.nodes.find(n => n.id === edge.source)
       const targetNode = nodeStore.nodes.find(n => n.id === edge.target)
       
@@ -130,7 +132,7 @@ export function useExecutionTracing() {
     showNodeInspector.value = false
     inspectedNode.value = null
     
-    nodeStore.nodes.forEach((node: any) => {
+    nodeStore.nodes.forEach((node: Node) => {
       node.data = {
         ...node.data,
         executionStatus: undefined,
@@ -142,7 +144,7 @@ export function useExecutionTracing() {
       }
     })
     
-    nodeStore.edges.forEach((edge: any) => {
+    nodeStore.edges.forEach((edge: Edge) => {
       edge.style = {
         strokeWidth: 2,
         stroke: '#6b7280',

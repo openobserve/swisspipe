@@ -36,7 +36,7 @@ export function deepClone<T>(obj: T): T {
  * Performs shallow comparison of two objects
  * Much faster than JSON.stringify for object comparison
  */
-export function shallowEqual<T extends Record<string, any>>(obj1: T, obj2: T): boolean {
+export function shallowEqual<T extends Record<string, unknown>>(obj1: T, obj2: T): boolean {
   const keys1 = Object.keys(obj1)
   const keys2 = Object.keys(obj2)
   
@@ -74,10 +74,16 @@ export function shallowArrayEqual<T>(arr1: T[], arr2: T[]): boolean {
  * Deep comparison only for specific EmailConfig fields that need it
  * More efficient than full JSON.stringify
  */
-export function emailConfigEqual(config1: any, config2: any): boolean {
+export function emailConfigEqual(config1: unknown, config2: unknown): boolean {
   // Quick reference equality check first
   if (config1 === config2) return true
   if (!config1 || !config2) return false
+
+  // Type guards - both must be objects
+  if (typeof config1 !== 'object' || typeof config2 !== 'object') return false
+
+  const obj1 = config1 as Record<string, unknown>
+  const obj2 = config2 as Record<string, unknown>
   
   // Compare primitive fields
   const primitiveFields = [
@@ -87,26 +93,32 @@ export function emailConfigEqual(config1: any, config2: any): boolean {
   ]
   
   for (const field of primitiveFields) {
-    if (config1[field] !== config2[field]) {
+    if (obj1[field] !== obj2[field]) {
       return false
     }
   }
   
   // Compare from object
-  if (!shallowEqual(config1.from || {}, config2.from || {})) {
+  const from1 = (typeof obj1.from === 'object' && obj1.from) ? obj1.from as Record<string, unknown> : {}
+  const from2 = (typeof obj2.from === 'object' && obj2.from) ? obj2.from as Record<string, unknown> : {}
+  if (!shallowEqual(from1, from2)) {
     return false
   }
   
   // Compare recipient arrays
   const recipientFields = ['to', 'cc', 'bcc']
   for (const field of recipientFields) {
-    const arr1 = config1[field] || []
-    const arr2 = config2[field] || []
-    
+    const val1 = obj1[field]
+    const val2 = obj2[field]
+    const arr1 = Array.isArray(val1) ? val1 : []
+    const arr2 = Array.isArray(val2) ? val2 : []
+
     if (arr1.length !== arr2.length) return false
-    
+
     for (let i = 0; i < arr1.length; i++) {
-      if (!shallowEqual(arr1[i] || {}, arr2[i] || {})) {
+      const item1 = (typeof arr1[i] === 'object' && arr1[i]) ? arr1[i] as Record<string, unknown> : {}
+      const item2 = (typeof arr2[i] === 'object' && arr2[i]) ? arr2[i] as Record<string, unknown> : {}
+      if (!shallowEqual(item1, item2)) {
         return false
       }
     }

@@ -106,9 +106,9 @@ export function useWorkflowData() {
           debugLog.component('useWorkflowData', 'email-node-conversion', {
             nodeId: node.id,
             hasConfig: !!node.data.config,
-            hasFrom: !!(node.data.config as any)?.from,
-            hasTo: !!(node.data.config as any)?.to,
-            toCount: (node.data.config as any)?.to?.length || 0
+            hasFrom: !!(node.data.config as Record<string, unknown>)?.from,
+            hasTo: !!(node.data.config as Record<string, unknown>)?.to,
+            toCount: Array.isArray((node.data.config as Record<string, unknown>)?.to) ? (node.data.config as Record<string, unknown>).to.length : 0
           })
         }
         

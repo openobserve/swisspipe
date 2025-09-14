@@ -4,7 +4,7 @@
 
 import { ref, watch, computed } from 'vue'
 import type { EmailAddress } from '../types/nodes'
-import { shallowArrayEqual, shallowEqual } from '../utils/comparison'
+import { shallowArrayEqual } from '../utils/comparison'
 import { debugLog } from '../utils/debug'
 import { safeSync } from '../utils/error-handling'
 
@@ -75,7 +75,7 @@ export function useEmailRecipients(props: EmailRecipientsProps, emit: EmailRecip
   }
 
   // Input event handlers
-  function handleInputStart(field: string, index: number, value?: any) {
+  function handleInputStart(field: string, index: number, value?: unknown) {
     userIsTyping.value = true
     debugLog.interaction('EmailRecipientList', `input-start:${field}[${index}]`, value)
   }

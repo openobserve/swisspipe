@@ -4,7 +4,7 @@
 
 import { ref, watch, computed, type Ref } from 'vue'
 import type { EmailConfig } from '../types/nodes'
-import { emailConfigEqual, deepClone, shallowArrayEqual } from '../utils/comparison'
+import { emailConfigEqual, deepClone } from '../utils/comparison'
 import { debugLog } from '../utils/debug'
 import { validateEmailConfig, safeSync, type ValidationResult } from '../utils/error-handling'
 

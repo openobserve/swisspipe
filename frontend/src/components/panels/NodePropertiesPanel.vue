@@ -201,7 +201,7 @@ const nodeTypeDefinition = computed(() =>
 interface NodeData {
   label: string
   description: string
-  config: any
+  config: unknown
   status: string
 }
 
@@ -227,13 +227,13 @@ function updateNodeData() {
     if (selectedNodeData.value.type === 'email') {
       debugLog.component('NodePropertiesPanel', 'email-node-update', {
         hasEmailConfig: !!localNodeData.value.config,
-        hasFrom: !!(localNodeData.value.config as any)?.from,
-        hasTo: !!(localNodeData.value.config as any)?.to,
-        toCount: (localNodeData.value.config as any)?.to?.length || 0,
-        hasCC: !!(localNodeData.value.config as any)?.cc,
-        ccCount: (localNodeData.value.config as any)?.cc?.length || 0,
-        hasBCC: !!(localNodeData.value.config as any)?.bcc,
-        bccCount: (localNodeData.value.config as any)?.bcc?.length || 0
+        hasFrom: !!(localNodeData.value.config as Record<string, unknown>)?.from,
+        hasTo: !!(localNodeData.value.config as Record<string, unknown>)?.to,
+        toCount: Array.isArray((localNodeData.value.config as Record<string, unknown>)?.to) ? (localNodeData.value.config as Record<string, unknown>).to.length : 0,
+        hasCC: !!(localNodeData.value.config as Record<string, unknown>)?.cc,
+        ccCount: Array.isArray((localNodeData.value.config as Record<string, unknown>)?.cc) ? (localNodeData.value.config as Record<string, unknown>).cc.length : 0,
+        hasBCC: !!(localNodeData.value.config as Record<string, unknown>)?.bcc,
+        bccCount: Array.isArray((localNodeData.value.config as Record<string, unknown>)?.bcc) ? (localNodeData.value.config as Record<string, unknown>).bcc.length : 0
       })
     }
     

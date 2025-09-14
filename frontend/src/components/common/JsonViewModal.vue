@@ -53,7 +53,7 @@ import CodeEditor from './CodeEditor.vue'
 
 interface Props {
   visible: boolean
-  jsonData: any
+  jsonData: unknown
 }
 
 interface Emits {

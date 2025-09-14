@@ -109,7 +109,7 @@ import * as monaco from 'monaco-editor'
 
 interface Props {
   visible: boolean
-  nodeData: any
+  nodeData: unknown
 }
 
 const props = defineProps<Props>()

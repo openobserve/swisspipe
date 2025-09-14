@@ -79,13 +79,6 @@ function getPriorityColor() {
   }
 }
 
-function formatDuration(durationMs: number | null): string {
-  if (!durationMs) return 'N/A'
-  
-  if (durationMs < 1000) return `${durationMs}ms`
-  if (durationMs < 60000) return `${(durationMs / 1000).toFixed(1)}s`
-  return `${(durationMs / 60000).toFixed(1)}m`
-}
 </script>
 
 <style scoped>

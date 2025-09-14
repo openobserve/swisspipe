@@ -9,11 +9,12 @@ import {
   NODE_TYPE_DESCRIPTIONS
 } from '../constants/nodeDefaults'
 import type { NodeConfig } from '../types/nodes'
+import type { NodeType } from '../types/workflow'
 import { debugLog } from './debug'
 
 export type ApiNodeType = 'trigger' | 'condition' | 'transformer' | 'http-request' | 'openobserve' | 'email' | 'delay' | 'anthropic'
 
-export function convertApiNodeTypeToVueFlowType(nodeType: any): ApiNodeType {
+export function convertApiNodeTypeToVueFlowType(nodeType: NodeType): ApiNodeType {
   if (nodeType.Trigger) return 'trigger'
   if (nodeType.Condition) return 'condition'
   if (nodeType.Transformer) return 'transformer'
@@ -34,7 +35,7 @@ export function convertApiNodeTypeToVueFlowType(nodeType: any): ApiNodeType {
   return 'http-request'
 }
 
-export function getNodeDescription(nodeType: any): string {
+export function getNodeDescription(nodeType: NodeType): string {
   if (nodeType.Trigger) return NODE_TYPE_DESCRIPTIONS.Trigger
   if (nodeType.Condition) return NODE_TYPE_DESCRIPTIONS.Condition
   if (nodeType.Transformer) return NODE_TYPE_DESCRIPTIONS.Transformer
@@ -47,7 +48,7 @@ export function getNodeDescription(nodeType: any): string {
   return 'Unknown node type'
 }
 
-export function convertApiNodeConfigToVueFlowConfig(nodeType: any): NodeConfig {
+export function convertApiNodeConfigToVueFlowConfig(nodeType: NodeType): NodeConfig {
   if (nodeType.Trigger) {
     return {
       type: 'trigger',
@@ -171,7 +172,7 @@ export function convertApiNodeConfigToVueFlowConfig(nodeType: any): NodeConfig {
   } as NodeConfig
 }
 
-export function convertNodeToApiType(node: { type: string; data: { config: any } }) {
+export function convertNodeToApiType(node: { type: string; data: { config: unknown } }) {
   switch (node.type) {
     case 'trigger':
       return {
@@ -195,7 +196,7 @@ export function convertNodeToApiType(node: { type: string; data: { config: any }
       }
       
     case 'http-request':
-      const httpRequestConfig = node.data.config as any
+      const httpRequestConfig = node.data.config as Record<string, unknown>
       return {
         HttpRequest: {
           url: httpRequestConfig.url || DEFAULT_HTTP_CONFIG.url,
@@ -208,7 +209,7 @@ export function convertNodeToApiType(node: { type: string; data: { config: any }
       }
       
     case 'openobserve':
-      const openobserveConfig = node.data.config as any
+      const openobserveConfig = node.data.config as Record<string, unknown>
       return {
         OpenObserve: {
           url: openobserveConfig.url || DEFAULT_OPENOBSERVE_CONFIG.url,
@@ -220,9 +221,9 @@ export function convertNodeToApiType(node: { type: string; data: { config: any }
       }
       
     case 'email':
-      const emailConfig = node.data.config as any
+      const emailConfig = node.data.config as Record<string, unknown>
       debugLog.transform('email-config-to-api', {
-        nodeId: (node as any).id || 'unknown',
+        nodeId: (node as Record<string, unknown>).id || 'unknown',
         hasFrom: !!emailConfig.from,
         hasTo: !!emailConfig.to,
         toCount: emailConfig.to?.length || 0,
@@ -265,7 +266,7 @@ export function convertNodeToApiType(node: { type: string; data: { config: any }
       return result
       
     case 'delay':
-      const delayConfig = node.data.config as any
+      const delayConfig = node.data.config as Record<string, unknown>
       return {
         Delay: {
           duration: delayConfig.duration || DEFAULT_DELAY_CONFIG.duration,
@@ -274,7 +275,7 @@ export function convertNodeToApiType(node: { type: string; data: { config: any }
       }
 
     case 'anthropic':
-      const anthropicConfig = node.data.config as any
+      const anthropicConfig = node.data.config as Record<string, unknown>
       return {
         Anthropic: {
           model: anthropicConfig.model || DEFAULT_ANTHROPIC_CONFIG.model,
@@ -290,7 +291,7 @@ export function convertNodeToApiType(node: { type: string; data: { config: any }
 
     case 'app':
       // Legacy support for old App nodes
-      const appConfig = node.data.config as any
+      const appConfig = node.data.config as Record<string, unknown>
       let app_type = appConfig.app_type || 'HttpRequest'
       
       if (appConfig.app_type === 'OpenObserve') {

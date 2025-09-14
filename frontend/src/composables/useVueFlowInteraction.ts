@@ -3,6 +3,8 @@ import { useVueFlow } from '@vue-flow/core'
 import { useNodeStore } from '../stores/nodes'
 import { deepClone } from '../utils/comparison'
 import { v4 as uuidv4 } from 'uuid'
+import type { Node } from '@vue-flow/core'
+import type { WorkflowExecution } from '../types/execution'
 
 export function useVueFlowInteraction() {
   const nodeStore = useNodeStore()
@@ -10,7 +12,7 @@ export function useVueFlowInteraction() {
   
   const selectedEdgeId = ref<string | null>(null)
 
-  function onNodeClick(event: { node: { id: string; data: any } }, tracingExecution: { value: any } | null, onInspectNode: (node: any) => void) {
+  function onNodeClick(event: { node: Node }, tracingExecution: { value: WorkflowExecution | null } | null, onInspectNode: (node: unknown) => void) {
     // If we're in tracing mode, always show the NodeInspector instead of properties panel
     if (tracingExecution?.value) {
       onInspectNode(event.node.data)

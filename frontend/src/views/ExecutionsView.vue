@@ -148,7 +148,6 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import {
   MagnifyingGlassIcon,
   EyeIcon,
@@ -160,7 +159,6 @@ import HeaderComponent from '../components/HeaderComponent.vue'
 import ExecutionDetailsPanel from '../components/ExecutionDetailsPanel.vue'
 import type { WorkflowExecution, ExecutionStatus } from '../types/execution'
 
-const router = useRouter()
 const executionStore = useExecutionStore()
 
 onMounted(() => {

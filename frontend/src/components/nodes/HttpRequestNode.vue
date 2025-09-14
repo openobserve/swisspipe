@@ -20,7 +20,7 @@ interface Props {
     label: string
     description?: string
     status?: string
-    config: any
+    config: unknown
     isTracing?: boolean
     executionStatus?: string
     executionDuration?: number

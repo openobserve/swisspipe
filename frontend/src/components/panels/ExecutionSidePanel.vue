@@ -207,8 +207,8 @@ async function fetchExecutions() {
     const data = await apiClient.getExecutionsByWorkflow(props.workflowId, pageSize, offset, status)
     executions.value = data.executions || []
     totalExecutions.value = data.count || 0
-  } catch (err: any) {
-    error.value = err.message || 'Unknown error occurred'
+  } catch (err: unknown) {
+    error.value = (err instanceof Error ? err.message : String(err)) || 'Unknown error occurred'
     console.error('Failed to fetch executions:', err)
   } finally {
     loading.value = false

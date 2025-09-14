@@ -10,7 +10,7 @@ export default defineConfig({
   plugins: [
     vue(),
     vueDevTools(),
-    (monacoEditorPlugin as any).default({
+    (monacoEditorPlugin as { default: (options: Record<string, unknown>) => unknown }).default({
       languages: ['javascript', 'typescript', 'json'],
       features: ['!gotoSymbol'] // Disable features that might cause issues
     })
