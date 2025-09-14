@@ -148,6 +148,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { XMarkIcon, ArrowPathIcon } from '@heroicons/vue/24/outline'
 import StatusBadge from '../common/StatusBadge.vue'
 import { apiClient } from '../../services/api'
+import { formatDuration } from '../../utils/formatting'
 
 interface Execution {
   id: string
@@ -263,13 +264,6 @@ function formatRelativeTime(timestamp: number | null | undefined): string {
   return `${seconds}s ago`
 }
 
-function formatDuration(durationMs: number | null | undefined): string {
-  if (!durationMs) return 'N/A'
-  
-  if (durationMs < 1000) return `${durationMs}ms`
-  if (durationMs < 60000) return `${(durationMs / 1000).toFixed(1)}s`
-  return `${(durationMs / 60000).toFixed(1)}m`
-}
 
 function onStatusFilterChange() {
   currentPage.value = 1 // Reset to first page when filter changes

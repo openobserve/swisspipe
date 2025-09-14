@@ -106,6 +106,7 @@
 import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { XMarkIcon, ArrowDownIcon, ArrowUpIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
 import * as monaco from 'monaco-editor'
+import { formatDuration } from '../../utils/formatting'
 
 interface Props {
   visible: boolean
@@ -157,13 +158,6 @@ function close() {
   emit('close')
 }
 
-function formatDuration(durationMs: number | null): string {
-  if (!durationMs) return 'N/A'
-  
-  if (durationMs < 1000) return `${durationMs}ms`
-  if (durationMs < 60000) return `${(durationMs / 1000).toFixed(1)}s`
-  return `${(durationMs / 60000).toFixed(1)}m`
-}
 
 async function copyToClipboard(type: 'input' | 'output') {
   try {

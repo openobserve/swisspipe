@@ -112,13 +112,6 @@
                       <PencilIcon class="h-5 w-5" />
                     </button>
                     <button
-                      @click.stop="duplicateWorkflow(workflow)"
-                      class="text-gray-400 hover:text-gray-300 transition-colors"
-                      title="Duplicate"
-                    >
-                      <DocumentDuplicateIcon class="h-5 w-5" />
-                    </button>
-                    <button
                       @click.stop="showDeleteModalHandler(workflow)"
                       class="text-red-400 hover:text-red-300 transition-colors"
                       title="Delete"
@@ -219,13 +212,12 @@ import { useRouter } from 'vue-router'
 import {
   MagnifyingGlassIcon,
   PencilIcon,
-  DocumentDuplicateIcon,
   TrashIcon
 } from '@heroicons/vue/24/outline'
 import { useWorkflowStore } from '../stores/workflows'
-import { apiClient } from '../services/api'
 import HeaderComponent from '../components/HeaderComponent.vue'
 import type { Workflow } from '../types/workflow'
+import { formatDate } from '../utils/formatting'
 
 const router = useRouter()
 const workflowStore = useWorkflowStore()
@@ -234,7 +226,6 @@ const showCreateModal = ref(false)
 const showDeleteModal = ref(false)
 const creating = ref(false)
 const deleting = ref(false)
-const duplicating = ref(false)
 const workflowToDelete = ref<Workflow | null>(null)
 const newWorkflow = ref({
   name: '',
@@ -245,15 +236,6 @@ onMounted(() => {
   workflowStore.fetchWorkflows()
 })
 
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
 
 function navigateToDesigner(workflowId: string) {
   router.push(`/workflows/${workflowId}`)
@@ -281,35 +263,6 @@ async function createWorkflow() {
   }
 }
 
-async function duplicateWorkflow(workflow: Workflow) {
-  if (duplicating.value) return
-  
-  duplicating.value = true
-  try {
-    // Fetch the complete workflow data directly from API
-    const fullWorkflow = await apiClient.getWorkflow(workflow.id)
-    if (!fullWorkflow) {
-      throw new Error('Failed to fetch workflow data')
-    }
-    
-    // Create a duplicate with a new name
-    const duplicatedWorkflow = {
-      name: `${workflow.name} (Copy)`,
-      description: workflow.description,
-      nodes: fullWorkflow.nodes.filter(node => !('Trigger' in node.node_type)), // Filter out trigger nodes since they're auto-created
-      edges: fullWorkflow.edges
-    }
-    
-    const newWorkflow = await workflowStore.createWorkflow(duplicatedWorkflow)
-    
-    // Navigate to the new workflow
-    navigateToDesigner(newWorkflow.id)
-  } catch (error) {
-    console.error('Failed to duplicate workflow:', error)
-  } finally {
-    duplicating.value = false
-  }
-}
 
 function showDeleteModalHandler(workflow: Workflow) {
   workflowToDelete.value = workflow

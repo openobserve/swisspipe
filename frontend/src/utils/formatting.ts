@@ -3,9 +3,9 @@
  * @param durationMs Duration in milliseconds
  * @returns Formatted duration string (e.g., "1.2s", "45ms", "2.1m")
  */
-export function formatDuration(durationMs: number | null): string {
+export function formatDuration(durationMs: number | null | undefined): string {
   if (!durationMs) return 'N/A'
-  
+
   if (durationMs < 1000) return `${durationMs}ms`
   if (durationMs < 60000) return `${(durationMs / 1000).toFixed(1)}s`
   return `${(durationMs / 60000).toFixed(1)}m`
@@ -33,10 +33,25 @@ export function formatTimestamp(timestamp: number): string {
  */
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
-  
+
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+/**
+ * Format date string to readable format
+ * @param dateString Date string (ISO format)
+ * @returns Formatted date string (e.g., "Sep 14, 2024, 10:30 AM")
+ */
+export function formatDate(dateString: string): string {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
