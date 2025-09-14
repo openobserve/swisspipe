@@ -69,10 +69,22 @@ impl JavaScriptExecutor {
         if result == "null" {
             return Err(JavaScriptError::EventDropped);
         }
-        
-        let transformed_event: WorkflowEvent = serde_json::from_str(&result)
-            .map_err(|e| JavaScriptError::SerializationError(e.to_string()))?;
-            
-        Ok(transformed_event)
+
+        // Try to parse as complete WorkflowEvent first
+        match serde_json::from_str::<WorkflowEvent>(&result) {
+            Ok(transformed_event) => Ok(transformed_event),
+            Err(_) => {
+                // If that fails, try to parse as just data and preserve original structure
+                let data_value: serde_json::Value = serde_json::from_str(&result)
+                    .map_err(|e| JavaScriptError::SerializationError(e.to_string()))?;
+
+                Ok(WorkflowEvent {
+                    data: data_value,
+                    metadata: event.metadata,
+                    headers: event.headers,
+                    condition_results: event.condition_results,
+                })
+            }
+        }
     }
 }

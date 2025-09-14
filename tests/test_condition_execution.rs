@@ -10,9 +10,19 @@ use swisspipe::{
 use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
+// Set up minimal SMTP configuration for tests
+fn setup_test_env() {
+    std::env::set_var("SMTP_HOST", "localhost");
+    std::env::set_var("SMTP_PORT", "587");
+    std::env::set_var("SMTP_USERNAME", "test");
+    std::env::set_var("SMTP_PASSWORD", "test");
+    std::env::set_var("SMTP_FROM_EMAIL", "test@example.com");
+}
+
 
 #[tokio::test]
 async fn test_condition_result_storage_by_node_id() {
+    setup_test_env();
     // Test that condition results are stored using node IDs, not node names
     let db_url = "sqlite::memory:";
     let db = Arc::new(establish_connection(db_url).await.expect("Failed to connect to database"));
@@ -92,6 +102,7 @@ async fn test_condition_result_lookup_by_node_id() {
 
 #[tokio::test]
 async fn test_conditional_edge_evaluation_true_path() {
+    setup_test_env();
     // Test that conditional edges correctly follow the true path
     let db_url = "sqlite::memory:";
     let db = Arc::new(establish_connection(db_url).await.expect("Failed to connect to database"));
@@ -227,6 +238,7 @@ async fn test_conditional_edge_evaluation_true_path() {
 
 #[tokio::test]
 async fn test_conditional_edge_evaluation_false_path() {
+    setup_test_env();
     // Test that conditional edges correctly follow the false path
     let db_url = "sqlite::memory:";
     let db = Arc::new(establish_connection(db_url).await.expect("Failed to connect to database"));
@@ -361,6 +373,7 @@ async fn test_conditional_edge_evaluation_false_path() {
 
 #[tokio::test]
 async fn test_async_condition_execution() {
+    setup_test_env();
     // Test condition execution in async worker pool
     let db_url = "sqlite::memory:";
     let db = Arc::new(establish_connection(db_url).await.expect("Failed to connect to database"));
@@ -397,6 +410,7 @@ async fn test_async_condition_execution() {
 
 #[tokio::test]
 async fn test_multiple_conditions_in_workflow() {
+    setup_test_env();
     // Test workflow with multiple condition nodes
     let db_url = "sqlite::memory:";
     let db = Arc::new(establish_connection(db_url).await.expect("Failed to connect to database"));

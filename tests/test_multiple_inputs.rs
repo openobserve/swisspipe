@@ -1,23 +1,61 @@
 use swisspipe::{
-    database::establish_connection,
+    database::{establish_connection, workflow_executions, entities},
     workflow::{
         models::{WorkflowEvent, InputMergeStrategy},
         input_sync::InputSyncService,
     },
 };
+use sea_orm::{ActiveModelTrait, Set, DatabaseConnection};
 use std::{collections::HashMap, sync::Arc};
+
+// Helper function to create a test execution record to satisfy foreign key constraints
+async fn create_test_execution(db: &DatabaseConnection, execution_id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    // First create the workflow record if it doesn't exist
+    let workflow = entities::ActiveModel {
+        id: Set("test_workflow".to_string()),
+        name: Set("Test Workflow".to_string()),
+        description: Set(Some("Test workflow for input sync".to_string())),
+        start_node_id: Set(None),
+        created_at: Set(chrono::Utc::now()),
+        updated_at: Set(chrono::Utc::now()),
+        ..Default::default()
+    };
+    // Ignore errors in case the workflow already exists
+    let _ = workflow.insert(db).await;
+
+    // Then create the execution record
+    let execution = workflow_executions::ActiveModel {
+        id: Set(execution_id.to_string()),
+        workflow_id: Set("test_workflow".to_string()),
+        status: Set("pending".to_string()),
+        current_node_id: Set(None),
+        input_data: Set(Some(r#"{"data": {}}"#.to_string())),
+        output_data: Set(None),
+        error_message: Set(None),
+        started_at: Set(None),
+        completed_at: Set(None),
+        created_at: Set(chrono::Utc::now().timestamp_micros()),
+        updated_at: Set(chrono::Utc::now().timestamp_micros()),
+        ..Default::default()
+    };
+    execution.insert(db).await?;
+    Ok(())
+}
 
 #[tokio::test]
 async fn test_input_synchronization_wait_for_all() {
     let db_url = "sqlite::memory:";
     let db = Arc::new(establish_connection(db_url).await.expect("Failed to connect to database"));
     let input_sync = InputSyncService::new(db.clone());
-    
+
     let execution_id = "test_exec_001";
     let node_id = "merge_node";
     let expected_inputs = 2;
     let strategy = InputMergeStrategy::WaitForAll;
-    
+
+    // Create test execution record first to satisfy foreign key constraint
+    create_test_execution(db.as_ref(), execution_id).await.expect("Failed to create test execution");
+
     // Initialize sync record
     input_sync.initialize_node_sync(execution_id, node_id, expected_inputs, &strategy)
         .await
@@ -111,7 +149,10 @@ async fn test_input_synchronization_first_wins() {
     let node_id = "first_wins_node";
     let expected_inputs = 3;
     let strategy = InputMergeStrategy::FirstWins;
-    
+
+    // Create test execution record first to satisfy foreign key constraint
+    create_test_execution(db.as_ref(), execution_id).await.expect("Failed to create test execution");
+
     // Initialize sync record
     input_sync.initialize_node_sync(execution_id, node_id, expected_inputs, &strategy)
         .await
@@ -166,10 +207,13 @@ async fn test_timeout_based_strategy() {
     let input_sync = InputSyncService::new(db.clone());
     
     let execution_id = "test_exec_003";
-    let node_id = "timeout_node"; 
+    let node_id = "timeout_node";
     let expected_inputs = 2;
     let strategy = InputMergeStrategy::TimeoutBased(1); // 1 second timeout
-    
+
+    // Create test execution record first to satisfy foreign key constraint
+    create_test_execution(db.as_ref(), execution_id).await.expect("Failed to create test execution");
+
     // Initialize sync record
     input_sync.initialize_node_sync(execution_id, node_id, expected_inputs, &strategy)
         .await
