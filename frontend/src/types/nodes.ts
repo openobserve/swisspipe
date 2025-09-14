@@ -29,11 +29,11 @@ export interface WorkflowEdge extends Omit<Edge, 'data'> {
   }
 }
 
-export type NodeTypeString = 'trigger' | 'condition' | 'transformer' | 'http-request' | 'openobserve' | 'app' | 'email' | 'delay'
+export type NodeTypeString = 'trigger' | 'condition' | 'transformer' | 'http-request' | 'openobserve' | 'app' | 'email' | 'delay' | 'anthropic'
 
 export type NodeStatus = 'ready' | 'running' | 'completed' | 'error'
 
-export type NodeConfig = TriggerConfig | ConditionConfig | TransformerConfig | HttpRequestConfig | OpenObserveConfig | AppConfig | EmailConfig | DelayConfig
+export type NodeConfig = TriggerConfig | ConditionConfig | TransformerConfig | HttpRequestConfig | OpenObserveConfig | AppConfig | EmailConfig | DelayConfig | AnthropicConfig
 
 export interface TriggerConfig {
   type: 'trigger'
@@ -103,6 +103,23 @@ export interface DelayConfig {
   type: 'delay'
   duration: number
   unit: DelayUnit
+}
+
+export interface AnthropicConfig {
+  type: 'anthropic'
+  model: string
+  max_tokens: number
+  temperature: number
+  system_prompt?: string
+  user_prompt: string
+  timeout_seconds: number
+  failure_action: FailureAction
+  retry_config: {
+    max_attempts: number
+    initial_delay_ms: number
+    max_delay_ms: number
+    backoff_multiplier: number
+  }
 }
 
 // Legacy support for old App nodes

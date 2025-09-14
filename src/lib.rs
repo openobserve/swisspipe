@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+pub mod anthropic;
 pub mod api;
 pub mod async_execution;
 pub mod auth;

@@ -50,6 +50,9 @@
       <template #node-delay="{ data }">
         <DelayNode :data="data" />
       </template>
+      <template #node-anthropic="{ data }">
+        <AnthropicNode :data="data" />
+      </template>
     </VueFlow>
   </div>
 </template>
@@ -66,6 +69,7 @@ import OpenObserveNode from '../nodes/OpenObserveNode.vue'
 import AppNode from '../nodes/AppNode.vue'
 import EmailNode from '../nodes/EmailNode.vue'
 import DelayNode from '../nodes/DelayNode.vue'
+import AnthropicNode from '../nodes/AnthropicNode.vue'
 
 interface Props {
   nodes: any[]

@@ -50,7 +50,7 @@ export interface EdgeRequest {
   condition_result?: boolean
 }
 
-export type NodeType = TriggerNode | ConditionNode | TransformerNode | HttpRequestNode | OpenObserveNode | AppNode | EmailNode | DelayNode
+export type NodeType = TriggerNode | ConditionNode | TransformerNode | HttpRequestNode | OpenObserveNode | AppNode | EmailNode | DelayNode | AnthropicNode
 
 export interface TriggerNode {
   Trigger: {
@@ -130,6 +130,19 @@ export interface DelayNode {
   Delay: {
     duration: number
     unit: DelayUnit
+  }
+}
+
+export interface AnthropicNode {
+  Anthropic: {
+    model: string
+    max_tokens: number
+    temperature: number
+    system_prompt?: string
+    user_prompt: string
+    timeout_seconds: number
+    failure_action: FailureAction
+    retry_config: RetryConfig
   }
 }
 

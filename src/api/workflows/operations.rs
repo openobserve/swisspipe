@@ -139,6 +139,7 @@ pub fn node_type_to_string(node_type: &NodeType) -> String {
         NodeType::OpenObserve { .. } => "openobserve".to_string(),
         NodeType::Email { .. } => "email".to_string(),
         NodeType::Delay { .. } => "delay".to_string(),
+        NodeType::Anthropic { .. } => "anthropic".to_string(),
     }
 }
 

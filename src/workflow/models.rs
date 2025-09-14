@@ -100,6 +100,16 @@ pub enum NodeType {
         duration: u64,
         unit: DelayUnit,
     },
+    Anthropic {
+        model: String,
+        max_tokens: u32,
+        temperature: f64,
+        system_prompt: Option<String>,
+        user_prompt: String,
+        timeout_seconds: u64,
+        failure_action: FailureAction,
+        retry_config: RetryConfig,
+    },
 }
 
 #[derive(Debug, Clone)]

@@ -52,6 +52,17 @@ export const DEFAULT_DELAY_CONFIG = {
   unit: 'Seconds' as const
 }
 
+export const DEFAULT_ANTHROPIC_CONFIG = {
+  model: 'claude-3-5-sonnet-20241022',
+  max_tokens: 4000,
+  temperature: 0.7,
+  system_prompt: '',
+  user_prompt: 'Analyze this data: {{ event.data }}',
+  timeout_seconds: 60,
+  failure_action: 'Stop' as const,
+  retry_config: DEFAULT_RETRY_CONFIG
+}
+
 export const NODE_TYPE_DESCRIPTIONS = {
   Trigger: 'HTTP endpoint trigger',
   Condition: 'Conditional logic node',
@@ -60,6 +71,7 @@ export const NODE_TYPE_DESCRIPTIONS = {
   OpenObserve: 'OpenObserve log analytics',
   Email: 'Email notification node',
   Delay: 'Workflow execution delay',
+  Anthropic: 'Anthropic LLM integration',
   App: 'External application node'
 }
 
@@ -71,6 +83,7 @@ export const NODE_TYPE_MAPPINGS = {
   openobserve: 'OpenObserve',
   email: 'Email',
   delay: 'Delay',
+  anthropic: 'Anthropic',
   app: 'App'
 }
 
@@ -114,8 +127,14 @@ export const NODE_LIBRARY_DEFINITIONS = {
   },
   delay: {
     label: 'Delay',
-    description: 'Pause workflow execution for a specified duration', 
+    description: 'Pause workflow execution for a specified duration',
     color: '#6b7280',
     icon: 'clock'
+  },
+  anthropic: {
+    label: 'Anthropic',
+    description: 'Generate content using Anthropic LLM models',
+    color: '#d97706',
+    icon: 'sparkles'
   }
 }

@@ -1,3 +1,4 @@
+mod anthropic;
 mod api;
 mod auth;
 mod cache;

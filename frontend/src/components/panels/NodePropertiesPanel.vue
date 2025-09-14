@@ -156,6 +156,17 @@
           @update="updateNodeData"
         />
       </div>
+
+      <!-- Anthropic Node Configuration -->
+      <div v-if="selectedNodeData.type === 'anthropic'" class="h-full flex flex-col">
+        <h3 class="text-sm font-semibold text-gray-300 mb-3">Anthropic Configuration</h3>
+        <div class="flex-1 min-h-0 overflow-y-auto">
+          <AnthropicConfig
+            v-model="localNodeData.config"
+            @update="updateNodeData"
+          />
+        </div>
+      </div>
     </div>
 
 
@@ -173,6 +184,7 @@ import TriggerConfig from '../app-configs/TriggerConfig.vue'
 import ConditionConfig from '../app-configs/ConditionConfig.vue'
 import TransformerConfig from '../app-configs/TransformerConfig.vue'
 import DelayConfig from '../app-configs/DelayConfig.vue'
+import AnthropicConfig from '../app-configs/AnthropicConfig.vue'
 import HttpRequestConfig from '../app-configs/HttpRequestConfig.vue'
 import OpenObserveConfig from '../app-configs/OpenObserveConfig.vue'
 import EmailConfig from '../email-configs/EmailConfig.vue'

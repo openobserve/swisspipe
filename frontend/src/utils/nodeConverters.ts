@@ -1,16 +1,17 @@
 import { DEFAULT_CONDITION_SCRIPT, DEFAULT_TRANSFORMER_SCRIPT } from '../constants/defaults'
-import { 
+import {
   DEFAULT_RETRY_CONFIG,
   DEFAULT_EMAIL_CONFIG,
   DEFAULT_HTTP_CONFIG,
   DEFAULT_OPENOBSERVE_CONFIG,
   DEFAULT_DELAY_CONFIG,
+  DEFAULT_ANTHROPIC_CONFIG,
   NODE_TYPE_DESCRIPTIONS
 } from '../constants/nodeDefaults'
 import type { NodeConfig } from '../types/nodes'
 import { debugLog } from './debug'
 
-export type ApiNodeType = 'trigger' | 'condition' | 'transformer' | 'http-request' | 'openobserve' | 'email' | 'delay'
+export type ApiNodeType = 'trigger' | 'condition' | 'transformer' | 'http-request' | 'openobserve' | 'email' | 'delay' | 'anthropic'
 
 export function convertApiNodeTypeToVueFlowType(nodeType: any): ApiNodeType {
   if (nodeType.Trigger) return 'trigger'
@@ -20,7 +21,8 @@ export function convertApiNodeTypeToVueFlowType(nodeType: any): ApiNodeType {
   if (nodeType.OpenObserve) return 'openobserve'
   if (nodeType.Email) return 'email'
   if (nodeType.Delay) return 'delay'
-  
+  if (nodeType.Anthropic) return 'anthropic'
+
   // Legacy support for old App nodes
   if (nodeType.App) {
     if (typeof nodeType.App.app_type === 'object' && nodeType.App.app_type.OpenObserve) {
@@ -28,7 +30,7 @@ export function convertApiNodeTypeToVueFlowType(nodeType: any): ApiNodeType {
     }
     return 'http-request'
   }
-  
+
   return 'http-request'
 }
 
@@ -40,6 +42,7 @@ export function getNodeDescription(nodeType: any): string {
   if (nodeType.OpenObserve) return NODE_TYPE_DESCRIPTIONS.OpenObserve
   if (nodeType.Email) return NODE_TYPE_DESCRIPTIONS.Email
   if (nodeType.Delay) return NODE_TYPE_DESCRIPTIONS.Delay
+  if (nodeType.Anthropic) return NODE_TYPE_DESCRIPTIONS.Anthropic
   if (nodeType.App) return NODE_TYPE_DESCRIPTIONS.App
   return 'Unknown node type'
 }
@@ -122,7 +125,21 @@ export function convertApiNodeConfigToVueFlowConfig(nodeType: any): NodeConfig {
       unit: nodeType.Delay.unit || DEFAULT_DELAY_CONFIG.unit
     }
   }
-  
+
+  if (nodeType.Anthropic) {
+    return {
+      type: 'anthropic' as const,
+      model: nodeType.Anthropic.model || DEFAULT_ANTHROPIC_CONFIG.model,
+      max_tokens: nodeType.Anthropic.max_tokens || DEFAULT_ANTHROPIC_CONFIG.max_tokens,
+      temperature: nodeType.Anthropic.temperature || DEFAULT_ANTHROPIC_CONFIG.temperature,
+      system_prompt: nodeType.Anthropic.system_prompt || DEFAULT_ANTHROPIC_CONFIG.system_prompt,
+      user_prompt: nodeType.Anthropic.user_prompt || DEFAULT_ANTHROPIC_CONFIG.user_prompt,
+      timeout_seconds: nodeType.Anthropic.timeout_seconds || DEFAULT_ANTHROPIC_CONFIG.timeout_seconds,
+      failure_action: nodeType.Anthropic.failure_action || DEFAULT_ANTHROPIC_CONFIG.failure_action,
+      retry_config: nodeType.Anthropic.retry_config || DEFAULT_ANTHROPIC_CONFIG.retry_config
+    }
+  }
+
   // Legacy support for old App nodes
   if (nodeType.App) {
     const config = {
@@ -255,7 +272,22 @@ export function convertNodeToApiType(node: { type: string; data: { config: any }
           unit: delayConfig.unit || DEFAULT_DELAY_CONFIG.unit
         }
       }
-      
+
+    case 'anthropic':
+      const anthropicConfig = node.data.config as any
+      return {
+        Anthropic: {
+          model: anthropicConfig.model || DEFAULT_ANTHROPIC_CONFIG.model,
+          max_tokens: anthropicConfig.max_tokens || DEFAULT_ANTHROPIC_CONFIG.max_tokens,
+          temperature: anthropicConfig.temperature || DEFAULT_ANTHROPIC_CONFIG.temperature,
+          system_prompt: anthropicConfig.system_prompt || DEFAULT_ANTHROPIC_CONFIG.system_prompt,
+          user_prompt: anthropicConfig.user_prompt || DEFAULT_ANTHROPIC_CONFIG.user_prompt,
+          timeout_seconds: anthropicConfig.timeout_seconds || DEFAULT_ANTHROPIC_CONFIG.timeout_seconds,
+          failure_action: anthropicConfig.failure_action || DEFAULT_ANTHROPIC_CONFIG.failure_action,
+          retry_config: anthropicConfig.retry_config || DEFAULT_ANTHROPIC_CONFIG.retry_config
+        }
+      }
+
     case 'app':
       // Legacy support for old App nodes
       const appConfig = node.data.config as any

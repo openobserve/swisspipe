@@ -2,11 +2,12 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { WorkflowNode, WorkflowEdge, NodeTypeDefinition, ValidationState } from '../types/nodes'
 import { DEFAULT_CONDITION_SCRIPT, DEFAULT_TRANSFORMER_SCRIPT } from '../constants/defaults'
-import { 
+import {
   DEFAULT_EMAIL_CONFIG,
   DEFAULT_HTTP_CONFIG,
   DEFAULT_OPENOBSERVE_CONFIG,
   DEFAULT_DELAY_CONFIG,
+  DEFAULT_ANTHROPIC_CONFIG,
   NODE_LIBRARY_DEFINITIONS
 } from '../constants/nodeDefaults'
 
@@ -98,6 +99,15 @@ export const useNodeStore = defineStore('nodes', () => {
             ...DEFAULT_DELAY_CONFIG
           }
         }
+      case 'anthropic':
+        return {
+          type: 'anthropic',
+          ...libraryDef,
+          defaultConfig: {
+            type: 'anthropic',
+            ...DEFAULT_ANTHROPIC_CONFIG
+          }
+        }
       default:
         // This should never happen, but TypeScript requires it
         throw new Error(`Unknown node type: ${type}`)
@@ -112,7 +122,8 @@ export const useNodeStore = defineStore('nodes', () => {
     createNodeTypeDefinition('http-request'),
     createNodeTypeDefinition('openobserve'),
     createNodeTypeDefinition('email'),
-    createNodeTypeDefinition('delay')
+    createNodeTypeDefinition('delay'),
+    createNodeTypeDefinition('anthropic')
   ])
 
   // Getters

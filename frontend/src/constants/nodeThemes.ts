@@ -72,6 +72,15 @@ export const NODE_THEMES = {
     boxShadowHover: '0 12px 40px rgba(107, 114, 128, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
     borderDefault: 'border-gray-400/30'
   },
+  anthropic: {
+    color: 'amber',
+    background: 'rgba(217, 119, 6, 0.12)',
+    backgroundHover: 'rgba(217, 119, 6, 0.18)',
+    border: 'rgba(217, 119, 6, 0.25)',
+    boxShadow: '0 8px 32px rgba(217, 119, 6, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+    boxShadowHover: '0 12px 40px rgba(217, 119, 6, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+    borderDefault: 'border-amber-600/30'
+  },
   app: {
     color: 'green',
     background: 'rgba(16, 185, 129, 0.12)',

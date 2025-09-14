@@ -328,18 +328,18 @@ impl WorkerPool {
         mut event: WorkflowEvent,
     ) -> Result<WorkflowEvent> {
         use crate::workflow::models::NodeType;
-        
+
         match &node.node_type {
             NodeType::Trigger { .. } => Ok(event),
             NodeType::Condition { script } => {
                 // Execute the condition and store the result
                 let condition_result = self.workflow_engine.js_executor.execute_condition(script, &event).await?;
-                
+
                 tracing::info!("Condition node '{}' evaluated to: {}", node.name, condition_result);
-                
+
                 // Store the condition result in the event for edge routing
                 event.condition_results.insert(node.name.clone(), condition_result);
-                
+
                 // Condition nodes pass through event with stored condition result
                 Ok(event)
             }
@@ -486,9 +486,36 @@ impl WorkerPool {
                     Ok(event)
                 }
             }
+            NodeType::Anthropic { model, max_tokens, temperature, system_prompt, user_prompt, timeout_seconds, failure_action, retry_config } => {
+                // For Anthropic nodes, we use the async version from the workflow engine
+                match failure_action {
+                    crate::workflow::models::FailureAction::Retry => {
+                        self.workflow_engine.anthropic_service
+                            .call_anthropic(model, *max_tokens, *temperature, system_prompt.as_deref(), user_prompt, &event, *timeout_seconds, retry_config)
+                            .await
+                    },
+                    crate::workflow::models::FailureAction::Continue => {
+                        match self.workflow_engine.anthropic_service
+                            .call_anthropic(model, *max_tokens, *temperature, system_prompt.as_deref(), user_prompt, &event, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() })
+                            .await
+                        {
+                            Ok(result) => Ok(result),
+                            Err(e) => {
+                                tracing::warn!("Anthropic node '{}' failed but continuing: {}", node.name, e);
+                                Ok(event)
+                            }
+                        }
+                    },
+                    crate::workflow::models::FailureAction::Stop => {
+                        self.workflow_engine.anthropic_service
+                            .call_anthropic(model, *max_tokens, *temperature, system_prompt.as_deref(), user_prompt, &event, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() })
+                            .await
+                    }
+                }
+            }
         }
     }
-    
+
     /// Get next nodes - replicating the workflow engine logic
     fn get_next_nodes(
         &self,
@@ -1276,9 +1303,36 @@ impl WorkerPoolForBranch {
                     Ok(event)
                 }
             }
+            NodeType::Anthropic { model, max_tokens, temperature, system_prompt, user_prompt, timeout_seconds, failure_action, retry_config } => {
+                // For Anthropic nodes, we use the async version from the workflow engine
+                match failure_action {
+                    crate::workflow::models::FailureAction::Retry => {
+                        self.workflow_engine.anthropic_service
+                            .call_anthropic(model, *max_tokens, *temperature, system_prompt.as_deref(), user_prompt, &event, *timeout_seconds, retry_config)
+                            .await
+                    },
+                    crate::workflow::models::FailureAction::Continue => {
+                        match self.workflow_engine.anthropic_service
+                            .call_anthropic(model, *max_tokens, *temperature, system_prompt.as_deref(), user_prompt, &event, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() })
+                            .await
+                        {
+                            Ok(result) => Ok(result),
+                            Err(e) => {
+                                tracing::warn!("Anthropic node '{}' failed but continuing: {}", node.name, e);
+                                Ok(event)
+                            }
+                        }
+                    },
+                    crate::workflow::models::FailureAction::Stop => {
+                        self.workflow_engine.anthropic_service
+                            .call_anthropic(model, *max_tokens, *temperature, system_prompt.as_deref(), user_prompt, &event, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() })
+                            .await
+                    }
+                }
+            }
         }
     }
-    
+
     fn get_next_nodes_static(
         &self,
         workflow: &Workflow,

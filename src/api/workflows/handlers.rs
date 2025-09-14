@@ -166,6 +166,7 @@ pub async fn create_workflow(
                 NodeType::OpenObserve { .. } => "openobserve".to_string(),
                 NodeType::Email { .. } => "email".to_string(),
                 NodeType::Delay { .. } => "delay".to_string(),
+                NodeType::Anthropic { .. } => "anthropic".to_string(),
             }),
             config: Set(node_config),
             position_x: Set(position_x),

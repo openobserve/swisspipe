@@ -164,8 +164,12 @@ const transformerNodes = computed(() =>
 const logicNodes = computed(() => 
   nodeStore.nodeTypes.filter(type => type.type === 'condition' || type.type === 'delay')
 )
-const appNodes = computed(() => 
-  nodeStore.nodeTypes.filter(type => type.type === 'http-request' || type.type === 'openobserve')
+const appNodes = computed(() =>
+  nodeStore.nodeTypes.filter(type =>
+    type.type === 'http-request' ||
+    type.type === 'openobserve' ||
+    type.type === 'anthropic'
+  )
 )
 const communicationNodes = computed(() => 
   nodeStore.nodeTypes.filter(type => type.type === 'email')
