@@ -36,6 +36,17 @@ struct AnthropicUsage {
     output_tokens: u32,
 }
 
+#[derive(Debug)]
+pub struct AnthropicCallConfig<'a> {
+    pub model: &'a str,
+    pub max_tokens: u32,
+    pub temperature: f64,
+    pub system_prompt: Option<&'a str>,
+    pub user_prompt: &'a str,
+    pub timeout_seconds: u64,
+    pub retry_config: &'a RetryConfig,
+}
+
 pub struct AnthropicService {
     client: Client,
 }
@@ -54,14 +65,8 @@ impl AnthropicService {
 
     pub async fn call_anthropic(
         &self,
-        model: &str,
-        max_tokens: u32,
-        temperature: f64,
-        system_prompt: Option<&str>,
-        user_prompt: &str,
+        config: &AnthropicCallConfig<'_>,
         event: &WorkflowEvent,
-        timeout_seconds: u64,
-        retry_config: &RetryConfig,
     ) -> Result<WorkflowEvent> {
         // Get API key from environment
         let api_key = std::env::var("ANTHROPIC_API_KEY")
@@ -69,15 +74,15 @@ impl AnthropicService {
                 "ANTHROPIC_API_KEY environment variable not set".to_string()
             ))?;
         // Replace template variables in prompts
-        let rendered_user_prompt = self.render_template(user_prompt, event)?;
-        let rendered_system_prompt = system_prompt
+        let rendered_user_prompt = self.render_template(config.user_prompt, event)?;
+        let rendered_system_prompt = config.system_prompt
             .map(|prompt| self.render_template(prompt, event))
             .transpose()?;
 
         let request = AnthropicRequest {
-            model: model.to_string(),
-            max_tokens,
-            temperature,
+            model: config.model.to_string(),
+            max_tokens: config.max_tokens,
+            temperature: config.temperature,
             system: rendered_system_prompt,
             messages: vec![AnthropicMessage {
                 role: "user".to_string(),
@@ -86,7 +91,7 @@ impl AnthropicService {
         };
 
         let mut attempts = 0;
-        let mut delay = Duration::from_millis(retry_config.initial_delay_ms);
+        let mut delay = Duration::from_millis(config.retry_config.initial_delay_ms);
 
         loop {
             attempts += 1;
@@ -97,7 +102,7 @@ impl AnthropicService {
                 .header("x-api-key", &api_key)
                 .header("anthropic-version", "2023-06-01")
                 .header("content-type", "application/json")
-                .timeout(Duration::from_secs(timeout_seconds))
+                .timeout(Duration::from_secs(config.timeout_seconds))
                 .json(&request)
                 .send()
                 .await;
@@ -129,7 +134,7 @@ impl AnthropicService {
                         }
                         Err(e) => {
                             tracing::error!("Failed to parse Anthropic response: {}", e);
-                            if attempts >= retry_config.max_attempts {
+                            if attempts >= config.retry_config.max_attempts {
                                 return Err(SwissPipeError::Generic(
                                     format!("Anthropic API parse error after {attempts} attempts: {e}")
                                 ));
@@ -142,7 +147,7 @@ impl AnthropicService {
                     let error_text = resp.text().await.unwrap_or_else(|_| "Unknown error".to_string());
                     tracing::error!("Anthropic API error {}: {}", status, error_text);
 
-                    if attempts >= retry_config.max_attempts {
+                    if attempts >= config.retry_config.max_attempts {
                         return Err(SwissPipeError::Generic(
                             format!("Anthropic API error {status} after {attempts} attempts: {error_text}")
                         ));
@@ -150,7 +155,7 @@ impl AnthropicService {
                 }
                 Err(e) => {
                     tracing::error!("Anthropic API request failed: {}", e);
-                    if attempts >= retry_config.max_attempts {
+                    if attempts >= config.retry_config.max_attempts {
                         return Err(SwissPipeError::Generic(
                             format!("Anthropic API request failed after {attempts} attempts: {e}")
                         ));
@@ -158,13 +163,13 @@ impl AnthropicService {
                 }
             }
 
-            if attempts < retry_config.max_attempts {
+            if attempts < config.retry_config.max_attempts {
                 tracing::warn!("Anthropic API call failed, retrying in {:?} (attempt {} of {})",
-                    delay, attempts, retry_config.max_attempts);
+                    delay, attempts, config.retry_config.max_attempts);
                 tokio::time::sleep(delay).await;
 
-                let new_delay_ms = (delay.as_millis() as f64 * retry_config.backoff_multiplier) as u64;
-                delay = Duration::from_millis(new_delay_ms.min(retry_config.max_delay_ms));
+                let new_delay_ms = (delay.as_millis() as f64 * config.retry_config.backoff_multiplier) as u64;
+                delay = Duration::from_millis(new_delay_ms.min(config.retry_config.max_delay_ms));
             }
         }
     }

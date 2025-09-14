@@ -8,7 +8,7 @@ use crate::{
     },
     email::service::EmailService,
 };
-use crate::anthropic::AnthropicService;
+use crate::anthropic::{AnthropicService, AnthropicCallConfig};
 use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait};
 use std::{collections::{HashMap, HashSet}, sync::Arc};
 use tokio::task::JoinSet;
@@ -21,6 +21,13 @@ struct ExecutionContext<'a> {
     node_outputs: &'a HashMap<String, WorkflowEvent>,
     pending_executions: &'a mut JoinSet<Result<(String, WorkflowEvent)>>,
     execution_id: &'a str,
+}
+
+struct Services {
+    js_executor: Arc<JavaScriptExecutor>,
+    app_executor: Arc<AppExecutor>,
+    email_service: Arc<EmailService>,
+    anthropic_service: Arc<AnthropicService>,
 }
 
 pub struct WorkflowEngine {
@@ -256,13 +263,12 @@ impl WorkflowEngine {
                 // Clone necessary data for the async task
                 let node_clone = node.clone();
                 let execution_id = execution_context.execution_id.to_string();
-                let engine_components = (
-                    self.js_executor.clone(),
-                    self.app_executor.clone(),
-                    self.email_service.clone(),
-                    self.anthropic_service.clone(),
-                    self.input_sync_service.clone(),
-                );
+                let engine_components = Services {
+                    js_executor: self.js_executor.clone(),
+                    app_executor: self.app_executor.clone(),
+                    email_service: self.email_service.clone(),
+                    anthropic_service: self.anthropic_service.clone(),
+                };
                 
                 // Spawn async execution
                 execution_context.pending_executions.spawn(async move {
@@ -270,7 +276,7 @@ impl WorkflowEngine {
                         &node_clone,
                         inputs,
                         &execution_id,
-                        engine_components,
+                        &engine_components,
                     ).await?;
                     Ok((node_clone.id, result))
                 });
@@ -325,28 +331,21 @@ impl WorkflowEngine {
         inputs: Vec<WorkflowEvent>,
         execution_id: &str,
     ) -> Result<WorkflowEvent> {
-        let components = (
-            self.js_executor.clone(),
-            self.app_executor.clone(),
-            self.email_service.clone(),
-            self.anthropic_service.clone(),
-            self.input_sync_service.clone(),
-        );
-        
-        Self::execute_node_with_components(node, inputs, execution_id, components).await
+        let components = Services {
+            js_executor: self.js_executor.clone(),
+            app_executor: self.app_executor.clone(),
+            email_service: self.email_service.clone(),
+            anthropic_service: self.anthropic_service.clone(),
+        };
+
+        Self::execute_node_with_components(node, inputs, execution_id, &components).await
     }
 
     async fn execute_node_with_components(
         node: &Node,
         inputs: Vec<WorkflowEvent>,
         _execution_id: &str,
-        (js_executor, app_executor, email_service, anthropic_service, _input_sync_service): (
-            Arc<JavaScriptExecutor>,
-            Arc<AppExecutor>,
-            Arc<EmailService>,
-            Arc<AnthropicService>,
-            Arc<InputSyncService>,
-        ),
+        services: &Services,
     ) -> Result<WorkflowEvent> {
         tracing::info!("Executing node '{}' with {} inputs", node.name, inputs.len());
 
@@ -367,7 +366,7 @@ impl WorkflowEngine {
         };
 
         // Execute the node based on its type
-        Self::execute_node_by_type(node, input_event, js_executor, app_executor, email_service, anthropic_service).await
+        Self::execute_node_by_type(node, input_event, services.js_executor.clone(), services.app_executor.clone(), services.email_service.clone(), services.anthropic_service.clone()).await
     }
 
     async fn execute_node_by_type(
@@ -479,12 +478,28 @@ impl WorkflowEngine {
                 match failure_action {
                     crate::workflow::models::FailureAction::Retry => {
                         anthropic_service
-                            .call_anthropic(model, *max_tokens, *temperature, system_prompt.as_deref(), user_prompt, &event, *timeout_seconds, retry_config)
+                            .call_anthropic(&AnthropicCallConfig {
+                                model,
+                                max_tokens: *max_tokens,
+                                temperature: *temperature,
+                                system_prompt: system_prompt.as_deref(),
+                                user_prompt,
+                                timeout_seconds: *timeout_seconds,
+                                retry_config,
+                            }, &event)
                             .await
                     },
                     crate::workflow::models::FailureAction::Continue => {
                         match anthropic_service
-                            .call_anthropic(model, *max_tokens, *temperature, system_prompt.as_deref(), user_prompt, &event, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() })
+                            .call_anthropic(&AnthropicCallConfig {
+                                model,
+                                max_tokens: *max_tokens,
+                                temperature: *temperature,
+                                system_prompt: system_prompt.as_deref(),
+                                user_prompt,
+                                timeout_seconds: *timeout_seconds,
+                                retry_config: &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() },
+                            }, &event)
                             .await
                         {
                             Ok(result) => Ok(result),
@@ -496,7 +511,15 @@ impl WorkflowEngine {
                     },
                     crate::workflow::models::FailureAction::Stop => {
                         anthropic_service
-                            .call_anthropic(model, *max_tokens, *temperature, system_prompt.as_deref(), user_prompt, &event, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() })
+                            .call_anthropic(&AnthropicCallConfig {
+                                model,
+                                max_tokens: *max_tokens,
+                                temperature: *temperature,
+                                system_prompt: system_prompt.as_deref(),
+                                user_prompt,
+                                timeout_seconds: *timeout_seconds,
+                                retry_config: &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() },
+                            }, &event)
                             .await
                     }
                 }

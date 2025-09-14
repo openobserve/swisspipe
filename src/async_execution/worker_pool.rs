@@ -1,4 +1,5 @@
 use crate::async_execution::{ExecutionService, JobManager, DelayScheduler, input_coordination::InputCoordination};
+use crate::anthropic::AnthropicCallConfig;
 use crate::database::{
     workflow_executions::ExecutionStatus,
     workflow_execution_steps::StepStatus,
@@ -491,12 +492,28 @@ impl WorkerPool {
                 match failure_action {
                     crate::workflow::models::FailureAction::Retry => {
                         self.workflow_engine.anthropic_service
-                            .call_anthropic(model, *max_tokens, *temperature, system_prompt.as_deref(), user_prompt, &event, *timeout_seconds, retry_config)
+                            .call_anthropic(&AnthropicCallConfig {
+                                model,
+                                max_tokens: *max_tokens,
+                                temperature: *temperature,
+                                system_prompt: system_prompt.as_deref(),
+                                user_prompt,
+                                timeout_seconds: *timeout_seconds,
+                                retry_config,
+                            }, &event)
                             .await
                     },
                     crate::workflow::models::FailureAction::Continue => {
                         match self.workflow_engine.anthropic_service
-                            .call_anthropic(model, *max_tokens, *temperature, system_prompt.as_deref(), user_prompt, &event, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() })
+                            .call_anthropic(&AnthropicCallConfig {
+                                model,
+                                max_tokens: *max_tokens,
+                                temperature: *temperature,
+                                system_prompt: system_prompt.as_deref(),
+                                user_prompt,
+                                timeout_seconds: *timeout_seconds,
+                                retry_config: &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() },
+                            }, &event)
                             .await
                         {
                             Ok(result) => Ok(result),
@@ -508,7 +525,15 @@ impl WorkerPool {
                     },
                     crate::workflow::models::FailureAction::Stop => {
                         self.workflow_engine.anthropic_service
-                            .call_anthropic(model, *max_tokens, *temperature, system_prompt.as_deref(), user_prompt, &event, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() })
+                            .call_anthropic(&AnthropicCallConfig {
+                                model,
+                                max_tokens: *max_tokens,
+                                temperature: *temperature,
+                                system_prompt: system_prompt.as_deref(),
+                                user_prompt,
+                                timeout_seconds: *timeout_seconds,
+                                retry_config: &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() },
+                            }, &event)
                             .await
                     }
                 }
@@ -1308,12 +1333,28 @@ impl WorkerPoolForBranch {
                 match failure_action {
                     crate::workflow::models::FailureAction::Retry => {
                         self.workflow_engine.anthropic_service
-                            .call_anthropic(model, *max_tokens, *temperature, system_prompt.as_deref(), user_prompt, &event, *timeout_seconds, retry_config)
+                            .call_anthropic(&AnthropicCallConfig {
+                                model,
+                                max_tokens: *max_tokens,
+                                temperature: *temperature,
+                                system_prompt: system_prompt.as_deref(),
+                                user_prompt,
+                                timeout_seconds: *timeout_seconds,
+                                retry_config,
+                            }, &event)
                             .await
                     },
                     crate::workflow::models::FailureAction::Continue => {
                         match self.workflow_engine.anthropic_service
-                            .call_anthropic(model, *max_tokens, *temperature, system_prompt.as_deref(), user_prompt, &event, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() })
+                            .call_anthropic(&AnthropicCallConfig {
+                                model,
+                                max_tokens: *max_tokens,
+                                temperature: *temperature,
+                                system_prompt: system_prompt.as_deref(),
+                                user_prompt,
+                                timeout_seconds: *timeout_seconds,
+                                retry_config: &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() },
+                            }, &event)
                             .await
                         {
                             Ok(result) => Ok(result),
@@ -1325,7 +1366,15 @@ impl WorkerPoolForBranch {
                     },
                     crate::workflow::models::FailureAction::Stop => {
                         self.workflow_engine.anthropic_service
-                            .call_anthropic(model, *max_tokens, *temperature, system_prompt.as_deref(), user_prompt, &event, *timeout_seconds, &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() })
+                            .call_anthropic(&AnthropicCallConfig {
+                                model,
+                                max_tokens: *max_tokens,
+                                temperature: *temperature,
+                                system_prompt: system_prompt.as_deref(),
+                                user_prompt,
+                                timeout_seconds: *timeout_seconds,
+                                retry_config: &crate::workflow::models::RetryConfig { max_attempts: 1, ..retry_config.clone() },
+                            }, &event)
                             .await
                     }
                 }

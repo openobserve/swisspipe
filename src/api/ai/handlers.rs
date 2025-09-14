@@ -1,6 +1,7 @@
 use axum::{extract::State, http::StatusCode, response::Json};
 use serde::{Deserialize, Serialize};
 use crate::workflow::models::WorkflowEvent;
+use crate::anthropic::AnthropicCallConfig;
 use crate::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -44,16 +45,15 @@ pub async fn generate_code(
     };
 
     match state.engine.anthropic_service
-        .call_anthropic(
-            &model,
+        .call_anthropic(&AnthropicCallConfig {
+            model: &model,
             max_tokens,
             temperature,
-            Some(&request.system_prompt),
-            &request.user_prompt,
-            &dummy_event,
-            120, // 120 second timeout for AI generation
-            &retry_config,
-        )
+            system_prompt: Some(&request.system_prompt),
+            user_prompt: &request.user_prompt,
+            timeout_seconds: 120, // 120 second timeout for AI generation
+            retry_config: &retry_config,
+        }, &dummy_event)
         .await
     {
         Ok(result) => {
