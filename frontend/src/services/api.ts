@@ -220,7 +220,7 @@ class ApiClient {
 
   // AI Code generation endpoint
   async generateCode(request: GenerateCodeRequest): Promise<GenerateCodeResponse> {
-    const response = await this.client.post<GenerateCodeResponse>('/api/v1/ai/generate-code', request, {
+    const response = await this.client.post<GenerateCodeResponse>('/api/admin/v1/ai/generate-code', request, {
       timeout: 120000 // 120 seconds for AI generation requests
     })
     return response.data
@@ -228,7 +228,7 @@ class ApiClient {
 
   // AI Workflow generation endpoint
   async generateWorkflow(request: GenerateWorkflowRequest): Promise<GenerateWorkflowResponse> {
-    const response = await this.client.post<GenerateWorkflowResponse>('/api/v1/ai/generate-workflow', request, {
+    const response = await this.client.post<GenerateWorkflowResponse>('/api/admin/v1/ai/generate-workflow', request, {
       timeout: 120000 // 120 seconds for AI generation requests
     })
     return response.data
@@ -236,7 +236,7 @@ class ApiClient {
 
   // AI Workflow update endpoint
   async updateWorkflowWithAI(request: UpdateWorkflowRequest): Promise<UpdateWorkflowResponse> {
-    const response = await this.client.post<UpdateWorkflowResponse>('/api/v1/ai/update-workflow', request, {
+    const response = await this.client.post<UpdateWorkflowResponse>('/api/admin/v1/ai/update-workflow', request, {
       timeout: 120000 // 120 seconds for AI generation requests
     })
     return response.data
