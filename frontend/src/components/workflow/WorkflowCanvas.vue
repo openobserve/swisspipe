@@ -58,7 +58,8 @@
 </template>
 
 <script setup lang="ts">
-import { VueFlow, Node, Edge, Connection, NodeMouseEvent, EdgeMouseEvent } from '@vue-flow/core'
+import { VueFlow } from '@vue-flow/core'
+import type { Node, Edge, Connection, NodeMouseEvent, EdgeMouseEvent } from '@vue-flow/core'
 import { Controls } from '@vue-flow/controls'
 import { Background } from '@vue-flow/background'
 import TriggerNode from '../nodes/TriggerNode.vue'

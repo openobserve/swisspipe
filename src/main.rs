@@ -273,11 +273,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build application
     let cors = CorsLayer::new()
+        // Allow same-origin requests for embedded frontend, plus localhost for development
         .allow_origin([
-            "http://localhost:5173".parse().unwrap(),
-            "http://localhost:5174".parse().unwrap(),
-            "http://127.0.0.1:5173".parse().unwrap(),
-            "http://127.0.0.1:5174".parse().unwrap(),
+            format!("http://localhost:{port}").parse().unwrap(),
+            format!("http://127.0.0.1:{port}").parse().unwrap(),
+            "http://localhost:5173".parse().unwrap(),  // Keep for development
+            "http://localhost:5174".parse().unwrap(),  // Keep for development
+            "http://127.0.0.1:5173".parse().unwrap(),  // Keep for development
+            "http://127.0.0.1:5174".parse().unwrap(),  // Keep for development
         ])
         .allow_methods([
             axum::http::Method::GET,

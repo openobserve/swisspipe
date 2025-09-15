@@ -100,7 +100,7 @@ function downloadJson() {
     const url = URL.createObjectURL(dataBlob)
     
     // Create filename from workflow name and timestamp
-    const workflowName = props.jsonData?.name || 'workflow'
+    const workflowName = (props.jsonData as { name?: string })?.name || 'workflow'
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
     const filename = `${workflowName}_${timestamp}.json`
     

@@ -14,28 +14,21 @@
 <script setup lang="ts">
 import { Position } from '@vue-flow/core'
 import BaseNode from './BaseNode.vue'
+import type { WorkflowNodeData, AppConfig } from '../../types/nodes'
 
 interface Props {
-  data: {
-    label: string
-    description?: string
-    status?: string
-    config: unknown
-    isTracing?: boolean
-    executionStatus?: string
-    executionDuration?: number
-    executionError?: string
-  }
+  data: WorkflowNodeData
 }
 
 const props = defineProps<Props>()
 
 function getAppType() {
-  if (props.data.config?.app_type) {
-    return props.data.config.app_type
+  const config = props.data.config as AppConfig
+  if (config?.app_type) {
+    return config.app_type
   }
-  if (props.data.config?.type) {
-    return props.data.config.type
+  if (config?.type) {
+    return config.type
   }
   return 'App'
 }

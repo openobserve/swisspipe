@@ -3,17 +3,16 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
-import monacoEditorPlugin from 'vite-plugin-monaco-editor'
+// import monacoEditorPlugin from 'vite-plugin-monaco-editor'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     vue(),
     vueDevTools(),
-    (monacoEditorPlugin as { default: (options: Record<string, unknown>) => unknown }).default({
-      languages: ['javascript', 'typescript', 'json'],
-      features: ['!gotoSymbol'] // Disable features that might cause issues
-    })
+    // monacoEditorPlugin({
+    //   languages: ['javascript', 'typescript', 'json']
+    // })
   ],
   resolve: {
     alias: {

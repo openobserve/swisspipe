@@ -106,9 +106,9 @@ export function useWorkflowData() {
           debugLog.component('useWorkflowData', 'email-node-conversion', {
             nodeId: node.id,
             hasConfig: !!node.data.config,
-            hasFrom: !!(node.data.config as Record<string, unknown>)?.from,
-            hasTo: !!(node.data.config as Record<string, unknown>)?.to,
-            toCount: Array.isArray((node.data.config as Record<string, unknown>)?.to) ? (node.data.config as Record<string, unknown>).to.length : 0
+            hasFrom: !!(node.data.config as unknown as Record<string, unknown>)?.from,
+            hasTo: !!(node.data.config as unknown as Record<string, unknown>)?.to,
+            toCount: Array.isArray((node.data.config as unknown as Record<string, unknown>)?.to) ? ((node.data.config as unknown as Record<string, unknown>).to as unknown[]).length : 0
           })
         }
         
@@ -135,7 +135,7 @@ export function useWorkflowData() {
         edges: apiEdges
       }
 
-      await workflowStore.updateWorkflow(workflowStore.currentWorkflow.id, workflowData)
+      await workflowStore.updateWorkflow(workflowStore.currentWorkflow.id, workflowData as any)
       toast.success('Workflow Saved', 'Your workflow has been saved successfully.')
     } catch (error) {
       console.error('Failed to save workflow:', error)

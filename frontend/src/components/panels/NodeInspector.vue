@@ -107,10 +107,11 @@ import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { XMarkIcon, ArrowDownIcon, ArrowUpIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
 import * as monaco from 'monaco-editor'
 import { formatDuration } from '../../utils/formatting'
+import type { WorkflowNodeData } from '../../types/nodes'
 
 interface Props {
   visible: boolean
-  nodeData: unknown
+  nodeData: WorkflowNodeData | null
 }
 
 const props = defineProps<Props>()

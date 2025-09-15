@@ -132,6 +132,7 @@ import { useExecutionTracing } from '../composables/useExecutionTracing'
 import { useVueFlowInteraction } from '../composables/useVueFlowInteraction'
 import { usePanelState } from '../composables/usePanelState'
 import ToastContainer from '../components/common/ToastContainer.vue'
+import type { NodeTypeDefinition, WorkflowNodeData } from '../types/nodes'
 
 const route = useRoute()
 const router = useRouter()
@@ -259,7 +260,7 @@ function onNodesInitialized() {
 }
 
 function handleInspectNode(node: unknown) {
-  inspectedNode.value = node
+  inspectedNode.value = node as WorkflowNodeData
   showNodeInspector.value = true
 }
 
@@ -283,7 +284,7 @@ function closeNodeLibrary() {
   showNodeLibrary.value = false
 }
 
-function handleAddNode(nodeType: string) {
+function handleAddNode(nodeType: NodeTypeDefinition) {
   // Find the bottom-most node position
   let bottomMostY = 100 // Default starting position if no nodes exist
   

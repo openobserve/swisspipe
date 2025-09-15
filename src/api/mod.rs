@@ -3,6 +3,7 @@ pub mod executions;
 pub mod ingestion;
 pub mod script;
 pub mod segment;
+pub mod static_files;
 pub mod workflows;
 
 use axum::Router;
@@ -10,6 +11,7 @@ use crate::{AppState, auth::handlers as auth_handlers};
 
 pub fn create_router() -> Router<AppState> {
     Router::new()
+        // API routes (higher priority)
         .nest("/api/v1", ingestion::routes())
         .nest("/api/v1/ai", ai::create_ai_routes())
         .nest("/api", segment::create_segment_routes())
@@ -17,4 +19,6 @@ pub fn create_router() -> Router<AppState> {
         .nest("/api/admin/v1/executions", executions::routes())
         .nest("/api/admin/v1/script", script::routes())
         .nest("/auth", auth_handlers::routes())
+        // Static file routes (lower priority, fallback for SPA)
+        .merge(static_files::routes())
 }

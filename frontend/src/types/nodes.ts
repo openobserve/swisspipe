@@ -4,18 +4,25 @@ export interface WorkflowNode {
   id: string
   type: NodeTypeString
   position: { x: number; y: number }
-  data: {
-    label: string
-    description?: string
-    config: NodeConfig
-    status?: NodeStatus
-    isTracing?: boolean
-    executionStatus?: string
-    executionDuration?: number
-    executionError?: string
-    executionInput?: unknown
-    executionOutput?: unknown
-  }
+  data: WorkflowNodeData
+}
+
+export interface WorkflowNodeData {
+  label: string
+  description?: string
+  config: NodeConfig
+  status?: NodeStatus
+  isTracing?: boolean
+  executionStatus?: string
+  executionDuration?: number
+  executionError?: string
+  executionInput?: unknown
+  executionOutput?: unknown
+  name?: string
+  app_type?: string
+  condition_type?: string
+  transformer_type?: string
+  type?: string
 }
 
 export interface WorkflowEdge extends Omit<Edge, 'data'> {

@@ -81,7 +81,7 @@
       <div v-if="selectedNodeData.type === 'trigger'">
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Trigger Configuration</h3>
         <TriggerConfig
-          v-model="localNodeData.config"
+          v-model="localNodeData.config as TriggerConfigType"
           @update="updateNodeData"
         />
       </div>
@@ -90,7 +90,7 @@
       <div v-if="selectedNodeData.type === 'condition'">
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Condition Configuration</h3>
         <ConditionConfig
-          v-model="localNodeData.config"
+          v-model="localNodeData.config as ConditionConfigType"
           @update="updateNodeData"
         />
       </div>
@@ -100,7 +100,7 @@
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Transformer Configuration</h3>
         <div class="flex-1 min-h-0">
           <TransformerConfig
-            v-model="localNodeData.config"
+            v-model="localNodeData.config as TransformerConfigType"
             @update="updateNodeData"
           />
         </div>
@@ -111,11 +111,11 @@
         <h3 class="text-sm font-semibold text-gray-300 mb-3">HTTP Request Configuration</h3>
         <div class="space-y-4">
           <HttpRequestConfig
-            v-model="localNodeData.config"
+            v-model="localNodeData.config as HttpRequestConfigType"
             @update="updateNodeData"
           />
           <CommonConfigFields
-            v-model="localNodeData.config"
+            v-model="localNodeData.config as { timeout_seconds?: number; failure_action?: string; retry_config?: { max_attempts?: number } }"
             @update="updateNodeData"
           />
         </div>
@@ -126,11 +126,11 @@
         <h3 class="text-sm font-semibold text-gray-300 mb-3">OpenObserve Configuration</h3>
         <div class="space-y-4">
           <OpenObserveConfig
-            v-model="localNodeData.config"
+            v-model="localNodeData.config as OpenObserveConfigType"
             @update="updateNodeData"
           />
           <CommonConfigFields
-            v-model="localNodeData.config"
+            v-model="localNodeData.config as { timeout_seconds?: number; failure_action?: string; retry_config?: { max_attempts?: number } }"
             @update="updateNodeData"
           />
         </div>
@@ -142,7 +142,7 @@
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Email Configuration</h3>
         <div class="flex-1 min-h-0 overflow-y-auto">
           <EmailConfig
-            v-model="localNodeData.config"
+            v-model="localNodeData.config as EmailConfigType"
             @update="updateNodeData"
           />
         </div>
@@ -152,7 +152,7 @@
       <div v-if="selectedNodeData.type === 'delay'">
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Delay Configuration</h3>
         <DelayConfig
-          v-model="localNodeData.config"
+          v-model="localNodeData.config as DelayConfigType"
           @update="updateNodeData"
         />
       </div>
@@ -162,7 +162,7 @@
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Anthropic Configuration</h3>
         <div class="flex-1 min-h-0 overflow-y-auto">
           <AnthropicConfig
-            v-model="localNodeData.config"
+            v-model="localNodeData.config as AnthropicConfigType"
             @update="updateNodeData"
           />
         </div>
@@ -189,7 +189,18 @@ import HttpRequestConfig from '../app-configs/HttpRequestConfig.vue'
 import OpenObserveConfig from '../app-configs/OpenObserveConfig.vue'
 import EmailConfig from '../email-configs/EmailConfig.vue'
 import { debugLog } from '../../utils/debug'
-import type { NodeStatus } from '../../types/nodes'
+import type {
+  NodeStatus,
+  WorkflowNodeData,
+  TriggerConfig as TriggerConfigType,
+  ConditionConfig as ConditionConfigType,
+  TransformerConfig as TransformerConfigType,
+  HttpRequestConfig as HttpRequestConfigType,
+  OpenObserveConfig as OpenObserveConfigType,
+  EmailConfig as EmailConfigType,
+  DelayConfig as DelayConfigType,
+  AnthropicConfig as AnthropicConfigType
+} from '../../types/nodes'
 
 const nodeStore = useNodeStore()
 
@@ -198,14 +209,7 @@ const nodeTypeDefinition = computed(() =>
   selectedNodeData.value ? nodeStore.nodeTypeByType(selectedNodeData.value.type) : null
 )
 
-interface NodeData {
-  label: string
-  description: string
-  config: unknown
-  status: string
-}
-
-const localNodeData = ref<NodeData>({} as NodeData)
+const localNodeData = ref<WorkflowNodeData>({} as WorkflowNodeData)
 
 // Watch for selected node changes
 watch(selectedNodeData, (newNode) => {
@@ -227,13 +231,13 @@ function updateNodeData() {
     if (selectedNodeData.value.type === 'email') {
       debugLog.component('NodePropertiesPanel', 'email-node-update', {
         hasEmailConfig: !!localNodeData.value.config,
-        hasFrom: !!(localNodeData.value.config as Record<string, unknown>)?.from,
-        hasTo: !!(localNodeData.value.config as Record<string, unknown>)?.to,
-        toCount: Array.isArray((localNodeData.value.config as Record<string, unknown>)?.to) ? (localNodeData.value.config as Record<string, unknown>).to.length : 0,
-        hasCC: !!(localNodeData.value.config as Record<string, unknown>)?.cc,
-        ccCount: Array.isArray((localNodeData.value.config as Record<string, unknown>)?.cc) ? (localNodeData.value.config as Record<string, unknown>).cc.length : 0,
-        hasBCC: !!(localNodeData.value.config as Record<string, unknown>)?.bcc,
-        bccCount: Array.isArray((localNodeData.value.config as Record<string, unknown>)?.bcc) ? (localNodeData.value.config as Record<string, unknown>).bcc.length : 0
+        hasFrom: !!(localNodeData.value.config as unknown as Record<string, unknown>)?.from,
+        hasTo: !!(localNodeData.value.config as unknown as Record<string, unknown>)?.to,
+        toCount: Array.isArray((localNodeData.value.config as unknown as Record<string, unknown>)?.to) ? ((localNodeData.value.config as unknown as Record<string, unknown>).to as unknown[]).length : 0,
+        hasCC: !!(localNodeData.value.config as unknown as Record<string, unknown>)?.cc,
+        ccCount: Array.isArray((localNodeData.value.config as unknown as Record<string, unknown>)?.cc) ? ((localNodeData.value.config as unknown as Record<string, unknown>).cc as unknown[]).length : 0,
+        hasBCC: !!(localNodeData.value.config as unknown as Record<string, unknown>)?.bcc,
+        bccCount: Array.isArray((localNodeData.value.config as unknown as Record<string, unknown>)?.bcc) ? ((localNodeData.value.config as unknown as Record<string, unknown>).bcc as unknown[]).length : 0
       })
     }
     

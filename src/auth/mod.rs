@@ -18,8 +18,15 @@ pub async fn auth_middleware(
 ) -> Result<Response, StatusCode> {
     let path = request.uri().path();
     
-    // Skip auth for ingestion endpoints and auth endpoints
-    if path.starts_with("/api/v1/") || path.starts_with("/auth/") {
+    // Skip auth for ingestion endpoints, auth endpoints, and static files
+    if path.starts_with("/api/v1/") ||
+       path.starts_with("/auth/") ||
+       path.starts_with("/assets/") ||
+       path.starts_with("/monacoeditorwork/") ||
+       path == "/" ||
+       path == "/index.html" ||
+       path == "/favicon.ico" ||
+       is_spa_route(path) {
         return Ok(next.run(request).await);
     }
 
@@ -65,4 +72,14 @@ fn extract_session_id(request: &Request) -> Option<String> {
                     trimmed.strip_prefix("session_id=").map(|session_part| session_part.to_string())
                 })
         })
+}
+
+/// Check if the path is a SPA route that should serve the frontend
+fn is_spa_route(path: &str) -> bool {
+    // Allow common SPA routes that don't start with /api/
+    !path.starts_with("/api/") &&
+    // Exclude static file extensions
+    !path.contains('.') ||
+    // But include .html files for SPA routing
+    path.ends_with(".html")
 }

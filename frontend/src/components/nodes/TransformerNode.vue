@@ -14,28 +14,21 @@
 <script setup lang="ts">
 import { Position } from '@vue-flow/core'
 import BaseNode from './BaseNode.vue'
+import type { WorkflowNodeData, TransformerConfig } from '../../types/nodes'
 
 interface Props {
-  data: {
-    label: string
-    description?: string
-    status?: string
-    config: unknown
-    isTracing?: boolean
-    executionStatus?: string
-    executionDuration?: number
-    executionError?: string
-  }
+  data: WorkflowNodeData
 }
 
 const props = defineProps<Props>()
 
 function getTransformerType() {
-  if (props.data.config?.transformer_type) {
-    return props.data.config.transformer_type
+  const config = props.data.config as TransformerConfig
+  if (props.data.transformer_type) {
+    return props.data.transformer_type
   }
-  if (props.data.config?.type) {
-    return props.data.config.type
+  if (config?.type) {
+    return config.type
   }
   return 'Data Transform'
 }

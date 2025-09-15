@@ -3,6 +3,8 @@ import { useNodeStore } from '../stores/nodes'
 import { apiClient } from '../services/api'
 import type { WorkflowExecution, ExecutionStep } from '../types/execution'
 import type { Node, Edge } from '@vue-flow/core'
+import type { WorkflowNodeData } from '../types/nodes'
+import { MarkerType } from '@vue-flow/core'
 
 export function useExecutionTracing() {
   const nodeStore = useNodeStore()
@@ -10,7 +12,7 @@ export function useExecutionTracing() {
   const tracingExecution = ref<WorkflowExecution | null>(null)
   const executionSteps = ref<ExecutionStep[]>([])
   const showNodeInspector = ref(false)
-  const inspectedNode = ref<unknown>(null)
+  const inspectedNode = ref<WorkflowNodeData | null>(null)
 
   async function onTraceExecution(executionData: WorkflowExecution) {
     tracingExecution.value = executionData
@@ -98,7 +100,7 @@ export function useExecutionTracing() {
             transition: 'all 0.3s ease'
           }
           edge.markerEnd = {
-            type: 'arrowclosed',
+            type: MarkerType.ArrowClosed,
             color: '#3b82f6',
             width: 10,
             height: 10
@@ -112,7 +114,7 @@ export function useExecutionTracing() {
             transition: 'all 0.3s ease'
           }
           edge.markerEnd = {
-            type: 'arrowclosed',
+            type: MarkerType.ArrowClosed,
             color: '#6b7280',
             width: 15,
             height: 15
@@ -152,7 +154,7 @@ export function useExecutionTracing() {
         transition: 'all 0.3s ease'
       }
       edge.markerEnd = {
-        type: 'arrowclosed',
+        type: MarkerType.ArrowClosed,
         color: '#6b7280',
         width: 15,
         height: 15

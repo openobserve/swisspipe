@@ -38,28 +38,21 @@
 <script setup lang="ts">
 import { Handle, Position } from '@vue-flow/core'
 import BaseNode from './BaseNode.vue'
+import type { WorkflowNodeData, ConditionConfig } from '../../types/nodes'
 
 interface Props {
-  data: {
-    label: string
-    description?: string
-    status?: string
-    config: unknown
-    isTracing?: boolean
-    executionStatus?: string
-    executionDuration?: number
-    executionError?: string
-  }
+  data: WorkflowNodeData
 }
 
 const props = defineProps<Props>()
 
 function getConditionType() {
-  if (props.data.config?.condition_type) {
-    return props.data.config.condition_type
+  const config = props.data.config as ConditionConfig
+  if (props.data.condition_type) {
+    return props.data.condition_type
   }
-  if (props.data.config?.type) {
-    return props.data.config.type
+  if (config?.type) {
+    return config.type
   }
   return 'If/Then'
 }
