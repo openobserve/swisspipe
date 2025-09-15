@@ -22,7 +22,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubicloud-standard-16-arm
+    runs-on: ubicloud-standard-16
     permissions:
       contents: read
       id-token: write
