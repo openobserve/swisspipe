@@ -40,14 +40,19 @@ RUN cargo build --release --bin swisspipe
 # Stage 3: Runtime image (distroless)
 FROM gcr.io/distroless/cc-debian12
 
-# Create non-root user (distroless already has one, but we set it)
-USER nonroot:nonroot
-
 # Copy the binary from builder
 COPY --from=rust-builder /app/target/release/swisspipe /usr/local/bin/swisspipe
 
 # Set working directory
 WORKDIR /app
+
+# Create data directory with proper permissions
+# Note: distroless doesn't have mkdir, so we'll create it at runtime
+# The application will create the directory, but we need to ensure /app is writable
+USER nonroot:nonroot
+
+# Create a volume mount point for persistent data
+VOLUME ["/app/data"]
 
 # Expose port
 EXPOSE 3700

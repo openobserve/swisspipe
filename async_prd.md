@@ -125,7 +125,7 @@ CREATE INDEX idx_execution_steps_status ON workflow_execution_steps(status);
 - **Safe Deletion**: Respects foreign key constraints and deletes in proper order
 
 **Acceptance Criteria:**
-- Configurable retention period via `SP_EXECUTION_RETENTION_HOURS` (default: 1 hour)
+- Configurable retention period via `SP_EXECUTION_RETENTION_COUNT` (default: 1 hour)
 - Configurable cleanup interval via `SP_CLEANUP_INTERVAL_MINUTES` (default: 1 minute)
 - Automatic deletion of workflow_execution_steps records older than retention period
 - Automatic deletion of workflow_executions records older than retention period
@@ -370,9 +370,9 @@ The following environment variables can be used to configure SwissPipe:
   - Example: `SP_DANGEROUS_HEADERS="authorization,x-secret,x-private"`
   - Set to empty string to disable header stripping: `SP_DANGEROUS_HEADERS=""`
 
-- **`SP_EXECUTION_RETENTION_HOURS`**: Number of hours to retain workflow execution data before cleanup
+- **`SP_EXECUTION_RETENTION_COUNT`**: Number of hours to retain workflow execution data before cleanup
   - Default: `1` (1 hour)
-  - Example: `SP_EXECUTION_RETENTION_HOURS=24` (retain for 24 hours)
+  - Example: `SP_EXECUTION_RETENTION_COUNT=24` (retain for 24 hours)
   - Used by CleanupService to determine cutoff time for data deletion
 
 - **`SP_CLEANUP_INTERVAL_MINUTES`**: How often the cleanup service runs (in minutes)

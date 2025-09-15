@@ -85,7 +85,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `./simple_delay_test.sh`: Simple delay functionality testing
 
 ### Special Environment Variables
-- `SP_EXECUTION_RETENTION_HOURS`: Control execution data retention (default varies)
+- `SP_EXECUTION_RETENTION_COUNT`: Control execution data retention (default varies)
 - `SP_EXECUTION_RETENTION_COUNT`: Alternative retention by count limit
 - `SP_CLEANUP_INTERVAL_MINUTES`: Cleanup service frequency
 - `SP_DANGEROUS_HEADERS`: Headers to exclude from logging (comma-separated)
