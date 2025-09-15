@@ -60,28 +60,121 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=ref,event=branch,suffix=-{{sha}}
+            type=ref,event=pr,suffix=-{{sha}}
+            type=semver,pattern={{version}},suffix=-{{sha}}
+            type=semver,pattern={{major}}.{{minor}},suffix=-{{sha}}
+            type=semver,pattern={{major}},suffix=-{{sha}}
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix={{branch}}-,format=short
 
-      - name: Build and push Docker image
+      - name: Generate architecture-specific tags
+        id: arch-tags
+        run: |
+          # Get platform suffix (amd64 or arm64)
+          PLATFORM_SUFFIX=$(echo "${{ matrix.platform }}" | cut -d'/' -f2)
+
+          # Convert metadata tags to include architecture suffix
+          ARCH_TAGS=""
+          while IFS= read -r tag; do
+            if [ ! -z "$tag" ]; then
+              ARCH_TAGS="${ARCH_TAGS}${tag}-${PLATFORM_SUFFIX},"
+            fi
+          done <<< "${{ steps.meta.outputs.tags }}"
+
+          # Remove trailing comma
+          ARCH_TAGS=${ARCH_TAGS%,}
+
+          echo "arch-tags=${ARCH_TAGS}" >> $GITHUB_OUTPUT
+          echo "platform-suffix=${PLATFORM_SUFFIX}" >> $GITHUB_OUTPUT
+
+      - name: Build and push architecture-specific Docker image
         uses: docker/build-push-action@v5
+        id: build
         with:
           context: .
           platforms: ${{ matrix.platform }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.arch-tags.outputs.arch-tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
           sbom: false
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.REPOSITORY }},push=true
+
+      - name: Output image details
+        run: |
+          echo "Built image for ${{ matrix.platform }}"
+          echo "Tags: ${{ steps.arch-tags.outputs.arch-tags }}"
+          echo "Digest: ${{ steps.build.outputs.digest }}"
 
       - name: Clean up
         if: always()
         run: |
           rm -rf dist/
+
+  create-manifest:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::058694856476:role/GitHubActionsRole
+          aws-region: us-east-1
+          role-session-name: GitHubActions-SwissPipe-Manifest
+
+      - name: Login to Amazon ECR Public
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Extract metadata for manifest
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}
+          tags: |
+            type=ref,event=branch,suffix=-{{sha}}
+            type=ref,event=pr,suffix=-{{sha}}
+            type=semver,pattern={{version}},suffix=-{{sha}}
+            type=semver,pattern={{major}}.{{minor}},suffix=-{{sha}}
+            type=semver,pattern={{major}},suffix=-{{sha}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix={{branch}}-,format=short
+
+      - name: Create and push multi-arch manifests
+        run: |
+          # Process each tag to create multi-arch manifests
+          while IFS= read -r tag; do
+            if [ ! -z "$tag" ]; then
+              echo "Creating multi-arch manifest for: $tag"
+
+              # Create multi-arch manifest combining both architectures
+              docker manifest create "$tag" \
+                "${tag}-amd64" \
+                "${tag}-arm64"
+
+              # Push the manifest
+              docker manifest push "$tag"
+
+              echo "✅ Created and pushed multi-arch manifest: $tag"
+            fi
+          done <<< "${{ steps.meta.outputs.tags }}"
+
+      - name: Verify manifests
+        run: |
+          echo "🔍 Verifying multi-arch manifests..."
+          while IFS= read -r tag; do
+            if [ ! -z "$tag" ]; then
+              echo "Inspecting manifest: $tag"
+              docker manifest inspect "$tag"
+              echo "---"
+            fi
+          done <<< "${{ steps.meta.outputs.tags }}"
+          
