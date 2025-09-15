@@ -10,6 +10,8 @@ pub struct Config {
     pub port: u16,
     pub worker_pool: WorkerPoolConfig,
     pub google_oauth: Option<GoogleOAuthConfig>,
+    pub execution_retention_count: u64,
+    pub cleanup_interval_minutes: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -58,6 +60,17 @@ impl Config {
             .unwrap_or_else(|_| "600".to_string())
             .parse()
             .map_err(|_| SwissPipeError::Config("Invalid JOB_CLAIM_CLEANUP_INTERVAL_SECONDS value".to_string()))?;
+
+        // Execution cleanup configuration
+        let execution_retention_count = env::var("SP_EXECUTION_RETENTION_COUNT")
+            .unwrap_or_else(|_| "1000".to_string())
+            .parse()
+            .map_err(|_| SwissPipeError::Config("Invalid SP_EXECUTION_RETENTION_COUNT value".to_string()))?;
+
+        let cleanup_interval_minutes = env::var("SP_CLEANUP_INTERVAL_MINUTES")
+            .unwrap_or_else(|_| "1".to_string())
+            .parse()
+            .map_err(|_| SwissPipeError::Config("Invalid SP_CLEANUP_INTERVAL_MINUTES value".to_string()))?;
 
         let worker_pool_config = WorkerPoolConfig {
             worker_count,
@@ -116,6 +129,8 @@ impl Config {
             port,
             worker_pool: worker_pool_config,
             google_oauth,
+            execution_retention_count,
+            cleanup_interval_minutes,
         })
     }
 }

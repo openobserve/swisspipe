@@ -18,7 +18,7 @@ use cache::WorkflowCache;
 use config::Config;
 use database::establish_connection;
 use workflow::engine::WorkflowEngine;
-use async_execution::{WorkerPool, ResumptionService, DelayScheduler};
+use async_execution::{WorkerPool, ResumptionService, DelayScheduler, CleanupService};
 use sea_orm::{EntityTrait, ColumnTrait, QueryFilter};
 
 #[derive(Clone)]
@@ -151,6 +151,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     });
+
+    // Initialize and start workflow execution cleanup service
+    tracing::info!("Starting workflow execution cleanup service...");
+    let cleanup_service = match CleanupService::new(
+        db.clone(),
+        config.execution_retention_count,
+        config.cleanup_interval_minutes,
+    ) {
+        Ok(service) => service,
+        Err(e) => {
+            tracing::error!("Failed to initialize cleanup service: {}", e);
+            return Err(e.into());
+        }
+    };
+
+    match cleanup_service.start().await {
+        Ok(()) => {
+            tracing::info!(
+                "Workflow execution cleanup service started: retention_count={}, interval={}min",
+                config.execution_retention_count,
+                config.cleanup_interval_minutes
+            );
+        }
+        Err(e) => {
+            tracing::error!("Failed to start cleanup service: {}", e);
+            // Don't fail startup, just log the error
+        }
+    }
 
     // Start workflow cache cleanup task
     let cache_cleanup = workflow_cache.clone();

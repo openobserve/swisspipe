@@ -9,7 +9,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::{
-    async_execution::ExecutionService,
+    async_execution::{ExecutionService, CleanupService},
     AppState,
 };
 
@@ -29,6 +29,7 @@ pub fn routes() -> Router<AppState> {
         .route("/:execution_id/steps", get(get_execution_steps))
         .route("/:execution_id/cancel", axum::routing::post(cancel_execution))
         .route("/stats", get(get_worker_pool_stats))
+        .route("/cleanup/stats", get(get_cleanup_stats))
 }
 
 /// Get execution details by ID
@@ -260,4 +261,40 @@ pub async fn get_all_executions(
         "workflow_id": workflow_id_clone,
         "status": status_clone
     })))
+}
+
+/// Get cleanup service statistics
+pub async fn get_cleanup_stats(
+    State(state): State<AppState>,
+) -> std::result::Result<Json<Value>, StatusCode> {
+    let cleanup_service = match CleanupService::new(
+        state.db.clone(),
+        state.config.execution_retention_count,
+        state.config.cleanup_interval_minutes,
+    ) {
+        Ok(service) => service,
+        Err(e) => {
+            tracing::error!("Failed to initialize cleanup service: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    let stats = cleanup_service
+        .get_cleanup_stats()
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to get cleanup stats: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let response = serde_json::json!({
+        "cleanup_stats": stats,
+        "config": {
+            "retention_count": state.config.execution_retention_count,
+            "cleanup_interval_minutes": state.config.cleanup_interval_minutes
+        },
+        "timestamp": chrono::Utc::now().timestamp_micros()
+    });
+
+    Ok(Json(response))
 }
