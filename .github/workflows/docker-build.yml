@@ -60,11 +60,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}
           tags: |
-            type=ref,event=branch,suffix=-{{sha}}
-            type=ref,event=pr,suffix=-{{sha}}
-            type=semver,pattern={{version}},suffix=-{{sha}}
-            type=semver,pattern={{major}}.{{minor}},suffix=-{{sha}}
-            type=semver,pattern={{major}},suffix=-{{sha}}
+            type=ref,event=branch,suffix=-{{sha:7}}
+            type=ref,event=pr,suffix=-{{sha:7}}
+            type=semver,pattern={{version}},suffix=-{{sha:7}}
+            type=semver,pattern={{major}}.{{minor}},suffix=-{{sha:7}}
+            type=semver,pattern={{major}},suffix=-{{sha:7}}
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix={{branch}}-,format=short
 
@@ -140,11 +140,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}
           tags: |
-            type=ref,event=branch,suffix=-{{sha}}
-            type=ref,event=pr,suffix=-{{sha}}
-            type=semver,pattern={{version}},suffix=-{{sha}}
-            type=semver,pattern={{major}}.{{minor}},suffix=-{{sha}}
-            type=semver,pattern={{major}},suffix=-{{sha}}
+            type=ref,event=branch,suffix=-{{sha:7}}
+            type=ref,event=pr,suffix=-{{sha:7}}
+            type=semver,pattern={{version}},suffix=-{{sha:7}}
+            type=semver,pattern={{major}}.{{minor}},suffix=-{{sha:7}}
+            type=semver,pattern={{major}},suffix=-{{sha:7}}
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix={{branch}}-,format=short
 
