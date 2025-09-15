@@ -1,0 +1,72 @@
+# Rust build artifacts
+/target/
+
+# Frontend development files
+frontend/node_modules/
+frontend/dist/
+frontend/.nuxt/
+frontend/.output/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Database files (don't include in container)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Log files
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Test files
+tests/
+test_*.sh
+*.test
+
+# Docker files themselves
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+Jenkinsfile
+
+# Development scripts
+scripts/
