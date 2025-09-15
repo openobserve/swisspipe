@@ -402,6 +402,7 @@ Your task is to generate a complete workflow specification based on user require
 8. Use template variables like {{data.field}} in prompts and messages
 9. Generate realistic UUIDs for all IDs
 10. Keep workflows focused and logical
+11. Position nodes vertically (Not horizaontally) to represent data flow direction
 
 Examples of good workflows:
 - API data → Transform → Send email notification

@@ -1,12 +1,43 @@
 <template>
-  <div class="space-y-4">
+  <div class="space-y-4 overflow-y-scroll h-screen max-h-[600px]">
 
+    <!-- SwissPipe Native Endpoints -->
     <div class="bg-slate-800 p-4 rounded-md">
-      <h4 class="text-sm font-medium text-gray-300 mb-2">📡 Endpoint Information</h4>
-      <div class="text-xs text-gray-400 space-y-1">
-        <p><strong>Endpoint URL:</strong> {{ endpointUrl }}</p>
-        <p><strong>Content-Type:</strong> application/json (recommended)</p>
-        <p><strong>Authentication:</strong> None required for execution</p>
+      <h4 class="text-sm font-medium text-gray-300 mb-3">📡 SwissPipe Native Endpoints</h4>
+      <div class="text-xs text-gray-400 space-y-2">
+        <div class="bg-slate-700 p-2 rounded">
+          <p><strong>Single Event:</strong> <code class="text-green-400">{{ primaryEndpoint }}</code></p>
+          <p class="text-gray-500">Methods: GET, POST, PUT</p>
+        </div>
+        <div class="bg-slate-700 p-2 rounded">
+          <p><strong>Batch Events:</strong> <code class="text-green-400">{{ batchEndpoint }}</code></p>
+          <p class="text-gray-500">Method: POST (JSON array)</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Segment.com Compatible Endpoints -->
+    <div class="bg-purple-900/20 border border-purple-700/50 p-4 rounded-md">
+      <h4 class="text-sm font-medium text-purple-300 mb-3">🔗 Segment.com Compatible Endpoints</h4>
+      <div class="text-xs text-purple-200 space-y-2">
+        <div class="grid grid-cols-1 gap-2">
+          <div v-for="endpoint in segmentEndpoints" :key="endpoint.name" class="bg-purple-800/30 p-2 rounded">
+            <div class="flex justify-between items-start">
+              <div>
+                <p><strong>{{ endpoint.name }}:</strong> <code class="text-purple-300">{{ endpoint.url }}</code></p>
+                <p class="text-purple-400 text-xs">{{ endpoint.description }}</p>
+              </div>
+              <span class="text-purple-400 text-xs font-mono">POST</span>
+            </div>
+          </div>
+        </div>
+        <div class="mt-3 pt-2 border-t border-purple-700/50">
+          <p class="text-purple-300 font-medium">Authentication:</p>
+          <div class="mt-1 space-y-1">
+            <p>• <strong>Header:</strong> <code>Authorization: Bearer {{ workflowId }}</code></p>
+            <p>• <strong>Body:</strong> <code>"writeKey": "{{ workflowId }}"</code></p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -35,10 +66,20 @@
         </div>
         <div>
           <p class="text-sm text-blue-300 font-medium">Example Usage</p>
-          <div class="text-xs text-blue-400 mt-1 space-y-1">
-            <p><strong>curl</strong> -X POST {{ endpointUrl }} \</p>
-            <p class="ml-4">-H "Content-Type: application/json" \</p>
-            <p class="ml-4">-d '{"key": "value"}'</p>
+          <div class="text-xs text-blue-400 mt-1 space-y-2">
+            <div>
+              <p class="text-blue-300 font-medium mb-1">SwissPipe Native:</p>
+              <p><strong>curl</strong> -X POST {{ primaryEndpoint }} \</p>
+              <p class="ml-4">-H "Content-Type: application/json" \</p>
+              <p class="ml-4">-d '{"key": "value"}'</p>
+            </div>
+            <div>
+              <p class="text-purple-300 font-medium mb-1">Segment.com Compatible:</p>
+              <p><strong>curl</strong> -X POST {{ segmentTrackEndpoint }} \</p>
+              <p class="ml-4">-H "Authorization: Bearer {{ workflowId }}" \</p>
+              <p class="ml-4">-H "Content-Type: application/json" \</p>
+              <p class="ml-4">-d '{"userId": "123", "event": "Button Clicked"}'</p>
+            </div>
           </div>
         </div>
       </div>
@@ -56,7 +97,29 @@
           <div class="text-xs text-amber-400 mt-1 space-y-1">
             <p>• Trigger nodes cannot be deleted from workflows</p>
             <p>• Every workflow must have exactly one trigger node</p>
-            <p>• The trigger node name is always "Start"</p>
+            <p>• All endpoints route to the same workflow execution engine</p>
+            <p>• Segment.com endpoints use the workflow ID as the write key</p>
+            <p>• SwissPipe native endpoints require no authentication</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- API Integration Tips -->
+    <div class="bg-indigo-900/20 border border-indigo-700/50 p-3 rounded-md">
+      <div class="flex items-start space-x-2">
+        <div class="text-indigo-400 mt-0.5">
+          <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div>
+          <p class="text-sm text-indigo-300 font-medium">Integration Tips</p>
+          <div class="text-xs text-indigo-400 mt-1 space-y-1">
+            <p>• Use <strong>SwissPipe native</strong> endpoints for custom integrations</p>
+            <p>• Use <strong>Segment.com compatible</strong> endpoints to drop-in replace Segment</p>
+            <p>• Batch endpoints process events concurrently for better performance</p>
+            <p>• All event data is available in workflow transformers and conditions</p>
           </div>
         </div>
       </div>
@@ -88,6 +151,55 @@ defineEmits<Emits>()
 const workflowStore = useWorkflowStore()
 
 const workflowId = computed(() => workflowStore.currentWorkflow?.id || '{workflow_id}')
-const endpointUrl = computed(() => `/api/v1/${workflowId.value}/trigger`)
+
+// SwissPipe Native Endpoints
+const primaryEndpoint = computed(() => `/api/v1/${workflowId.value}/trigger`)
+const batchEndpoint = computed(() => `/api/v1/${workflowId.value}/json_array`)
+
+// Segment.com Compatible Endpoints
+const segmentEndpoints = computed(() => [
+  {
+    name: 'Track Events',
+    url: `/api/v1/track`,
+    description: 'Track user actions and events'
+  },
+  {
+    name: 'Identify Users',
+    url: `/api/v1/identify`,
+    description: 'Identify users with traits and properties'
+  },
+  {
+    name: 'Page Views',
+    url: `/api/v1/page`,
+    description: 'Track page views and navigation'
+  },
+  {
+    name: 'Screen Views',
+    url: `/api/v1/screen`,
+    description: 'Track mobile app screen views'
+  },
+  {
+    name: 'Group Users',
+    url: `/api/v1/group`,
+    description: 'Associate users with groups or organizations'
+  },
+  {
+    name: 'Alias Users',
+    url: `/api/v1/alias`,
+    description: 'Create user aliases and merge identities'
+  },
+  {
+    name: 'Batch Events',
+    url: `/api/v1/batch`,
+    description: 'Send multiple events in a single request'
+  },
+  {
+    name: 'Import Data',
+    url: `/api/v1/import`,
+    description: 'Import historical data in batch format'
+  }
+])
+
+const segmentTrackEndpoint = computed(() => `/api/v1/track`)
 
 </script>
