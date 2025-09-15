@@ -7,9 +7,13 @@ on:
       - develop
     tags:
       - 'v*'
-  pull_request:
-    branches:
-      - main
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.yaml'
+      - '**/*.yml'
+      - '**/*.sh'
+      - '**/*.txt'
+      - '.github/workflows/**'
 
 env:
   REGISTRY: public.ecr.aws
@@ -17,7 +21,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: org-openobserve-standard-16
     permissions:
       contents: read
       id-token: write
