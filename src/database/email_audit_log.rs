@@ -57,6 +57,7 @@ impl ActiveModelBehavior for ActiveModel {
 
 // Email audit status enumeration
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub enum EmailAuditStatus {
     Sent,
     Failed,

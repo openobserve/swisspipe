@@ -77,6 +77,7 @@ impl ActiveModelBehavior for ActiveModel {
 
 // Email queue status enumeration
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub enum EmailQueueStatus {
     Queued,
     Processing,

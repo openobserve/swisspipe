@@ -155,6 +155,7 @@ pub struct EmailMessage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct QueuedEmail {
     pub id: String,
     pub execution_id: Option<String>,
