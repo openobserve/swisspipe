@@ -26,7 +26,7 @@ impl JobManager {
         
         // Atomic claim using raw SQL for database-level atomicity
         let statement = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Sqlite,
+            self.db.get_database_backend(),
             r#"
             UPDATE job_queue 
             SET 
@@ -199,7 +199,7 @@ impl JobManager {
 
         // Use a single GROUP BY query to get all statistics at once
         let statement = Statement::from_sql_and_values(
-            sea_orm::DatabaseBackend::Sqlite,
+            self.db.get_database_backend(),
             r#"
             SELECT status, COUNT(*) as count 
             FROM job_queue 
