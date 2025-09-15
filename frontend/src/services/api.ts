@@ -47,12 +47,25 @@ interface UpdateWorkflowResponse {
   error?: string
 }
 
+// Google OAuth types
+interface LoginResponse {
+  success: boolean
+  message: string
+  user?: {
+    id: string
+    email: string
+    name: string
+    picture?: string
+  }
+  session_id?: string
+}
+
 class ApiClient {
   private client: AxiosInstance
 
   constructor() {
     this.client = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3701',
+      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3700',
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json'
@@ -66,23 +79,39 @@ class ApiClient {
     // Request interceptor for auth
     this.client.interceptors.request.use(
       (config) => {
-        // Add Basic Auth for admin management endpoints and AI endpoints
-        if (config.url?.includes('/api/admin/') || config.url?.includes('/api/ai/')) {
-          // Try to get credentials from localStorage first (from auth store)
-          const storedCredentials = localStorage.getItem('auth_credentials')
-          
-          if (storedCredentials) {
-            config.headers.Authorization = `Basic ${storedCredentials}`
+        // Add auth for admin management endpoints, AI endpoints, and OAuth endpoints
+        if (config.url?.includes('/api/admin/') || config.url?.includes('/api/ai/') || config.url?.includes('/auth/')) {
+          // For OAuth endpoints (/auth/user, /auth/logout), rely on cookies - no explicit headers needed
+          if (config.url?.includes('/auth/')) {
+            // Cookies will be sent automatically with credentials: 'include'
+            config.withCredentials = true
+            return config
+          }
+
+          // For admin/AI endpoints, check if user is authenticated via OAuth first
+          const userInfo = JSON.parse(localStorage.getItem('oauth_user') || 'null')
+
+          if (userInfo && userInfo.session_id) {
+            // User is authenticated via OAuth - use session cookies
+            config.withCredentials = true
           } else {
-            // Fallback to environment variables
-            const username = import.meta.env.VITE_API_USERNAME
-            const password = import.meta.env.VITE_API_PASSWORD
-            
-            if (username && password) {
-              const token = btoa(`${username}:${password}`)
-              config.headers.Authorization = `Basic ${token}`
+            // Fallback to Basic Auth for non-OAuth users
+            const storedCredentials = localStorage.getItem('auth_credentials')
+
+            if (storedCredentials) {
+              config.headers.Authorization = `Basic ${storedCredentials}`
             } else {
-              console.warn('API credentials not configured. Either log in or set VITE_API_USERNAME and VITE_API_PASSWORD environment variables.')
+              // Fallback to environment variables
+              const username = import.meta.env.VITE_API_USERNAME
+              const password = import.meta.env.VITE_API_PASSWORD
+
+              if (username && password) {
+                const token = btoa(`${username}:${password}`)
+                config.headers.Authorization = `Basic ${token}`
+              } else {
+                // If no basic auth, try session-based (cookies will be sent with withCredentials)
+                config.withCredentials = true
+              }
             }
           }
         }
@@ -225,6 +254,17 @@ class ApiClient {
     } catch {
       return false
     }
+  }
+
+  // Google OAuth endpoints
+  async getCurrentUser(): Promise<LoginResponse> {
+    const response = await this.client.get<LoginResponse>('/auth/user')
+    return response.data
+  }
+
+  async logout(): Promise<LoginResponse> {
+    const response = await this.client.get<LoginResponse>('/auth/logout')
+    return response.data
   }
 }
 

@@ -6,7 +6,7 @@ pub mod segment;
 pub mod workflows;
 
 use axum::Router;
-use crate::AppState;
+use crate::{AppState, auth::handlers as auth_handlers};
 
 pub fn create_router() -> Router<AppState> {
     Router::new()
@@ -16,4 +16,5 @@ pub fn create_router() -> Router<AppState> {
         .nest("/api/admin/v1/workflows", workflows::routes())
         .nest("/api/admin/v1/executions", executions::routes())
         .nest("/api/admin/v1/script", script::routes())
+        .nest("/auth", auth_handlers::routes())
 }

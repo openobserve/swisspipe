@@ -19,6 +19,7 @@ use config::Config;
 use database::establish_connection;
 use workflow::engine::WorkflowEngine;
 use async_execution::{WorkerPool, ResumptionService, DelayScheduler};
+use sea_orm::{EntityTrait, ColumnTrait, QueryFilter};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -167,6 +168,69 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    // Start session and CSRF token cleanup task
+    let session_cleanup_db = db.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(3600)); // 1 hour
+        tracing::info!("Session cleanup task started");
+
+        loop {
+            interval.tick().await;
+
+            let now = chrono::Utc::now().timestamp();
+
+            // Clean up expired sessions
+            match database::sessions::Entity::delete_many()
+                .filter(database::sessions::Column::ExpiresAt.lt(now))
+                .exec(&*session_cleanup_db)
+                .await
+            {
+                Ok(result) => {
+                    if result.rows_affected > 0 {
+                        tracing::info!("Cleaned up {} expired sessions", result.rows_affected);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Error cleaning up expired sessions: {}", e);
+                }
+            }
+
+            // Clean up expired CSRF tokens
+            match database::csrf_tokens::Entity::delete_many()
+                .filter(database::csrf_tokens::Column::ExpiresAt.lt(now))
+                .exec(&*session_cleanup_db)
+                .await
+            {
+                Ok(result) => {
+                    if result.rows_affected > 0 {
+                        tracing::info!("Cleaned up {} expired CSRF tokens", result.rows_affected);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Error cleaning up expired CSRF tokens: {}", e);
+                }
+            }
+
+            // Clean up used CSRF tokens older than 24 hours
+            let twenty_four_hours_ago = now - 86400;
+            match database::csrf_tokens::Entity::delete_many()
+                .filter(database::csrf_tokens::Column::Used.eq(true))
+                .filter(database::csrf_tokens::Column::CreatedAt.lt(twenty_four_hours_ago))
+                .exec(&*session_cleanup_db)
+                .await
+            {
+                Ok(result) => {
+                    if result.rows_affected > 0 {
+                        tracing::debug!("Cleaned up {} used CSRF tokens", result.rows_affected);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Error cleaning up used CSRF tokens: {}", e);
+                }
+            }
+        }
+    });
+
     // Initialize DelayScheduler with tokio timer implementation
     tracing::info!("Initializing DelayScheduler...");
     let delay_scheduler = Arc::new(DelayScheduler::new(worker_pool.get_job_manager(), db.clone()).await
@@ -208,9 +272,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Build application
+    let cors = CorsLayer::new()
+        .allow_origin([
+            "http://localhost:5173".parse().unwrap(),
+            "http://localhost:5174".parse().unwrap(),
+            "http://127.0.0.1:5173".parse().unwrap(),
+            "http://127.0.0.1:5174".parse().unwrap(),
+        ])
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::PUT,
+            axum::http::Method::DELETE,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::ACCEPT,
+            axum::http::header::COOKIE,
+        ])
+        .allow_credentials(true);
+
     let app = api::create_router()
         .layer(middleware::from_fn_with_state(state.clone(), auth::auth_middleware))
-        .layer(CorsLayer::permissive())
+        .layer(cors)
         .with_state(state);
 
     // Start server

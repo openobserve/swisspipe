@@ -37,6 +37,9 @@ pub enum SwissPipeError {
     
     #[error("Workflow execution delayed - scheduled with ID: {0}")]
     DelayScheduled(String),
+
+    #[error("Authentication error: {0}")]
+    Auth(String),
 }
 
 #[derive(Debug, Error)]

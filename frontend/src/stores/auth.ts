@@ -3,7 +3,12 @@ import { ref, computed } from 'vue'
 import { apiClient } from '../services/api'
 
 export interface User {
-  username: string
+  username?: string // For basic auth
+  id?: string       // For OAuth
+  email?: string    // For OAuth
+  name?: string     // For OAuth
+  picture?: string  // For OAuth
+  session_id?: string // For OAuth
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -32,21 +37,59 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  const logout = () => {
-    user.value = null
-    localStorage.removeItem('auth_credentials')
+  const loginWithGoogle = () => {
+    // Redirect to Google OAuth login endpoint
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3700'
+    window.location.href = `${baseUrl}/auth/google/login`
   }
 
-  const initializeAuth = () => {
+  const logout = async () => {
+    try {
+      // If user has session_id, try to logout via API
+      if (user.value?.session_id) {
+        await apiClient.logout()
+      }
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      // Always clear local state
+      user.value = null
+      localStorage.removeItem('auth_credentials')
+      localStorage.removeItem('oauth_user')
+    }
+  }
+
+  const initializeAuth = async () => {
+    // Check if we have an active OAuth session first (prioritize OAuth over basic auth)
+    try {
+      const userInfo = await apiClient.getCurrentUser()
+      if (userInfo.success && userInfo.user) {
+        const oauthUser = {
+          id: userInfo.user.id,
+          email: userInfo.user.email,
+          name: userInfo.user.name,
+          picture: userInfo.user.picture,
+          session_id: userInfo.session_id
+        }
+        user.value = oauthUser
+        // Store OAuth user info for API client to detect
+        localStorage.setItem('oauth_user', JSON.stringify(oauthUser))
+        // Clear any basic auth credentials since OAuth takes priority
+        localStorage.removeItem('auth_credentials')
+        return
+      }
+    } catch {
+      // No active OAuth session, try basic auth
+    }
+
+    // Fallback to stored basic auth credentials
     const credentials = localStorage.getItem('auth_credentials')
     if (credentials) {
-      // Decode the credentials to get the username
       try {
         const decoded = atob(credentials)
         const [username] = decoded.split(':')
         user.value = { username }
       } catch {
-        // Invalid credentials in localStorage, remove them
         localStorage.removeItem('auth_credentials')
       }
     }
@@ -61,6 +104,7 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     isAuthenticated,
     login,
+    loginWithGoogle,
     logout,
     initializeAuth,
     getAuthHeaders

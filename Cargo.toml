@@ -33,3 +33,9 @@ governor = "0.6"
 tokio-util = { version = "0.7", features = ["time"] }
 futures = "0.3"
 # tokio-cron-scheduler = "0.10"  # Causing stack overflow - disabled
+
+# Google OAuth dependencies
+oauth2 = "4.4"
+jsonwebtoken = "9.0"
+rand = "0.8"
+url = "2.4"

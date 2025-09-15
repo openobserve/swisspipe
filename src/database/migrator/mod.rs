@@ -11,6 +11,8 @@ mod m20241208_000001_create_email_queue_table;
 mod m20241208_000002_create_email_audit_log_table;
 mod m20241210_000001_create_scheduled_delays_table;
 mod m20241210_000004_create_node_input_sync_table;
+mod m20241215_000001_create_sessions_table;
+mod m20241215_000002_create_csrf_tokens_table;
 
 pub struct Migrator;
 
@@ -29,6 +31,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20241208_000002_create_email_audit_log_table::Migration),
             Box::new(m20241210_000001_create_scheduled_delays_table::Migration),
             Box::new(m20241210_000004_create_node_input_sync_table::Migration),
+            Box::new(m20241215_000001_create_sessions_table::Migration),
+            Box::new(m20241215_000002_create_csrf_tokens_table::Migration),
         ]
     }
 }

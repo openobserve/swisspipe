@@ -10,6 +10,11 @@ const router = createRouter({
       component: () => import('../views/LoginView.vue')
     },
     {
+      path: '/auth/callback',
+      name: 'oauth-callback',
+      component: () => import('../views/OAuthCallbackView.vue')
+    },
+    {
       path: '/',
       redirect: '/workflows'
     },
@@ -35,14 +40,14 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
-  
+
   // Initialize auth on first navigation
   if (!authStore.user) {
-    authStore.initializeAuth()
+    await authStore.initializeAuth()
   }
-  
+
   // Check if route requires authentication
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login')

@@ -8,6 +8,9 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 
 use crate::AppState;
 
+pub mod google;
+pub mod handlers;
+
 pub async fn auth_middleware(
     State(state): State<AppState>,
     request: Request,
@@ -15,34 +18,51 @@ pub async fn auth_middleware(
 ) -> Result<Response, StatusCode> {
     let path = request.uri().path();
     
-    // Skip auth for ingestion endpoints (they use UUID-based auth)
-    if path.starts_with("/api/v1/") {
+    // Skip auth for ingestion endpoints and auth endpoints
+    if path.starts_with("/api/v1/") || path.starts_with("/auth/") {
         return Ok(next.run(request).await);
     }
-    
-    // Require auth for management endpoints
-    let auth_header = request
+
+    // Try session-based auth first (check for session cookie)
+    if let Some(session_id) = extract_session_id(&request) {
+        if handlers::is_session_valid(&session_id, &state.db).await {
+            return Ok(next.run(request).await);
+        }
+    }
+
+    // Fallback to Basic Auth for management endpoints
+    if let Some(auth_header) = request
         .headers()
         .get(AUTHORIZATION)
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Basic "))
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-    
-    let decoded = STANDARD
-        .decode(auth_header)
-        .map_err(|_| StatusCode::UNAUTHORIZED)?;
-    
-    let credentials = String::from_utf8(decoded)
-        .map_err(|_| StatusCode::UNAUTHORIZED)?;
-    
-    let (username, password) = credentials
-        .split_once(':')
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-    
-    // Use cached config from app state
-    if username == state.config.username && password == state.config.password {
-        Ok(next.run(request).await)
-    } else {
-        Err(StatusCode::UNAUTHORIZED)
+    {
+        if let Ok(decoded) = STANDARD.decode(auth_header) {
+            if let Ok(credentials) = String::from_utf8(decoded) {
+                if let Some((username, password)) = credentials.split_once(':') {
+                    if username == state.config.username && password == state.config.password {
+                        return Ok(next.run(request).await);
+                    }
+                }
+            }
+        }
     }
+
+    Err(StatusCode::UNAUTHORIZED)
+}
+
+/// Extract session ID from cookie header
+fn extract_session_id(request: &Request) -> Option<String> {
+    request
+        .headers()
+        .get("cookie")
+        .and_then(|cookie| cookie.to_str().ok())
+        .and_then(|cookie_str| {
+            cookie_str
+                .split(';')
+                .find_map(|part| {
+                    let trimmed = part.trim();
+                    trimmed.strip_prefix("session_id=").map(|session_part| session_part.to_string())
+                })
+        })
 }

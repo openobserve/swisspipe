@@ -9,6 +9,15 @@ pub struct Config {
     pub database_url: String,
     pub port: u16,
     pub worker_pool: WorkerPoolConfig,
+    pub google_oauth: Option<GoogleOAuthConfig>,
+}
+
+#[derive(Clone, Debug)]
+pub struct GoogleOAuthConfig {
+    pub client_id: String,
+    pub client_secret: String,
+    pub allowed_domains: Vec<String>,
+    pub redirect_url: String,
 }
 
 impl Config {
@@ -68,12 +77,45 @@ impl Config {
             }
         }
 
+        // Google OAuth configuration (optional)
+        let google_oauth = if let (Ok(client_id), Ok(client_secret)) = (
+            env::var("GOOGLE_OAUTH_CLIENT_ID"),
+            env::var("GOOGLE_OAUTH_CLIENT_SECRET")
+        ) {
+            let allowed_domains = env::var("GOOGLE_OAUTH_ALLOWED_DOMAINS")
+                .unwrap_or_default()
+                .split(',')
+                .filter_map(|domain| {
+                    let trimmed = domain.trim();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed.to_string())
+                    }
+                })
+                .collect();
+
+            let redirect_url = env::var("GOOGLE_OAUTH_REDIRECT_URL")
+                .unwrap_or_else(|_| format!("http://localhost:{port}/auth/google/callback"));
+
+            Some(GoogleOAuthConfig {
+                client_id,
+                client_secret,
+                allowed_domains,
+                redirect_url,
+            })
+        } else {
+            tracing::info!("Google OAuth not configured - using basic auth only");
+            None
+        };
+
         Ok(Config {
             username,
             password,
             database_url,
             port,
             worker_pool: worker_pool_config,
+            google_oauth,
         })
     }
 }
