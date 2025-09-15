@@ -33,6 +33,20 @@ interface GenerateWorkflowResponse {
   error?: string
 }
 
+// AI Workflow Update types
+interface UpdateWorkflowRequest {
+  workflow_id: string
+  prompt: string
+}
+
+interface UpdateWorkflowResponse {
+  success: boolean
+  message: string
+  workflow_name?: string
+  changes_made: string[]
+  error?: string
+}
+
 class ApiClient {
   private client: AxiosInstance
 
@@ -52,8 +66,8 @@ class ApiClient {
     // Request interceptor for auth
     this.client.interceptors.request.use(
       (config) => {
-        // Add Basic Auth for admin management endpoints only
-        if (config.url?.includes('/api/admin/')) {
+        // Add Basic Auth for admin management endpoints and AI endpoints
+        if (config.url?.includes('/api/admin/') || config.url?.includes('/api/ai/')) {
           // Try to get credentials from localStorage first (from auth store)
           const storedCredentials = localStorage.getItem('auth_credentials')
           
@@ -186,6 +200,14 @@ class ApiClient {
   // AI Workflow generation endpoint
   async generateWorkflow(request: GenerateWorkflowRequest): Promise<GenerateWorkflowResponse> {
     const response = await this.client.post<GenerateWorkflowResponse>('/api/v1/ai/generate-workflow', request, {
+      timeout: 120000 // 120 seconds for AI generation requests
+    })
+    return response.data
+  }
+
+  // AI Workflow update endpoint
+  async updateWorkflowWithAI(request: UpdateWorkflowRequest): Promise<UpdateWorkflowResponse> {
+    const response = await this.client.post<UpdateWorkflowResponse>('/api/v1/ai/update-workflow', request, {
       timeout: 120000 // 120 seconds for AI generation requests
     })
     return response.data

@@ -7,4 +7,5 @@ pub fn create_ai_routes() -> Router<AppState> {
     Router::new()
         .route("/generate-code", post(handlers::generate_code))
         .route("/generate-workflow", post(handlers::generate_workflow))
+        .route("/update-workflow", post(handlers::update_workflow))
 }

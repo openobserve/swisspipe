@@ -14,5 +14,5 @@ pub fn create_segment_routes() -> Router<AppState> {
         .route("/v1/alias", post(handlers::segment_alias))
         .route("/v1/batch", post(handlers::segment_batch))
         .route("/v1/import", post(handlers::segment_import))
-        .layer(axum_middleware::from_fn(middleware::segment_auth_middleware))
+        .route_layer(axum_middleware::from_fn(middleware::segment_auth_middleware))
 }

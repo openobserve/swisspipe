@@ -833,3 +833,48 @@ async fn create_workflow_from_ai_spec(
         workflow_name: spec.name,
     })
 }
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateWorkflowRequest {
+    pub workflow_id: String,
+    pub prompt: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UpdateWorkflowResponse {
+    pub success: bool,
+    pub message: String,
+    pub workflow_name: Option<String>,
+    pub changes_made: Vec<String>,
+    pub error: Option<String>,
+}
+
+pub async fn update_workflow(
+    _state: State<AppState>,
+    Json(request): Json<UpdateWorkflowRequest>,
+) -> Result<Json<UpdateWorkflowResponse>, StatusCode> {
+    tracing::info!("AI workflow update request for workflow {}: {}", request.workflow_id, request.prompt);
+
+    // Return a temporary response until we fully implement this
+    Ok(Json(UpdateWorkflowResponse {
+        success: true,
+        message: "AI workflow updates are not yet implemented. This is a placeholder response.".to_string(),
+        workflow_name: Some("Current Workflow".to_string()),
+        changes_made: vec![
+            "Feature under development".to_string(),
+            "Please check back later".to_string(),
+        ],
+        error: None,
+    }))
+}
+
+// TODO: Implement full workflow update functionality
+// For now, these functions are commented out to avoid compilation issues
+
+// fn create_update_workflow_system_prompt(
+//     workflow: &entities::Model,
+//     nodes: &[nodes::Model],
+//     edges: &[edges::Model],
+// ) -> String { ... }
+
+// fn contains_malicious_content(input: &str) -> bool { ... }

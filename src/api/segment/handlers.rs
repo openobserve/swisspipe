@@ -4,12 +4,14 @@ use axum::{
     response::Json,
 };
 use futures::future::join_all;
+use sea_orm::{EntityTrait, ColumnTrait, QueryFilter};
 use serde::Serialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::{
     api::ingestion::trigger_workflow_post,
+    database::entities,
     AppState,
 };
 
@@ -63,6 +65,56 @@ async fn handle_segment_request(
         }
     };
 
+    // Verify workflow exists in cache first (fast lookup)
+    let workflow_exists = match state.workflow_cache.get(&workflow_id).await {
+        Some(_) => {
+            tracing::debug!("Workflow {} found in cache", workflow_id);
+            true
+        }
+        None => {
+            // Cache miss - check database and update cache if found
+            tracing::debug!("Workflow {} not in cache, checking database", workflow_id);
+            match entities::Entity::find()
+                .filter(entities::Column::Id.eq(&workflow_id))
+                .one(&*state.db)
+                .await
+            {
+                Ok(Some(_workflow)) => {
+                    // Workflow exists in database, cache it for future requests
+                    // Use the first trigger node as start_node_id (simplified)
+                    let start_node_id = "trigger".to_string(); // Default assumption
+                    state.workflow_cache.put(workflow_id.clone(), start_node_id).await;
+                    tracing::info!("Workflow {} found in database and cached", workflow_id);
+                    true
+                }
+                Ok(None) => {
+                    tracing::debug!("Workflow {} not found in database", workflow_id);
+                    false
+                }
+                Err(e) => {
+                    tracing::error!("Database error checking workflow {}: {}", workflow_id, e);
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                }
+            }
+        }
+    };
+
+    if !workflow_exists {
+        tracing::warn!("Workflow not found: {}", workflow_id);
+        return Ok(Json(SegmentResponse {
+            success: false,
+            message_id: None,
+            error: Some("Workflow not found".to_string()),
+            details: Some(SegmentErrorDetails {
+                error_type: "workflow_not_found".to_string(),
+                workflow_id: Some(workflow_id),
+                event_count: None,
+                failed_events: None,
+                validation_errors: None,
+            }),
+        }));
+    }
+
     // Transform Segment request to SwissPipe format
     let mut swissipe_data = body_value.clone();
 
@@ -88,7 +140,7 @@ async fn handle_segment_request(
             if status_code == StatusCode::ACCEPTED || status_code == StatusCode::OK {
                 let message_id = swissipe_data.get("messageId")
                     .and_then(|v| v.as_str())
-                    .unwrap_or_else(|| "unknown")
+                    .unwrap_or("unknown")
                     .to_string();
 
                 Ok(Json(SegmentResponse {

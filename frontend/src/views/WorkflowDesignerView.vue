@@ -10,6 +10,7 @@
       @show-json-view="showJsonView"
       @reset-workflow="resetWorkflow"
       @toggle-node-library="toggleNodeLibrary"
+      @toggle-ai-chat="toggleAiChat"
       @toggle-executions-panel="toggleExecutionsPanel"
       @logout="handleLogout"
     />
@@ -32,6 +33,26 @@
         >
           <div class="bg-slate-800 rounded-xl border border-slate-700 max-w-4xl w-full max-h-[80vh] overflow-hidden shadow-2xl">
             <NodeLibraryModal @close="closeNodeLibrary" @add-node="handleAddNode" />
+          </div>
+        </div>
+      </Transition>
+
+      <!-- AI Chat Modal -->
+      <Transition
+        enter-active-class="transition-opacity duration-300 ease-out"
+        leave-active-class="transition-opacity duration-300 ease-in"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="showAiChat"
+          class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-end p-4"
+          @click.self="closeAiChat"
+        >
+          <div class="bg-slate-800 rounded-xl border border-slate-700 w-96 h-[80vh] overflow-hidden shadow-2xl">
+            <AiChatModal @close="closeAiChat" />
           </div>
         </div>
       </Transition>
@@ -101,6 +122,7 @@ import WorkflowDesignerHeader from '../components/workflow/WorkflowDesignerHeade
 import WorkflowCanvas from '../components/workflow/WorkflowCanvas.vue'
 import ValidationNotifications from '../components/workflow/ValidationNotifications.vue'
 import NodeLibraryModal from '../components/panels/NodeLibraryModal.vue'
+import AiChatModal from '../components/workflow/AiChatModal.vue'
 import NodePropertiesPanel from '../components/panels/NodePropertiesPanel.vue'
 import ExecutionSidePanel from '../components/panels/ExecutionSidePanel.vue'
 import NodeInspector from '../components/panels/NodeInspector.vue'
@@ -147,6 +169,15 @@ const {
   closeExecutionsPanel,
   toggleNodeLibrary
 } = usePanelState()
+
+// AI Chat state
+const showAiChat = ref(false)
+function toggleAiChat() {
+  showAiChat.value = !showAiChat.value
+}
+function closeAiChat() {
+  showAiChat.value = false
+}
 
 const {
   onNodeClick,

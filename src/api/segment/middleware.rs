@@ -13,35 +13,45 @@ pub struct SegmentAuth {
     pub workflow_id: String,
 }
 
-/// Extract write key from Segment.com request and validate it
+/// Extract and validate Bearer token from Authorization header
 pub async fn segment_auth_middleware(
     mut request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    // Get headers first
-    let headers = request.headers().clone();
+    // Get Authorization header
+    let auth_header = request
+        .headers()
+        .get("authorization")
+        .ok_or_else(|| {
+            tracing::warn!("Missing Authorization header for Segment API");
+            StatusCode::UNAUTHORIZED
+        })?;
 
-    // Try to extract from Authorization header first
-    if let Some(auth_header) = headers.get("authorization") {
-        if let Ok(auth_str) = auth_header.to_str() {
-            if let Some(bearer_token) = auth_str.strip_prefix("Bearer ") {
-                // Bearer authentication - token is the workflow UUID directly
-                if let Ok(_) = Uuid::parse_str(bearer_token) {
-                    request.extensions_mut().insert(SegmentAuth {
-                        workflow_id: bearer_token.to_string(),
-                    });
-                    return Ok(next.run(request).await);
-                } else {
-                    tracing::warn!("Invalid Bearer token format: {}", bearer_token);
-                    return Err(StatusCode::UNAUTHORIZED);
-                }
-            }
-        }
-    }
+    // Parse Authorization header
+    let auth_str = auth_header.to_str().map_err(|_| {
+        tracing::warn!("Invalid Authorization header format");
+        StatusCode::UNAUTHORIZED
+    })?;
 
-    // If header auth failed, we'll need to check the body
-    // For now, let the handlers deal with body-based auth
-    // This middleware primarily handles header-based auth
+    // Extract Bearer token
+    let bearer_token = auth_str.strip_prefix("Bearer ").ok_or_else(|| {
+        tracing::warn!("Authorization header must use Bearer scheme");
+        StatusCode::UNAUTHORIZED
+    })?;
+
+    // Validate UUID format and clone the token before using it
+    let workflow_id = bearer_token.to_string();
+    Uuid::parse_str(&workflow_id).map_err(|_| {
+        tracing::warn!("Bearer token is not a valid UUID: {}", workflow_id);
+        StatusCode::UNAUTHORIZED
+    })?;
+
+    // Store workflow ID in request extensions for handlers to use
+    request.extensions_mut().insert(SegmentAuth {
+        workflow_id: workflow_id.clone(),
+    });
+
+    tracing::debug!("Segment API Bearer token validated: {}", workflow_id);
     Ok(next.run(request).await)
 }
 
@@ -78,8 +88,6 @@ pub fn extract_write_key_from_request(
 pub enum SegmentAuthError {
     Missing,
     InvalidFormat { source: String, write_key: String },
-    InvalidBase64 { auth_header: String },
-    HeaderParseError { header_value: String },
 }
 
 impl std::fmt::Display for SegmentAuthError {
@@ -89,13 +97,7 @@ impl std::fmt::Display for SegmentAuthError {
                 write!(f, "No write key found in Authorization header or request body")
             }
             SegmentAuthError::InvalidFormat { source, write_key } => {
-                write!(f, "Invalid write key format from {}: '{}' is not a valid UUID", source, write_key)
-            }
-            SegmentAuthError::InvalidBase64 { auth_header } => {
-                write!(f, "Invalid Base64 encoding in Authorization header: '{}'", auth_header)
-            }
-            SegmentAuthError::HeaderParseError { header_value } => {
-                write!(f, "Failed to parse Authorization header value: '{}'", header_value)
+                write!(f, "Invalid write key format from {source}: '{write_key}' is not a valid UUID")
             }
         }
     }

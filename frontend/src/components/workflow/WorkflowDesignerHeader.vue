@@ -44,6 +44,14 @@
           <Squares2X2Icon class="h-4 w-4" />
           <span>Node Library</span>
         </button>
+        <!-- <button
+          @click="$emit('toggle-ai-chat')"
+          class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center space-x-2"
+          title="AI Assistant"
+        >
+          <SparklesIcon class="h-4 w-4" />
+          <span>AI Assistant</span>
+        </button> -->
         <button
           @click="$emit('toggle-executions-panel')"
           class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center space-x-2"
@@ -68,7 +76,7 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowLeftIcon, ClockIcon, Squares2X2Icon } from '@heroicons/vue/24/outline'
+import { ArrowLeftIcon, ClockIcon, Squares2X2Icon, SparklesIcon } from '@heroicons/vue/24/outline'
 import { useAuthStore } from '../../stores/auth'
 
 interface Props {
@@ -84,6 +92,7 @@ interface Emits {
   (e: 'show-json-view'): void
   (e: 'reset-workflow'): void
   (e: 'toggle-node-library'): void
+  (e: 'toggle-ai-chat'): void
   (e: 'toggle-executions-panel'): void
   (e: 'logout'): void
 }
