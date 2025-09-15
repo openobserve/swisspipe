@@ -62,29 +62,61 @@ pub async fn create_workflow(
     Json(request): Json<CreateWorkflowRequest>,
 ) -> std::result::Result<(StatusCode, Json<WorkflowResponse>), StatusCode> {
     let workflow_id = Uuid::new_v4().to_string();
-    
-    // Auto-create start node
-    let start_node_id = Uuid::new_v4().to_string();
-    let start_node = Node {
-        id: start_node_id.clone(),
-        workflow_id: workflow_id.clone(),
-        name: "Start".to_string(),
-        node_type: NodeType::Trigger {
-            methods: vec![HttpMethod::Get, HttpMethod::Post, HttpMethod::Put]
-        },
-        input_merge_strategy: None,
-    };
 
-    // Convert request nodes to internal models
-    let mut nodes: Vec<Node> = vec![start_node]; // Start with the auto-created start node
-    nodes.extend(request.nodes.iter().map(|n| Node {
+    // Convert request nodes to internal models first
+    let mut nodes: Vec<Node> = request.nodes.iter().map(|n| Node {
         id: n.id.clone().unwrap_or_else(|| Uuid::new_v4().to_string()),
         workflow_id: workflow_id.clone(),
         name: n.name.clone(),
         node_type: n.node_type.clone(),
         input_merge_strategy: None,
-    }));
-    
+    }).collect();
+
+    // Determine start node ID and validate
+    let start_node_id = if let Some(provided_start_id) = &request.start_node_id {
+        // Frontend provided a start node ID - validate it exists in nodes list and is a trigger
+        let start_node = nodes.iter().find(|n| &n.id == provided_start_id);
+        match start_node {
+            Some(node) => {
+                if !matches!(node.node_type, NodeType::Trigger { .. }) {
+                    tracing::warn!(
+                        "Provided start_node_id '{}' is not a trigger node: workflow_name='{}'",
+                        provided_start_id, request.name
+                    );
+                    return Err(StatusCode::BAD_REQUEST);
+                }
+                provided_start_id.clone()
+            }
+            None => {
+                tracing::warn!(
+                    "Provided start_node_id '{}' not found in nodes list: workflow_name='{}'",
+                    provided_start_id, request.name
+                );
+                return Err(StatusCode::BAD_REQUEST);
+            }
+        }
+    } else {
+        // No start node provided - check if there's already a trigger node, otherwise auto-create
+        if let Some(trigger_node) = nodes.iter().find(|n| matches!(n.node_type, NodeType::Trigger { .. })) {
+            // Use existing trigger node as start
+            trigger_node.id.clone()
+        } else {
+            // Auto-create start node for backward compatibility
+            let auto_start_id = Uuid::new_v4().to_string();
+            let start_node = Node {
+                id: auto_start_id.clone(),
+                workflow_id: workflow_id.clone(),
+                name: "Start".to_string(),
+                node_type: NodeType::Trigger {
+                    methods: vec![HttpMethod::Get, HttpMethod::Post, HttpMethod::Put]
+                },
+                input_merge_strategy: None,
+            };
+            nodes.insert(0, start_node);
+            auto_start_id
+        }
+    };
+
     let edges: Vec<Edge> = request.edges.iter().map(|e| Edge {
         id: Uuid::new_v4().to_string(),
         workflow_id: workflow_id.clone(),
@@ -101,7 +133,7 @@ pub async fn create_workflow(
         &edges,
     ) {
         tracing::warn!(
-            "Workflow creation validation failed: workflow_name='{}', nodes_count={}, edges_count={}, error='{}'", 
+            "Workflow creation validation failed: workflow_name='{}', nodes_count={}, edges_count={}, error='{}'",
             request.name, nodes.len(), edges.len(), validation_error
         );
         return Err(StatusCode::BAD_REQUEST);
@@ -140,18 +172,25 @@ pub async fn create_workflow(
                 StatusCode::BAD_REQUEST
             })?;
 
-        let (position_x, position_y) = if node.id == start_node_id {
-            // Position start node at top-middle of canvas
-            (400.0, 50.0)
-        } else {
-            // For user nodes, try to find position from request, otherwise default
-            let user_node = request.nodes.iter().find(|n| 
+        let (position_x, position_y) = {
+            // First try to find position from request nodes
+            let user_node = request.nodes.iter().find(|n|
                 n.id.as_ref().unwrap_or(&String::new()) == &node.id || n.name == node.name
             );
-            (
-                user_node.and_then(|n| n.position_x).unwrap_or(100.0),
-                user_node.and_then(|n| n.position_y).unwrap_or(100.0)
-            )
+
+            if let Some(user_node) = user_node {
+                // Use provided position or defaults
+                (
+                    user_node.position_x.unwrap_or(100.0),
+                    user_node.position_y.unwrap_or(100.0)
+                )
+            } else if node.id == start_node_id && node.name == "Start" {
+                // Auto-created start node gets special positioning
+                (400.0, 50.0)
+            } else {
+                // Default positioning for any other nodes
+                (100.0, 100.0)
+            }
         };
 
         let node_model = nodes::ActiveModel {

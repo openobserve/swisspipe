@@ -5,6 +5,7 @@ use crate::workflow::models::NodeType;
 pub struct CreateWorkflowRequest {
     pub name: String,
     pub description: Option<String>,
+    pub start_node_id: Option<String>, // Optional start node ID - if None, first trigger node is used
     pub nodes: Vec<NodeRequest>,
     pub edges: Vec<EdgeRequest>,
 }
