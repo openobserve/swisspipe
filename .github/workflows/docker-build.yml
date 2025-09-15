@@ -22,7 +22,14 @@ env:
 
 jobs:
   build:
-    runs-on: ubicloud-standard-16
+    strategy:
+      matrix:
+        include:
+          - runner: ubicloud-standard-16
+            platform: linux/amd64
+          - runner: ubicloud-standard-16-arm
+            platform: linux/arm64
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       id-token: write
@@ -61,20 +68,11 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix={{branch}}-,format=short
 
-      - name: Build frontend first
-        run: |
-          cd frontend
-          npm ci
-          npm run build-only
-          cd ..
-          # Copy dist to project root for Docker build
-          cp -r frontend/dist .
-
-      - name: Build and push multi-arch Docker image
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
