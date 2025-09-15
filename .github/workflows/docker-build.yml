@@ -21,7 +21,7 @@ env:
 
 jobs:
   build:
-    runs-on: org-openobserve-standard-16
+    runs-on: ubicloud-standard-16-arm
     permissions:
       contents: read
       id-token: write
