@@ -129,7 +129,7 @@ pub async fn update_setting(
         })?;
 
     // Update the setting
-    let now = chrono::Utc::now().timestamp();
+    let now = chrono::Utc::now().timestamp_micros();
     let mut active_model: settings::ActiveModel = existing_setting.into();
     active_model.value = Set(request.value);
     active_model.updated_at = Set(now);

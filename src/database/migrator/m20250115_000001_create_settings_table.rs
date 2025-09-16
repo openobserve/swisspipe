@@ -26,7 +26,7 @@ impl MigrationTrait for Migration {
             .await?;
 
         // Insert default API base URL setting
-        let now = chrono::Utc::now().timestamp();
+        let now = chrono::Utc::now().timestamp_micros();
 
         // Using values_panic here is acceptable for migrations since:
         // 1. The values are statically known and controlled

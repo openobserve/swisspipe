@@ -25,7 +25,7 @@ impl ActiveModelBehavior for ActiveModel {}
 impl Model {
     /// Check if the CSRF token is expired
     pub fn is_expired(&self) -> bool {
-        let now = chrono::Utc::now().timestamp();
+        let now = chrono::Utc::now().timestamp_micros();
         self.expires_at < now
     }
 
@@ -41,13 +41,13 @@ impl Model {
         ip_address: Option<String>,
         user_agent: Option<String>,
     ) -> Self {
-        let now = chrono::Utc::now().timestamp();
+        let now = chrono::Utc::now().timestamp_micros();
 
         Self {
             id: Uuid::new_v4().to_string(),
             token,
             created_at: now,
-            expires_at: now + expires_in_seconds,
+            expires_at: now + (expires_in_seconds * 1_000_000), // Convert seconds to microseconds
             used: false,
             ip_address,
             user_agent,

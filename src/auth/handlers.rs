@@ -359,7 +359,7 @@ pub async fn get_user_info(
 
     // Update last accessed time
     let mut session_active_model: sessions::ActiveModel = session_record.clone().into();
-    session_active_model.last_accessed_at = Set(chrono::Utc::now().timestamp());
+    session_active_model.last_accessed_at = Set(chrono::Utc::now().timestamp_micros());
     session_active_model.update(&*state.db)
         .await
         .map_err(|e| {

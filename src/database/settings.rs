@@ -21,7 +21,7 @@ impl Model {
     /// Create a new setting
     #[allow(dead_code)]
     pub fn new(key: String, value: String, description: Option<String>) -> Self {
-        let now = chrono::Utc::now().timestamp();
+        let now = chrono::Utc::now().timestamp_micros();
         Self {
             key,
             value,
@@ -35,6 +35,6 @@ impl Model {
     #[allow(dead_code)]
     pub fn update_value(&mut self, value: String) {
         self.value = value;
-        self.updated_at = chrono::Utc::now().timestamp();
+        self.updated_at = chrono::Utc::now().timestamp_micros();
     }
 }

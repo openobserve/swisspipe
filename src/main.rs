@@ -205,7 +205,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         loop {
             interval.tick().await;
 
-            let now = chrono::Utc::now().timestamp();
+            let now = chrono::Utc::now().timestamp_micros();
 
             // Clean up expired sessions
             match database::sessions::Entity::delete_many()
@@ -240,7 +240,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Clean up used CSRF tokens older than 24 hours
-            let twenty_four_hours_ago = now - 86400;
+            let twenty_four_hours_ago = now - (24 * 60 * 60 * 1_000_000); // 24 hours in microseconds
             match database::csrf_tokens::Entity::delete_many()
                 .filter(database::csrf_tokens::Column::Used.eq(true))
                 .filter(database::csrf_tokens::Column::CreatedAt.lt(twenty_four_hours_ago))

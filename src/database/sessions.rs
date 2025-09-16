@@ -31,7 +31,7 @@ impl ActiveModelBehavior for ActiveModel {}
 impl Model {
     /// Check if the session is expired
     pub fn is_expired(&self) -> bool {
-        let now = chrono::Utc::now().timestamp();
+        let now = chrono::Utc::now().timestamp_micros();
         self.expires_at < now
     }
 
@@ -44,7 +44,7 @@ impl Model {
         ip_address: Option<String>,
         user_agent: Option<String>,
     ) -> Self {
-        let now = chrono::Utc::now().timestamp();
+        let now = chrono::Utc::now().timestamp_micros();
 
         Self {
             id: session_id,
@@ -59,7 +59,7 @@ impl Model {
             verified_email: user_info.verified_email,
             created_at: now,
             last_accessed_at: now,
-            expires_at: now + expires_in_seconds,
+            expires_at: now + (expires_in_seconds * 1_000_000), // Convert seconds to microseconds
             ip_address,
             user_agent,
         }
