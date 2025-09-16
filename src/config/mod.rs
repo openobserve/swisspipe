@@ -1,6 +1,7 @@
 use crate::workflow::errors::SwissPipeError;
 use crate::async_execution::worker_pool::WorkerPoolConfig;
 use std::env;
+use url::Url;
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -110,6 +111,17 @@ impl Config {
 
             let redirect_url = env::var("GOOGLE_OAUTH_REDIRECT_URL")
                 .unwrap_or_else(|_| format!("http://localhost:{port}/auth/google/callback"));
+
+            // Validate the redirect URL format
+            Url::parse(&redirect_url)
+                .map_err(|e| SwissPipeError::Config(format!("Invalid GOOGLE_OAUTH_REDIRECT_URL '{redirect_url}': {e}")))?;
+
+            // Validate that the redirect URL ends with the expected path
+            if !redirect_url.ends_with("/auth/google/callback") {
+                return Err(SwissPipeError::Config(
+                    format!("GOOGLE_OAUTH_REDIRECT_URL must end with '/auth/google/callback', got: {redirect_url}")
+                ));
+            }
 
             Some(GoogleOAuthConfig {
                 client_id,
