@@ -19,6 +19,7 @@ export interface Workflow {
   description?: string
   start_node_id: string
   endpoint_url: string
+  enabled: boolean
   created_at: string
   updated_at: string
   nodes: Node[]

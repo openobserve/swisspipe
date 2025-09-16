@@ -108,14 +108,64 @@ export const useWorkflowStore = defineStore('workflows', () => {
     error.value = null
     try {
       await apiClient.deleteWorkflow(id)
-      workflows.value = workflows.value.filter(w => w.id !== id)
+      // Update the workflow's enabled status in the store
+      const workflowIndex = workflows.value.findIndex(w => w.id === id)
+      if (workflowIndex !== -1) {
+        workflows.value[workflowIndex] = { ...workflows.value[workflowIndex], enabled: false }
+      }
       if (currentWorkflow.value?.id === id) {
-        currentWorkflow.value = null
+        currentWorkflow.value = { ...currentWorkflow.value, enabled: false }
       }
     } catch (err) {
       const apiError = err as ApiError
       error.value = apiError.message
-      console.error('Failed to delete workflow:', apiError)
+      console.error('Failed to disable workflow:', apiError)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function disableWorkflow(id: string) {
+    loading.value = true
+    error.value = null
+    try {
+      await apiClient.deleteWorkflow(id)
+      // Update the workflow's enabled status in the store
+      const workflowIndex = workflows.value.findIndex(w => w.id === id)
+      if (workflowIndex !== -1) {
+        workflows.value[workflowIndex] = { ...workflows.value[workflowIndex], enabled: false }
+      }
+      if (currentWorkflow.value?.id === id) {
+        currentWorkflow.value = { ...currentWorkflow.value, enabled: false }
+      }
+    } catch (err) {
+      const apiError = err as ApiError
+      error.value = apiError.message
+      console.error('Failed to disable workflow:', apiError)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function enableWorkflow(id: string) {
+    loading.value = true
+    error.value = null
+    try {
+      await apiClient.enableWorkflow(id)
+      // Update the workflow's enabled status in the store
+      const workflowIndex = workflows.value.findIndex(w => w.id === id)
+      if (workflowIndex !== -1) {
+        workflows.value[workflowIndex] = { ...workflows.value[workflowIndex], enabled: true }
+      }
+      if (currentWorkflow.value?.id === id) {
+        currentWorkflow.value = { ...currentWorkflow.value, enabled: true }
+      }
+    } catch (err) {
+      const apiError = err as ApiError
+      error.value = apiError.message
+      console.error('Failed to enable workflow:', apiError)
       throw err
     } finally {
       loading.value = false
@@ -151,6 +201,8 @@ export const useWorkflowStore = defineStore('workflows', () => {
     createWorkflow,
     updateWorkflow,
     deleteWorkflow,
+    disableWorkflow,
+    enableWorkflow,
     clearError,
     setCurrentWorkflow,
     updateSearchTerm

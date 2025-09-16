@@ -200,6 +200,7 @@ pub fn build_workflow_response(
         description: workflow.description,
         start_node_id,
         endpoint_url: format!("/api/v1/{}/trigger", workflow.id),
+        enabled: workflow.enabled,
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
         nodes: node_responses,

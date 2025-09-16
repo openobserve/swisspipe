@@ -45,6 +45,7 @@ pub async fn list_workflows(
                 tracing::warn!("Workflow {} has no start_node_id", w.id);
                 "".to_string()
             }),
+            enabled: w.enabled,
             created_at: w.created_at,
             updated_at: w.updated_at,
             nodes: vec![], // Not included in list view for performance
@@ -304,6 +305,7 @@ pub async fn create_workflow(
         description: workflow.description,
         start_node_id: start_node_id.clone(),
         endpoint_url: format!("/api/v1/{}/trigger", workflow.id),
+        enabled: workflow.enabled,
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
         nodes: node_responses,
@@ -395,6 +397,7 @@ pub async fn get_workflow(
             StatusCode::INTERNAL_SERVER_ERROR
         })?,
         endpoint_url: format!("/api/v1/{}/trigger", workflow.id),
+        enabled: workflow.enabled,
         created_at: workflow.created_at,
         updated_at: workflow.updated_at,
         nodes: node_responses,
@@ -415,26 +418,85 @@ pub async fn delete_workflow(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> std::result::Result<StatusCode, StatusCode> {
-    tracing::info!("Workflow deletion initiated: workflow_id={}", id);
-    
-    let result = entities::Entity::delete_by_id(&id)
-        .exec(&*state.db)
+    tracing::info!("Workflow disable initiated: workflow_id={}", id);
+
+    // Find the workflow first
+    let workflow = entities::Entity::find_by_id(&id)
+        .one(&*state.db)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to delete workflow: workflow_id={}, error={:?}", id, e);
+            tracing::error!("Failed to find workflow for disable: workflow_id={}, error={:?}", id, e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    if result.rows_affected == 0 {
-        tracing::warn!("Workflow not found for deletion: workflow_id={}", id);
-        return Err(StatusCode::NOT_FOUND);
-    }
+    let workflow = match workflow {
+        Some(w) => w,
+        None => {
+            tracing::warn!("Workflow not found for disable: workflow_id={}", id);
+            return Err(StatusCode::NOT_FOUND);
+        }
+    };
 
-    // Invalidate cache for deleted workflow
-    tracing::debug!("Invalidating cache for deleted workflow: workflow_id={}", id);
+    // Update workflow to disabled
+    let mut workflow: entities::ActiveModel = workflow.into();
+    workflow.enabled = Set(false);
+    workflow.updated_at = Set(chrono::Utc::now().timestamp_micros());
+
+    workflow.update(&*state.db)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to disable workflow: workflow_id={}, error={:?}", id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    // Invalidate cache for disabled workflow
+    tracing::debug!("Invalidating cache for disabled workflow: workflow_id={}", id);
     state.workflow_cache.invalidate(&id).await;
 
-    tracing::info!("Workflow deleted successfully: workflow_id={}, rows_affected={}", id, result.rows_affected);
+    tracing::info!("Workflow disabled successfully: workflow_id={}", id);
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn enable_workflow(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> std::result::Result<StatusCode, StatusCode> {
+    tracing::info!("Workflow enable initiated: workflow_id={}", id);
+
+    // Find the workflow first
+    let workflow = entities::Entity::find_by_id(&id)
+        .one(&*state.db)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to find workflow for enable: workflow_id={}, error={:?}", id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let workflow = match workflow {
+        Some(w) => w,
+        None => {
+            tracing::warn!("Workflow not found for enable: workflow_id={}", id);
+            return Err(StatusCode::NOT_FOUND);
+        }
+    };
+
+    // Update workflow to enabled
+    let mut workflow: entities::ActiveModel = workflow.into();
+    workflow.enabled = Set(true);
+    workflow.updated_at = Set(chrono::Utc::now().timestamp_micros());
+
+    workflow.update(&*state.db)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to enable workflow: workflow_id={}, error={:?}", id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    // Invalidate cache for enabled workflow
+    tracing::debug!("Invalidating cache for enabled workflow: workflow_id={}", id);
+    state.workflow_cache.invalidate(&id).await;
+
+    tracing::info!("Workflow enabled successfully: workflow_id={}", id);
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -136,6 +136,7 @@ pub struct Workflow {
     pub name: String,
     pub description: Option<String>,
     pub start_node_id: Option<String>, // New: node ID reference
+    pub enabled: bool,
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
 }

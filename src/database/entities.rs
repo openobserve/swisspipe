@@ -11,6 +11,7 @@ pub struct Model {
     pub name: String,
     pub description: Option<String>,
     pub start_node_id: Option<String>,
+    pub enabled: bool,
     pub created_at: i64, // Unix epoch microseconds
     pub updated_at: i64, // Unix epoch microseconds
 }
@@ -40,6 +41,7 @@ impl ActiveModelBehavior for ActiveModel {
         let now = chrono::Utc::now().timestamp_micros();
         Self {
             id: Set(Uuid::new_v4().to_string()),
+            enabled: Set(true),
             created_at: Set(now),
             updated_at: Set(now),
             ..ActiveModelTrait::default()

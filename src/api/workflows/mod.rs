@@ -10,7 +10,7 @@ use crate::AppState;
 
 #[allow(unused_imports)]
 pub use types::*;
-pub use handlers::{list_workflows, create_workflow, get_workflow, delete_workflow, update_workflow};
+pub use handlers::{list_workflows, create_workflow, get_workflow, delete_workflow, enable_workflow, update_workflow};
 
 pub fn routes() -> Router<AppState> {
     #[allow(unused_imports)]
@@ -19,4 +19,5 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_workflows).post(create_workflow))
         .route("/:id", get(get_workflow).put(update_workflow).delete(delete_workflow))
+        .route("/:id/enable", put(enable_workflow))
 }

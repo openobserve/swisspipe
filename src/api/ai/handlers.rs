@@ -763,6 +763,7 @@ async fn create_workflow_from_ai_spec(
         name: Set(spec.name.clone()),
         description: Set(spec.description.clone()),
         start_node_id: Set(spec.start_node_id.clone()),
+        enabled: Set(true),
         created_at: Set(now),
         updated_at: Set(now),
     };

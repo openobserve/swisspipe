@@ -84,10 +84,10 @@ async fn execute_workflow_async(
     headers: HashMap<String, String>,
 ) -> std::result::Result<(StatusCode, Json<Value>), StatusCode> {
     tracing::info!("Executing workflow: {}", workflow_id);
-    
+
     // Try to get workflow from cache first
     let cached_workflow = state.workflow_cache.get(workflow_id).await;
-    
+
     let start_node_id = if let Some(cached) = cached_workflow {
         // Use cached workflow metadata
         tracing::debug!("Using cached workflow metadata for {}", workflow_id);
@@ -107,12 +107,18 @@ async fn execute_workflow_async(
                 }
             })?;
 
+        // Check if workflow is enabled
+        if !workflow.enabled {
+            tracing::warn!("Workflow {} is disabled, rejecting ingestion request", workflow_id);
+            return Err(StatusCode::FORBIDDEN);
+        }
+
         let start_node = workflow.start_node_id.clone();
-        
+
         // Cache the workflow metadata for future requests
         state.workflow_cache.put(workflow_id.to_string(), start_node.clone().unwrap()).await;
         tracing::debug!("Cached workflow metadata for {}", workflow_id);
-        
+
         start_node.unwrap()
     };
 

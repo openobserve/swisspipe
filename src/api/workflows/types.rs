@@ -50,6 +50,7 @@ pub struct WorkflowResponse {
     pub description: Option<String>,
     pub start_node_id: String,   // Starting node ID
     pub endpoint_url: String,
+    pub enabled: bool,
     pub created_at: i64, // Unix epoch microseconds
     pub updated_at: i64, // Unix epoch microseconds
     pub nodes: Vec<NodeResponse>,

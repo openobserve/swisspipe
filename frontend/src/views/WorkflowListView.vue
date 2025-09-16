@@ -17,10 +17,40 @@
             />
             <MagnifyingGlassIcon class="h-5 w-5 text-gray-400 absolute left-3 top-2.5" />
           </div>
+          <!-- Status Filter Toggle -->
+          <div class="flex items-center bg-slate-800/50 rounded-lg p-1 border border-slate-600/50">
+            <button
+              @click="statusFilter = 'all'"
+              :class="statusFilter === 'all'
+                ? 'bg-primary-600 text-white'
+                : 'text-gray-300 hover:text-white'"
+              class="px-3 py-1 rounded-md text-sm font-medium transition-colors"
+            >
+              All
+            </button>
+            <button
+              @click="statusFilter = 'enabled'"
+              :class="statusFilter === 'enabled'
+                ? 'bg-green-600 text-white'
+                : 'text-gray-300 hover:text-white'"
+              class="px-3 py-1 rounded-md text-sm font-medium transition-colors"
+            >
+              Enabled
+            </button>
+            <button
+              @click="statusFilter = 'disabled'"
+              :class="statusFilter === 'disabled'
+                ? 'bg-red-600 text-white'
+                : 'text-gray-300 hover:text-white'"
+              class="px-3 py-1 rounded-md text-sm font-medium transition-colors"
+            >
+              Disabled
+            </button>
+          </div>
         </div>
         <div class="flex items-center space-x-4">
           <div class="text-sm text-gray-400">
-            {{ workflowStore.workflowCount }} workflows
+            {{ filteredWorkflows.length }} of {{ workflowStore.workflowCount }} workflows
           </div>
           <!-- AI Assistant Button -->
           <button
@@ -59,8 +89,13 @@
           </button>
         </div>
 
-        <div v-else-if="workflowStore.filteredWorkflows.length === 0" class="p-8 text-center">
-          <p class="text-gray-400">No workflows found</p>
+        <div v-else-if="filteredWorkflows.length === 0" class="p-8 text-center">
+          <p class="text-gray-400">
+            {{ statusFilter === 'all' ? 'No workflows found' : `No ${statusFilter} workflows found` }}
+          </p>
+          <p v-if="statusFilter !== 'all' && workflowStore.workflowCount > 0" class="text-sm text-gray-500 mt-2">
+            Try switching to "All" to see all workflows
+          </p>
         </div>
 
         <div v-else class="overflow-x-auto">
@@ -89,7 +124,7 @@
             </thead>
             <tbody class="divide-y divide-slate-600/50">
               <tr
-                v-for="workflow in workflowStore.filteredWorkflows"
+                v-for="workflow in filteredWorkflows"
                 :key="workflow.id"
                 class="hover:bg-white/5 transition-all duration-200 cursor-pointer backdrop-blur-sm"
                 @click="navigateToDesigner(workflow.id)"
@@ -103,8 +138,14 @@
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-900 text-green-200">
-                    Active
+                  <span
+                    :class="workflow.enabled
+                      ? 'bg-green-900 text-green-200'
+                      : 'bg-red-900 text-red-200'
+                    "
+                    class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                  >
+                    {{ workflow.enabled ? 'Enabled' : 'Disabled' }}
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
@@ -123,11 +164,21 @@
                       <PencilIcon class="h-5 w-5" />
                     </button>
                     <button
-                      @click.stop="showDeleteModalHandler(workflow)"
-                      class="text-red-400 hover:text-red-300 transition-colors"
-                      title="Delete"
+                      @click.stop="toggleWorkflowStatus(workflow)"
+                      :class="workflow.enabled
+                        ? 'text-yellow-400 hover:text-yellow-300'
+                        : 'text-green-400 hover:text-green-300'
+                      "
+                      class="transition-colors"
+                      :title="workflow.enabled ? 'Disable' : 'Enable'"
+                      :disabled="togglingStatus === workflow.id"
                     >
-                      <TrashIcon class="h-5 w-5" />
+                      <svg v-if="workflow.enabled" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L5.636 5.636"></path>
+                      </svg>
+                      <svg v-else class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                      </svg>
                     </button>
                   </div>
                 </td>
@@ -184,32 +235,32 @@
       </div>
     </div>
 
-    <!-- Delete Confirmation Modal -->
+    <!-- Disable Confirmation Modal -->
     <div
-      v-if="showDeleteModal"
+      v-if="showDisableModal"
       class="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50"
-      @click.self="cancelDelete"
+      @click.self="cancelDisable"
     >
       <div class="glass-strong rounded-lg p-6 w-full max-w-md shadow-2xl">
-        <h2 class="text-lg font-medium text-white mb-4">Delete Workflow</h2>
+        <h2 class="text-lg font-medium text-white mb-4">Disable Workflow</h2>
         <p class="text-gray-300 mb-6">
-          Are you sure you want to delete "{{ workflowToDelete?.name }}"? This action cannot be undone.
+          Are you sure you want to disable "{{ workflowToDisable?.name }}"? This will reject all ingestion requests with HTTP 403. You can re-enable it later.
         </p>
         <div class="flex justify-end space-x-3">
           <button
             type="button"
-            @click="cancelDelete"
-            :disabled="deleting"
+            @click="cancelDisable"
+            :disabled="togglingStatus === workflowToDisable?.id"
             class="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors"
           >
             Cancel
           </button>
           <button
-            @click="confirmDelete"
-            :disabled="deleting"
+            @click="confirmDisable"
+            :disabled="togglingStatus === workflowToDisable?.id"
             class="bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-md font-medium transition-colors"
           >
-            {{ deleting ? 'Deleting...' : 'Delete' }}
+            {{ togglingStatus === workflowToDisable?.id ? 'Disabling...' : 'Disable' }}
           </button>
         </div>
       </div>
@@ -224,12 +275,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   MagnifyingGlassIcon,
-  PencilIcon,
-  TrashIcon
+  PencilIcon
 } from '@heroicons/vue/24/outline'
 import { useWorkflowStore } from '../stores/workflows'
 import HeaderComponent from '../components/HeaderComponent.vue'
@@ -241,14 +291,29 @@ const router = useRouter()
 const workflowStore = useWorkflowStore()
 
 const showCreateModal = ref(false)
-const showDeleteModal = ref(false)
+const showDisableModal = ref(false)
 const showAIChat = ref(false)
 const creating = ref(false)
-const deleting = ref(false)
-const workflowToDelete = ref<Workflow | null>(null)
+const togglingStatus = ref<string | null>(null)
+const workflowToDisable = ref<Workflow | null>(null)
+const statusFilter = ref<'all' | 'enabled' | 'disabled'>('enabled')
 const newWorkflow = ref({
   name: '',
   description: ''
+})
+
+// Local filtered workflows computed property
+const filteredWorkflows = computed(() => {
+  let result = workflowStore.filteredWorkflows
+
+  // Apply status filter
+  if (statusFilter.value === 'enabled') {
+    result = result.filter(workflow => workflow.enabled)
+  } else if (statusFilter.value === 'disabled') {
+    result = result.filter(workflow => !workflow.enabled)
+  }
+
+  return result
 })
 
 onMounted(() => {
@@ -283,28 +348,43 @@ async function createWorkflow() {
 }
 
 
-function showDeleteModalHandler(workflow: Workflow) {
-  workflowToDelete.value = workflow
-  showDeleteModal.value = true
-}
+async function toggleWorkflowStatus(workflow: Workflow) {
+  if (togglingStatus.value === workflow.id) return
 
-async function confirmDelete() {
-  if (!workflowToDelete.value || deleting.value) return
-  
-  deleting.value = true
-  try {
-    await workflowStore.deleteWorkflow(workflowToDelete.value.id)
-    showDeleteModal.value = false
-    workflowToDelete.value = null
-  } catch (error) {
-    console.error('Failed to delete workflow:', error)
-  } finally {
-    deleting.value = false
+  if (workflow.enabled) {
+    // Show confirmation modal for disable action
+    workflowToDisable.value = workflow
+    showDisableModal.value = true
+  } else {
+    // Enable immediately without confirmation
+    togglingStatus.value = workflow.id
+    try {
+      await workflowStore.enableWorkflow(workflow.id)
+    } catch (error) {
+      console.error('Failed to enable workflow:', error)
+    } finally {
+      togglingStatus.value = null
+    }
   }
 }
 
-function cancelDelete() {
-  showDeleteModal.value = false
-  workflowToDelete.value = null
+async function confirmDisable() {
+  if (!workflowToDisable.value || togglingStatus.value === workflowToDisable.value.id) return
+
+  togglingStatus.value = workflowToDisable.value.id
+  try {
+    await workflowStore.disableWorkflow(workflowToDisable.value.id)
+    showDisableModal.value = false
+    workflowToDisable.value = null
+  } catch (error) {
+    console.error('Failed to disable workflow:', error)
+  } finally {
+    togglingStatus.value = null
+  }
+}
+
+function cancelDisable() {
+  showDisableModal.value = false
+  workflowToDisable.value = null
 }
 </script>

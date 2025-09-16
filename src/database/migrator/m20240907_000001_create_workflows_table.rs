@@ -21,6 +21,12 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Workflows::Description).string())
                     .col(ColumnDef::new(Workflows::StartNodeId).string())
                     .col(
+                        ColumnDef::new(Workflows::Enabled)
+                            .boolean()
+                            .not_null()
+                            .default(true),
+                    )
+                    .col(
                         ColumnDef::new(Workflows::CreatedAt)
                             .big_integer()
                             .not_null(),
@@ -49,6 +55,7 @@ pub enum Workflows {
     Name,
     Description,
     StartNodeId,
+    Enabled,
     CreatedAt,
     UpdatedAt,
 }

@@ -186,6 +186,10 @@ class ApiClient {
     await this.client.delete(`/api/admin/v1/workflows/${id}`)
   }
 
+  async enableWorkflow(id: string): Promise<void> {
+    await this.client.put(`/api/admin/v1/workflows/${id}/enable`)
+  }
+
   // Workflow execution endpoints
   async executeWorkflow(workflowId: string, data: unknown): Promise<unknown> {
     const response = await this.client.post(`/api/v1/${workflowId}/trigger`, data)

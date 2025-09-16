@@ -36,6 +36,7 @@ impl WorkflowLoader {
             name: workflow_model.name,
             description: workflow_model.description,
             start_node_id: workflow_model.start_node_id,
+            enabled: workflow_model.enabled,
             nodes,
             edges,
         })
