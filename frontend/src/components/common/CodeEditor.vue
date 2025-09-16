@@ -56,6 +56,26 @@
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import * as monaco from 'monaco-editor'
 
+// Import worker files directly
+import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
+import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
+import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
+
+// Configure Monaco Environment for web workers
+(self as any).MonacoEnvironment = {
+  getWorker(_: string, label: string) {
+    switch (label) {
+      case 'json':
+        return new JsonWorker()
+      case 'typescript':
+      case 'javascript':
+        return new TsWorker()
+      default:
+        return new EditorWorker()
+    }
+  }
+}
+
 interface Props {
   modelValue: string
   language: string
@@ -76,7 +96,7 @@ const props = withDefaults(defineProps<Props>(), {
   language: 'javascript',
   readonly: false,
   showFormatButton: true,
-  showSaveButton: true,
+  showSaveButton: false,
   showRunButton: false,
   runLoading: false
 })
