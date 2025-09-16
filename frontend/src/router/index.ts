@@ -36,6 +36,12 @@ const router = createRouter({
       name: 'executions',
       component: () => import('../views/ExecutionsView.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('../views/SettingsView.vue'),
+      meta: { requiresAuth: true }
     }
   ],
 })

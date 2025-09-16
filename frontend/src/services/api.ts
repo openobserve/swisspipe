@@ -60,12 +60,36 @@ interface LoginResponse {
   session_id?: string
 }
 
+// Settings types
+interface SettingResponse {
+  key: string
+  value: string
+  description?: string
+  created_at: number
+  updated_at: number
+}
+
+interface SettingsListResponse {
+  settings: SettingResponse[]
+}
+
 class ApiClient {
   private client: AxiosInstance
 
   constructor() {
+    // In development, use VITE_API_BASE_URL or fallback to localhost:3700
+    // In production, use the same origin as the frontend (since they're served together)
+    const getBaseURL = () => {
+      // Check if we're in development mode
+      if (import.meta.env.DEV) {
+        return import.meta.env.VITE_API_BASE_URL || 'http://localhost:3700'
+      }
+      // In production, frontend and backend are served from the same origin
+      return window.location.origin
+    }
+
     this.client = axios.create({
-      baseURL: window.location.origin,
+      baseURL: getBaseURL(),
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json'
@@ -264,6 +288,22 @@ class ApiClient {
 
   async logout(): Promise<LoginResponse> {
     const response = await this.client.get<LoginResponse>('/auth/logout')
+    return response.data
+  }
+
+  // Settings endpoints
+  async getSettings(): Promise<SettingsListResponse> {
+    const response = await this.client.get<SettingsListResponse>('/api/admin/v1/settings')
+    return response.data
+  }
+
+  async getSetting(key: string): Promise<SettingResponse> {
+    const response = await this.client.get<SettingResponse>(`/api/admin/v1/settings/${key}`)
+    return response.data
+  }
+
+  async updateSetting(key: string, value: string): Promise<SettingResponse> {
+    const response = await this.client.put<SettingResponse>(`/api/admin/v1/settings/${key}`, { value })
     return response.data
   }
 }

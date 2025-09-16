@@ -39,7 +39,16 @@ export const useAuthStore = defineStore('auth', () => {
 
   const loginWithGoogle = () => {
     // Redirect to Google OAuth login endpoint
-    const baseUrl = window.location.origin
+    // In development, use VITE_API_BASE_URL or fallback to localhost:3700
+    // In production, use the same origin as the frontend
+    const getBaseURL = () => {
+      if (import.meta.env.DEV) {
+        return import.meta.env.VITE_API_BASE_URL || 'http://localhost:3700'
+      }
+      return window.location.origin
+    }
+
+    const baseUrl = getBaseURL()
     window.location.href = `${baseUrl}/auth/google/login`
   }
 

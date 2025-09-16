@@ -4,7 +4,11 @@
     <!-- SwissPipe Native Endpoints -->
     <div class="bg-slate-800 p-4 rounded-md">
       <h4 class="text-sm font-medium text-gray-300 mb-3">📡 SwissPipe Native Endpoints</h4>
-      <div class="text-xs text-gray-400 space-y-2">
+      <div v-if="isLoadingBaseUrl" class="text-xs text-gray-400 flex items-center space-x-2">
+        <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
+        <span>Loading endpoint URLs...</span>
+      </div>
+      <div v-else class="text-xs text-gray-400 space-y-2">
         <div class="bg-slate-700 p-2 rounded">
           <p><strong>Single Event:</strong> <code class="text-green-400">{{ primaryEndpoint }}</code></p>
           <p class="text-gray-500">Methods: GET, POST, PUT</p>
@@ -19,7 +23,11 @@
     <!-- Segment.com Compatible Endpoints -->
     <div class="bg-purple-900/20 border border-purple-700/50 p-4 rounded-md">
       <h4 class="text-sm font-medium text-purple-300 mb-3">🔗 Segment.com Compatible Endpoints</h4>
-      <div class="text-xs text-purple-200 space-y-2">
+      <div v-if="isLoadingBaseUrl" class="text-xs text-purple-200 flex items-center space-x-2">
+        <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-500"></div>
+        <span>Loading endpoint URLs...</span>
+      </div>
+      <div v-else class="text-xs text-purple-200 space-y-2">
         <div class="grid grid-cols-1 gap-2">
           <div v-for="endpoint in segmentEndpoints" :key="endpoint.name" class="bg-purple-800/30 p-2 rounded">
             <div class="flex justify-between items-start">
@@ -128,8 +136,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useWorkflowStore } from '../../stores/workflows'
+import { apiClient } from '../../services/api'
 
 interface TriggerConfig {
   type: 'trigger'
@@ -149,57 +158,84 @@ defineProps<Props>()
 defineEmits<Emits>()
 
 const workflowStore = useWorkflowStore()
+// Initialize with production fallback (where frontend and backend are served together)
+const apiBaseUrl = ref(import.meta.env.DEV ? 'http://localhost:3700' : window.location.origin)
+const isLoadingBaseUrl = ref(true)
 
 const workflowId = computed(() => workflowStore.currentWorkflow?.id || '{workflow_id}')
 
+// Load API base URL setting for external use
+const loadApiBaseUrl = async () => {
+  try {
+    const setting = await apiClient.getSetting('api_base_url')
+    if (setting.value) {
+      // Use the configured API base URL if set
+      apiBaseUrl.value = setting.value
+    } else {
+      // Fallback: in dev use localhost:3700, in production use browser origin
+      apiBaseUrl.value = import.meta.env.DEV ? 'http://localhost:3700' : window.location.origin
+    }
+  } catch (error) {
+    console.warn('Failed to load API base URL setting, using fallback:', error)
+    // Fallback: in dev use localhost:3700, in production use browser origin
+    apiBaseUrl.value = import.meta.env.DEV ? 'http://localhost:3700' : window.location.origin
+  } finally {
+    isLoadingBaseUrl.value = false
+  }
+}
+
+onMounted(() => {
+  loadApiBaseUrl()
+})
+
 // SwissPipe Native Endpoints
-const primaryEndpoint = computed(() => `/api/v1/${workflowId.value}/trigger`)
-const batchEndpoint = computed(() => `/api/v1/${workflowId.value}/json_array`)
+const primaryEndpoint = computed(() => `${apiBaseUrl.value}/api/v1/${workflowId.value}/trigger`)
+const batchEndpoint = computed(() => `${apiBaseUrl.value}/api/v1/${workflowId.value}/json_array`)
 
 // Segment.com Compatible Endpoints
 const segmentEndpoints = computed(() => [
   {
     name: 'Track Events',
-    url: `/api/v1/track`,
+    url: `${apiBaseUrl.value}/api/v1/track`,
     description: 'Track user actions and events'
   },
   {
     name: 'Identify Users',
-    url: `/api/v1/identify`,
+    url: `${apiBaseUrl.value}/api/v1/identify`,
     description: 'Identify users with traits and properties'
   },
   {
     name: 'Page Views',
-    url: `/api/v1/page`,
+    url: `${apiBaseUrl.value}/api/v1/page`,
     description: 'Track page views and navigation'
   },
   {
     name: 'Screen Views',
-    url: `/api/v1/screen`,
+    url: `${apiBaseUrl.value}/api/v1/screen`,
     description: 'Track mobile app screen views'
   },
   {
     name: 'Group Users',
-    url: `/api/v1/group`,
+    url: `${apiBaseUrl.value}/api/v1/group`,
     description: 'Associate users with groups or organizations'
   },
   {
     name: 'Alias Users',
-    url: `/api/v1/alias`,
+    url: `${apiBaseUrl.value}/api/v1/alias`,
     description: 'Create user aliases and merge identities'
   },
   {
     name: 'Batch Events',
-    url: `/api/v1/batch`,
+    url: `${apiBaseUrl.value}/api/v1/batch`,
     description: 'Send multiple events in a single request'
   },
   {
     name: 'Import Data',
-    url: `/api/v1/import`,
+    url: `${apiBaseUrl.value}/api/v1/import`,
     description: 'Import historical data in batch format'
   }
 ])
 
-const segmentTrackEndpoint = computed(() => `/api/v1/track`)
+const segmentTrackEndpoint = computed(() => `${apiBaseUrl.value}/api/v1/track`)
 
 </script>

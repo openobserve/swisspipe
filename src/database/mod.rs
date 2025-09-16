@@ -11,6 +11,7 @@ pub mod scheduled_delays;
 pub mod node_input_sync;
 pub mod sessions;
 pub mod csrf_tokens;
+pub mod settings;
 
 use sea_orm::{Database, DatabaseConnection, DbErr};
 use sea_orm_migration::MigratorTrait;

@@ -19,6 +19,13 @@
             >
               Executions
             </router-link>
+            <router-link
+              to="/settings"
+              class="px-3 py-2 text-sm font-medium transition-colors rounded-md"
+              :class="$route.path === '/settings' ? 'text-primary-400 bg-primary-900/20' : 'text-gray-300 hover:text-primary-400 hover:bg-primary-900/10'"
+            >
+              Settings
+            </router-link>
           </nav>
         </div>
         <div class="flex items-center space-x-4">
