@@ -534,10 +534,21 @@ pub async fn update_workflow(
 ) -> Result<Json<WorkflowResponse>, impl IntoResponse> {
     tracing::info!("Updating workflow: workflow_id={}", id);
 
+    let workflow_id = id.clone();
     let service = super::service::UpdateWorkflowService::new(&state, id, request);
 
     match service.update_workflow().await {
-        Ok(response) => Ok(Json(response)),
+        Ok(response) => {
+            // Invalidate cache after successful workflow update
+            // This ensures new executions get the updated workflow while ongoing ones continue with cached version
+            tracing::debug!("Workflow update successful: invalidating cache for workflow_id={}", workflow_id);
+            state.workflow_cache.invalidate(&workflow_id).await;
+
+            // Cache the new workflow metadata for future requests
+            state.workflow_cache.put(workflow_id, response.start_node_id.clone()).await;
+
+            Ok(Json(response))
+        }
         Err(status) => {
             let error_response = map_status_to_error_response(status);
             Err((status, Json(error_response)))
