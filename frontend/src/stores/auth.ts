@@ -72,6 +72,8 @@ export const useAuthStore = defineStore('auth', () => {
     // Check if we have an active OAuth session first (prioritize OAuth over basic auth)
     try {
       const userInfo = await apiClient.getCurrentUser()
+      console.log('OAuth user info received:', userInfo)
+
       if (userInfo.success && userInfo.user) {
         const oauthUser = {
           id: userInfo.user.id,
@@ -80,14 +82,18 @@ export const useAuthStore = defineStore('auth', () => {
           picture: userInfo.user.picture,
           session_id: userInfo.session_id
         }
+        console.log('Setting OAuth user:', oauthUser)
         user.value = oauthUser
         // Store OAuth user info for API client to detect
         localStorage.setItem('oauth_user', JSON.stringify(oauthUser))
         // Clear any basic auth credentials since OAuth takes priority
         localStorage.removeItem('auth_credentials')
         return
+      } else {
+        console.log('OAuth user info not valid:', userInfo)
       }
-    } catch {
+    } catch (error) {
+      console.log('OAuth session check failed:', error)
       // No active OAuth session, try basic auth
     }
 

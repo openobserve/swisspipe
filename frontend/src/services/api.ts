@@ -91,6 +91,7 @@ class ApiClient {
     this.client = axios.create({
       baseURL: getBaseURL(),
       timeout: 10000,
+      withCredentials: true, // Always include cookies for session management
       headers: {
         'Content-Type': 'application/json'
       }
