@@ -146,7 +146,7 @@ impl InputSyncService {
 
     /// Check for nodes that have timed out
     pub async fn check_timeouts(&self) -> Result<Vec<TimeoutResult>> {
-        let now = chrono::Utc::now();
+        let now = chrono::Utc::now().timestamp_micros();
         let timed_out_records = node_input_sync::Entity::find()
             .filter(node_input_sync::Column::Status.eq("waiting"))
             .filter(node_input_sync::Column::TimeoutAt.lt(now))
