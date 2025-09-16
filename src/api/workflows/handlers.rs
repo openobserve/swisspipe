@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::Json,
+    response::{Json, IntoResponse},
 };
 use sea_orm::{ActiveModelTrait, EntityTrait, Set, ColumnTrait, QueryFilter};
 use std::collections::HashMap;
@@ -20,6 +20,32 @@ use super::{
     types::*,
 };
 
+/// Maps HTTP status codes to structured error responses for workflow operations
+fn map_status_to_error_response(status: StatusCode) -> ErrorResponse {
+    match status {
+        StatusCode::NOT_FOUND => ErrorResponse {
+            error: "NOT_FOUND".to_string(),
+            message: "Workflow not found".to_string(),
+            details: None,
+        },
+        StatusCode::BAD_REQUEST => ErrorResponse {
+            error: "BAD_REQUEST".to_string(),
+            message: "Invalid workflow request".to_string(),
+            details: None,
+        },
+        StatusCode::CONFLICT => ErrorResponse {
+            error: "CONFLICT".to_string(),
+            message: "Cannot update workflow while executions are running".to_string(),
+            details: Some("The workflow has active executions. Please wait for them to complete or cancel them before updating the workflow.".to_string()),
+        },
+        _ => ErrorResponse {
+            error: "INTERNAL_SERVER_ERROR".to_string(),
+            message: "Internal server error occurred during workflow update".to_string(),
+            details: None,
+        },
+    }
+}
+
 pub async fn list_workflows(
     State(state): State<AppState>,
 ) -> std::result::Result<Json<WorkflowListResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -29,7 +55,8 @@ pub async fn list_workflows(
         .map_err(|e| {
             tracing::error!("Database error in list_workflows: {}", e);
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
-                error: "Failed to fetch workflows from database".to_string(),
+                error: "DATABASE_ERROR".to_string(),
+                message: "Failed to fetch workflows from database".to_string(),
                 details: Some(format!("Database error: {e}")),
             }))
         })?;
@@ -504,11 +531,16 @@ pub async fn update_workflow(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Json(request): Json<CreateWorkflowRequest>,
-) -> Result<Json<WorkflowResponse>, StatusCode> {
+) -> Result<Json<WorkflowResponse>, impl IntoResponse> {
     tracing::info!("Updating workflow: workflow_id={}", id);
-    
+
     let service = super::service::UpdateWorkflowService::new(&state, id, request);
-    let response = service.update_workflow().await?;
-    
-    Ok(Json(response))
+
+    match service.update_workflow().await {
+        Ok(response) => Ok(Json(response)),
+        Err(status) => {
+            let error_response = map_status_to_error_response(status);
+            Err((status, Json(error_response)))
+        }
+    }
 }

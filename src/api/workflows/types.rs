@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 use crate::workflow::models::NodeType;
 
+#[derive(Serialize)]
+pub struct ErrorResponse {
+    pub error: String,
+    pub message: String,
+    pub details: Option<String>,
+}
+
 #[derive(Deserialize)]
 pub struct CreateWorkflowRequest {
     pub name: String,
@@ -62,11 +69,6 @@ pub struct WorkflowListResponse {
     pub workflows: Vec<WorkflowResponse>,
 }
 
-#[derive(Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-    pub details: Option<String>,
-}
 
 #[derive(Debug)]
 pub struct NodeOperations<'a> {

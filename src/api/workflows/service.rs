@@ -18,6 +18,7 @@ use super::{
     utils::has_active_executions,
 };
 
+
 /// Service for handling workflow updates with proper separation of concerns
 pub struct UpdateWorkflowService<'a> {
     pub state: &'a AppState,
@@ -208,7 +209,7 @@ impl<'a> UpdateWorkflowService<'a> {
             })?
         {
             tracing::warn!(
-                "Cannot update workflow - has active executions: workflow_id={}, workflow_name='{}'", 
+                "Cannot update workflow - has active executions: workflow_id={}, workflow_name='{}'",
                 self.workflow_id, updated_workflow.name
             );
             return Err(StatusCode::CONFLICT);
