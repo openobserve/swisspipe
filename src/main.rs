@@ -327,6 +327,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = api::create_router()
         .layer(middleware::from_fn_with_state(state.clone(), auth::auth_middleware))
+        .layer(middleware::from_fn_with_state(state.clone(), api::middleware::admin_api_logging_middleware))
         .layer(cors)
         .with_state(state);
 
