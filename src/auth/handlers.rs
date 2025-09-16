@@ -114,7 +114,10 @@ pub async fn google_callback(
     // Check for error in callback
     if let Some(error) = params.error {
         tracing::warn!("OAuth callback error: {}", error);
-        return Ok(Redirect::temporary(&format!("http://localhost:{}/auth/callback?error={error}", state.config.port)).into_response());
+        let base_url = state.config.google_oauth.as_ref().map(|oauth| {
+            oauth.redirect_url.rsplit_once("/auth/google/callback").map(|(base, _)| base).unwrap_or("http://localhost:3700")
+        }).unwrap_or(&format!("http://localhost:{}", state.config.port));
+        return Ok(Redirect::temporary(&format!("{}/auth/callback?error={error}", base_url)).into_response());
     }
 
     let code = params.code.ok_or_else(|| {
@@ -258,7 +261,10 @@ pub async fn google_callback(
             tracing::info!("User {} successfully authenticated via Google OAuth", user_info.email);
 
             // Set session cookie and redirect to frontend callback
-            let mut response = Redirect::temporary(&format!("http://localhost:{}/auth/callback", state.config.port)).into_response();
+            let base_url = state.config.google_oauth.as_ref().map(|oauth| {
+                oauth.redirect_url.rsplit_once("/auth/google/callback").map(|(base, _)| base).unwrap_or("http://localhost:3700")
+            }).unwrap_or(&format!("http://localhost:{}", state.config.port));
+            let mut response = Redirect::temporary(&format!("{}/auth/callback", base_url)).into_response();
             let secure_flag = if should_use_secure_cookies() { "; Secure" } else { "" };
             let cookie_value = format!("session_id={session_id}; HttpOnly{secure_flag}; SameSite=Lax; Path=/; Max-Age={SESSION_EXPIRY_SECONDS}");
             response.headers_mut().insert(SET_COOKIE, cookie_value.parse().unwrap());
@@ -271,7 +277,10 @@ pub async fn google_callback(
         }
         Err(e) => {
             tracing::error!("Google OAuth authentication failed: {}", e);
-            Ok(Redirect::temporary(&format!("http://localhost:{}/auth/callback?error=authentication_failed", state.config.port)).into_response())
+            let base_url = state.config.google_oauth.as_ref().map(|oauth| {
+                oauth.redirect_url.rsplit_once("/auth/google/callback").map(|(base, _)| base).unwrap_or("http://localhost:3700")
+            }).unwrap_or(&format!("http://localhost:{}", state.config.port));
+            Ok(Redirect::temporary(&format!("{}/auth/callback?error=authentication_failed", base_url)).into_response())
         }
     }
 }
