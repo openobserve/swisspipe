@@ -21,7 +21,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Environment Setup
 - Copy `.env.example` to `.env` for configuration
-- Default database: SQLite at `data/swisspipe.db`
+- **Database Support**: SQLite (default) or PostgreSQL
+  - SQLite: `DATABASE_URL=sqlite:data/swisspipe.db?mode=rwc` (default)
+  - PostgreSQL: `DATABASE_URL=postgresql://user:password@localhost:5432/swisspipe`
 - Default credentials: admin/admin (configurable via `SP_USERNAME`/`SP_PASSWORD`)
 
 ## Architecture Overview
@@ -29,7 +31,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Core Components
 - **Workflow Engine** (`src/workflow/`): DAG-based workflow processing with JavaScript integration
 - **Async Execution** (`src/async_execution/`): Background job processing with worker pools and cleanup services
-- **Database Layer** (`src/database/`): SeaORM-based SQLite persistence with migrations
+- **Database Layer** (`src/database/`): SeaORM-based persistence with migrations (SQLite/PostgreSQL)
 - **API Layer** (`src/api/`): Axum REST endpoints for workflow management and data ingestion
 - **Email System** (`src/email/`): Email notifications with queue and audit logging
 
@@ -156,6 +158,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Props flow down, events emit up with proper TypeScript typing
 - Local state management in composables with validation
 - Real-time updates through reactive watchers
+
+## Database Setup
+
+### SQLite (Default)
+```bash
+# Uses local SQLite database - no additional setup required
+DATABASE_URL=sqlite:data/swisspipe.db?mode=rwc
+```
+
+### PostgreSQL Setup
+1. **Install PostgreSQL** (version 12+ recommended)
+2. **Create database and user:**
+```sql
+CREATE DATABASE swisspipe;
+CREATE USER swisspipe_user WITH PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE swisspipe TO swisspipe_user;
+```
+3. **Configure environment:**
+```bash
+DATABASE_URL=postgresql://swisspipe_user:your_password@localhost:5432/swisspipe
+```
+4. **Run migrations:**
+```bash
+cargo run  # Migrations run automatically on startup
+```
+
+### Database Features
+- **Automatic Migrations**: All schema changes apply automatically on startup
+- **Connection Pooling**: Optimized pool settings (5-100 connections, 10min idle timeout)
+- **Multi-Backend Support**: Same codebase works with both SQLite and PostgreSQL
+- **Transaction Support**: ACID compliance across both database backends
+- **Cross-Database SQL**: Raw SQL queries work with both SQLite and PostgreSQL parameter styles
+- **Performance Optimizations**: Database-specific optimizations (SQLite WAL mode, PostgreSQL connection tuning)
 
 # important-instruction-reminders
 Do what has been asked; nothing more, nothing less.

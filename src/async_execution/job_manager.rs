@@ -25,32 +25,61 @@ impl JobManager {
         let now = chrono::Utc::now().timestamp_micros();
         
         // Atomic claim using raw SQL for database-level atomicity
-        let statement = Statement::from_sql_and_values(
-            self.db.get_database_backend(),
-            r#"
-            UPDATE job_queue 
-            SET 
-                status = $1,
-                claimed_at = $2,
-                claimed_by = $3,
-                updated_at = $4
-            WHERE id = (
-                SELECT id FROM job_queue 
-                WHERE status = 'pending' 
-                  AND scheduled_at <= $5
-                ORDER BY priority DESC, scheduled_at ASC 
-                LIMIT 1
-            )
-            RETURNING *
-            "#,
-            [
-                JobStatus::Claimed.to_string().into(),
-                now.into(),
-                worker_id.to_string().into(),
-                now.into(),
-                now.into(),
-            ],
-        );
+        let backend = self.db.get_database_backend();
+        let (sql, values) = match backend {
+            sea_orm::DbBackend::Postgres => {
+                (r#"
+                UPDATE job_queue
+                SET
+                    status = $1,
+                    claimed_at = $2,
+                    claimed_by = $3,
+                    updated_at = $4
+                WHERE id = (
+                    SELECT id FROM job_queue
+                    WHERE status = 'pending'
+                      AND scheduled_at <= $5
+                    ORDER BY priority DESC, scheduled_at ASC
+                    LIMIT 1
+                )
+                RETURNING *
+                "#,
+                vec![
+                    JobStatus::Claimed.to_string().into(),
+                    now.into(),
+                    worker_id.to_string().into(),
+                    now.into(),
+                    now.into(),
+                ])
+            }
+            _ => {
+                // SQLite and other databases don't support RETURNING in UPDATE
+                (r#"
+                UPDATE job_queue
+                SET
+                    status = ?,
+                    claimed_at = ?,
+                    claimed_by = ?,
+                    updated_at = ?
+                WHERE id = (
+                    SELECT id FROM job_queue
+                    WHERE status = 'pending'
+                      AND scheduled_at <= ?
+                    ORDER BY priority DESC, scheduled_at ASC
+                    LIMIT 1
+                )
+                "#,
+                vec![
+                    JobStatus::Claimed.to_string().into(),
+                    now.into(),
+                    worker_id.to_string().into(),
+                    now.into(),
+                    now.into(),
+                ])
+            }
+        };
+
+        let statement = Statement::from_sql_and_values(backend, sql, values);
 
         // Execute the atomic update
         let query_result = self.db.as_ref().execute(statement).await?;
@@ -195,7 +224,7 @@ impl JobManager {
 
     /// Get queue statistics using efficient GROUP BY query
     pub async fn get_queue_stats(&self) -> Result<QueueStats> {
-        use sea_orm::{ConnectionTrait, Statement};
+        use sea_orm::{ConnectionTrait, Statement, DbBackend};
 
         // Use a single GROUP BY query to get all statistics at once
         let statement = Statement::from_sql_and_values(

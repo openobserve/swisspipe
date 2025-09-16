@@ -2,7 +2,7 @@ use crate::database::{workflow_executions, entities};
 use crate::workflow::errors::Result;
 use sea_orm::{
     DatabaseConnection, EntityTrait, QueryOrder, QuerySelect,
-    ColumnTrait, QueryFilter, ConnectionTrait, Statement, PaginatorTrait
+    ColumnTrait, QueryFilter, ConnectionTrait, Statement, PaginatorTrait, DbBackend
 };
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
@@ -210,12 +210,30 @@ impl CleanupService {
             return Ok(0);
         }
 
-        // Create placeholders for the IN clause
-        let placeholders = execution_ids.iter()
-            .enumerate()
-            .map(|(i, _)| format!("${}", i + 1))
-            .collect::<Vec<_>>()
-            .join(",");
+        // Create database-appropriate placeholders for the IN clause
+        let backend = self.db.get_database_backend();
+        let placeholders = match backend {
+            DbBackend::Postgres => {
+                execution_ids.iter()
+                    .enumerate()
+                    .map(|(i, _)| format!("${}", i + 1))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            }
+            DbBackend::Sqlite => {
+                execution_ids.iter()
+                    .map(|_| "?")
+                    .collect::<Vec<_>>()
+                    .join(",")
+            }
+            _ => {
+                // Default to ? for other databases (MySQL, etc.)
+                execution_ids.iter()
+                    .map(|_| "?")
+                    .collect::<Vec<_>>()
+                    .join(",")
+            }
+        };
 
         let sql = format!(
             "DELETE FROM workflow_executions WHERE id IN ({placeholders})"

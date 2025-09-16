@@ -31,6 +31,9 @@ impl Config {
             .map_err(|_| SwissPipeError::Config("SP_PASSWORD environment variable is required".to_string()))?;
         let database_url = env::var("DATABASE_URL")
             .unwrap_or_else(|_| "sqlite:data/swisspipe.db?mode=rwc".to_string());
+
+        // Validate database URL format
+        Self::validate_database_url(&database_url)?;
         let port = env::var("PORT")
             .unwrap_or_else(|_| "3700".to_string())
             .parse()
@@ -80,16 +83,6 @@ impl Config {
             worker_health_check_interval_seconds,
             job_claim_cleanup_interval_seconds,
         };
-
-        // Ensure data directory exists
-        if let Some(db_path_str) = database_url.strip_prefix("sqlite:") {
-            if let Some(db_path) = db_path_str.split('?').next() {
-                if let Some(parent) = std::path::Path::new(db_path).parent() {
-                    std::fs::create_dir_all(parent)
-                        .map_err(|e| SwissPipeError::Config(format!("Failed to create data directory: {e}")))?;
-                }
-            }
-        }
 
         // Google OAuth configuration (optional)
         let google_oauth = if let (Ok(client_id), Ok(client_secret)) = (
@@ -144,5 +137,32 @@ impl Config {
             execution_retention_count,
             cleanup_interval_minutes,
         })
+    }
+
+    /// Validate database URL format and create directories for SQLite if needed
+    fn validate_database_url(database_url: &str) -> Result<(), SwissPipeError> {
+        if database_url.starts_with("sqlite:") {
+            // Handle SQLite database - ensure data directory exists
+            if let Some(db_path_str) = database_url.strip_prefix("sqlite:") {
+                if let Some(db_path) = db_path_str.split('?').next() {
+                    if let Some(parent) = std::path::Path::new(db_path).parent() {
+                        std::fs::create_dir_all(parent)
+                            .map_err(|e| SwissPipeError::Config(format!("Failed to create SQLite data directory: {e}")))?;
+                    }
+                }
+            }
+            tracing::info!("Using SQLite database");
+        } else if database_url.starts_with("postgres://") || database_url.starts_with("postgresql://") {
+            // Handle PostgreSQL database - validate URL format
+            Url::parse(database_url)
+                .map_err(|e| SwissPipeError::Config(format!("Invalid PostgreSQL DATABASE_URL format: {e}")))?;
+            tracing::info!("Using PostgreSQL database");
+        } else {
+            return Err(SwissPipeError::Config(
+                format!("Unsupported database URL format: '{}'. Supported formats: 'sqlite:path/to/db.db' or 'postgresql://user:pass@host:port/database'", database_url)
+            ));
+        }
+
+        Ok(())
     }
 }
