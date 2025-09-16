@@ -50,7 +50,7 @@ async fn extract_user_info(headers: &HeaderMap, db: &Arc<sea_orm::DatabaseConnec
         let safe_id = if session_id.len() >= 8 {
             session_id.chars().take(8).collect()
         } else {
-            format!("short_{}", session_id) // Prefix to avoid collisions with short IDs
+            format!("short_{session_id}") // Prefix to avoid collisions with short IDs
         };
 
         return LoggingUser {
