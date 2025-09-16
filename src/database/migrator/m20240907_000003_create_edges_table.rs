@@ -24,8 +24,8 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Edges::ConditionResult).boolean())
                     .col(
                         ColumnDef::new(Edges::CreatedAt)
-                            .timestamp()
-                            .default(Expr::current_timestamp()),
+                            .big_integer()
+                            .not_null(),
                     )
                     .foreign_key(
                         ForeignKey::create()

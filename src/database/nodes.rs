@@ -14,7 +14,7 @@ pub struct Model {
     pub config: String, // JSON configuration
     pub position_x: f64,
     pub position_y: f64,
-    pub created_at: ChronoDateTimeUtc,
+    pub created_at: i64, // Unix epoch microseconds
     pub input_merge_strategy: Option<String>, // JSON serialized InputMergeStrategy
 }
 
@@ -38,7 +38,7 @@ impl ActiveModelBehavior for ActiveModel {
     fn new() -> Self {
         Self {
             id: Set(Uuid::new_v4().to_string()),
-            created_at: Set(chrono::Utc::now()),
+            created_at: Set(chrono::Utc::now().timestamp_micros()),
             ..ActiveModelTrait::default()
         }
     }

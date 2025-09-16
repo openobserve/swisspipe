@@ -12,10 +12,10 @@ pub struct Model {
     pub node_id: String,
     pub expected_input_count: i32,
     pub received_inputs: String, // JSON array of WorkflowEvents
-    pub timeout_at: Option<ChronoDateTimeUtc>,
+    pub timeout_at: Option<i64>, // Unix epoch microseconds
     pub status: String, // "waiting", "ready", "completed", "timeout"
-    pub created_at: ChronoDateTimeUtc,
-    pub updated_at: ChronoDateTimeUtc,
+    pub created_at: i64, // Unix epoch microseconds
+    pub updated_at: i64, // Unix epoch microseconds
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -36,10 +36,11 @@ impl Related<super::workflow_executions::Entity> for Entity {
 
 impl ActiveModelBehavior for ActiveModel {
     fn new() -> Self {
+        let now = chrono::Utc::now().timestamp_micros();
         Self {
             id: Set(Uuid::new_v4().to_string()),
-            created_at: Set(chrono::Utc::now()),
-            updated_at: Set(chrono::Utc::now()),
+            created_at: Set(now),
+            updated_at: Set(now),
             status: Set("waiting".to_string()),
             received_inputs: Set("[]".to_string()),
             ..ActiveModelTrait::default()
@@ -58,7 +59,7 @@ impl ActiveModelBehavior for ActiveModel {
     {
         Box::pin(async move {
             if !insert {
-                self.updated_at = Set(chrono::Utc::now());
+                self.updated_at = Set(chrono::Utc::now().timestamp_micros());
             }
             Ok(self)
         })

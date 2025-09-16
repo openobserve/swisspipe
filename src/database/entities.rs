@@ -11,8 +11,8 @@ pub struct Model {
     pub name: String,
     pub description: Option<String>,
     pub start_node_id: Option<String>,
-    pub created_at: ChronoDateTimeUtc,
-    pub updated_at: ChronoDateTimeUtc,
+    pub created_at: i64, // Unix epoch microseconds
+    pub updated_at: i64, // Unix epoch microseconds
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -37,10 +37,11 @@ impl Related<super::edges::Entity> for Entity {
 
 impl ActiveModelBehavior for ActiveModel {
     fn new() -> Self {
+        let now = chrono::Utc::now().timestamp_micros();
         Self {
             id: Set(Uuid::new_v4().to_string()),
-            created_at: Set(chrono::Utc::now()),
-            updated_at: Set(chrono::Utc::now()),
+            created_at: Set(now),
+            updated_at: Set(now),
             ..ActiveModelTrait::default()
         }
     }

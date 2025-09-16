@@ -224,7 +224,7 @@ impl JobManager {
 
     /// Get queue statistics using efficient GROUP BY query
     pub async fn get_queue_stats(&self) -> Result<QueueStats> {
-        use sea_orm::{ConnectionTrait, Statement, DbBackend};
+        use sea_orm::{ConnectionTrait, Statement};
 
         // Use a single GROUP BY query to get all statistics at once
         let statement = Statement::from_sql_and_values(

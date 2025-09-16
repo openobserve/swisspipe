@@ -755,7 +755,7 @@ async fn create_workflow_from_ai_spec(
     tracing::debug!("Creating workflow in database: {}", spec.name);
 
     let workflow_id = Uuid::new_v4().to_string();
-    let now = chrono::Utc::now();
+    let now = chrono::Utc::now().timestamp_micros();
 
     // Create workflow entity
     let workflow = entities::ActiveModel {

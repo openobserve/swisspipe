@@ -23,17 +23,17 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(NodeInputSync::NodeId).string().not_null())
                     .col(ColumnDef::new(NodeInputSync::ExpectedInputCount).integer().not_null())
                     .col(ColumnDef::new(NodeInputSync::ReceivedInputs).text().not_null().default("[]"))
-                    .col(ColumnDef::new(NodeInputSync::TimeoutAt).timestamp())
+                    .col(ColumnDef::new(NodeInputSync::TimeoutAt).big_integer())
                     .col(ColumnDef::new(NodeInputSync::Status).string().not_null().default("waiting"))
                     .col(
                         ColumnDef::new(NodeInputSync::CreatedAt)
-                            .timestamp()
-                            .default(Expr::current_timestamp()),
+                            .big_integer()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(NodeInputSync::UpdatedAt)
-                            .timestamp()
-                            .default(Expr::current_timestamp()),
+                            .big_integer()
+                            .not_null(),
                     )
                     .foreign_key(
                         ForeignKey::create()

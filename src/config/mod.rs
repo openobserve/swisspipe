@@ -159,7 +159,7 @@ impl Config {
             tracing::info!("Using PostgreSQL database");
         } else {
             return Err(SwissPipeError::Config(
-                format!("Unsupported database URL format: '{}'. Supported formats: 'sqlite:path/to/db.db' or 'postgresql://user:pass@host:port/database'", database_url)
+                format!("Unsupported database URL format: '{database_url}'. Supported formats: 'sqlite:path/to/db.db' or 'postgresql://user:pass@host:port/database'")
             ));
         }
 

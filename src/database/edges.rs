@@ -12,7 +12,7 @@ pub struct Model {
     pub from_node_id: String,
     pub to_node_id: String,
     pub condition_result: Option<bool>,
-    pub created_at: ChronoDateTimeUtc,
+    pub created_at: i64, // Unix epoch microseconds
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -35,7 +35,7 @@ impl ActiveModelBehavior for ActiveModel {
     fn new() -> Self {
         Self {
             id: Set(Uuid::new_v4().to_string()),
-            created_at: Set(chrono::Utc::now()),
+            created_at: Set(chrono::Utc::now().timestamp_micros()),
             ..ActiveModelTrait::default()
         }
     }

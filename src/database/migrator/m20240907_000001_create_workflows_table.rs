@@ -22,13 +22,13 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Workflows::StartNodeId).string())
                     .col(
                         ColumnDef::new(Workflows::CreatedAt)
-                            .timestamp()
-                            .default(Expr::current_timestamp()),
+                            .big_integer()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(Workflows::UpdatedAt)
-                            .timestamp()
-                            .default(Expr::current_timestamp()),
+                            .big_integer()
+                            .not_null(),
                     )
                     .to_owned(),
             )

@@ -29,7 +29,7 @@ impl InputSyncService {
     ) -> Result<()> {
         let timeout_at = match merge_strategy {
             InputMergeStrategy::TimeoutBased(seconds) => {
-                Some(chrono::Utc::now() + chrono::Duration::seconds(*seconds as i64))
+                Some((chrono::Utc::now() + chrono::Duration::seconds(*seconds as i64)).timestamp_micros())
             }
             _ => None,
         };

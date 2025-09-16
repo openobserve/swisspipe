@@ -50,8 +50,8 @@ pub struct WorkflowResponse {
     pub description: Option<String>,
     pub start_node_id: String,   // Starting node ID
     pub endpoint_url: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub created_at: i64, // Unix epoch microseconds
+    pub updated_at: i64, // Unix epoch microseconds
     pub nodes: Vec<NodeResponse>,
     pub edges: Vec<EdgeResponse>,
 }

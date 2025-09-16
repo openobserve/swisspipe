@@ -26,8 +26,8 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Nodes::PositionY).double().default(0.0))
                     .col(
                         ColumnDef::new(Nodes::CreatedAt)
-                            .timestamp()
-                            .default(Expr::current_timestamp()),
+                            .big_integer()
+                            .not_null(),
                     )
                     .col(ColumnDef::new(Nodes::InputMergeStrategy).string().null())
                     .foreign_key(
