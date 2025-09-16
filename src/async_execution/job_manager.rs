@@ -6,6 +6,9 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
+/// Time window for job claim lookup to handle timestamp precision issues (1 second in microseconds)
+const CLAIM_LOOKUP_WINDOW_MICROS: i64 = 1_000_000;
+
 #[derive(Clone)]
 pub struct JobManager {
     db: Arc<DatabaseConnection>,
@@ -86,21 +89,49 @@ impl JobManager {
         
         if query_result.rows_affected() > 0 {
             // If we successfully claimed a job, get its details
-            // Since we used RETURNING *, we could parse the result directly,
-            // but for simplicity, let's query it back (the job is now locked by worker_id)
+            // Query for the most recently claimed job by this worker (within a reasonable time window)
             let claimed_job = job_queue::Entity::find()
                 .filter(job_queue::Column::ClaimedBy.eq(worker_id))
-                .filter(job_queue::Column::ClaimedAt.eq(now))
+                .filter(job_queue::Column::Status.eq(JobStatus::Claimed.to_string()))
+                .filter(job_queue::Column::ClaimedAt.gte(now - CLAIM_LOOKUP_WINDOW_MICROS))
+                .filter(job_queue::Column::ClaimedAt.lte(now + CLAIM_LOOKUP_WINDOW_MICROS))
                 .one(self.db.as_ref())
                 .await?;
 
             if let Some(job) = claimed_job {
-                tracing::info!("Worker {} atomically claimed job {} for execution {}", 
+                tracing::info!("Worker {} atomically claimed job {} for execution {}",
                     worker_id, job.id, job.execution_id);
                 Ok(Some(job))
             } else {
-                tracing::error!("Job claim succeeded but couldn't retrieve job for worker {}", worker_id);
-                Ok(None)
+                tracing::error!("Job claim succeeded but couldn't retrieve job for worker {} (claimed_at={})", worker_id, now);
+
+                // Only perform expensive debug queries when debug logging is enabled
+                if tracing::enabled!(tracing::Level::DEBUG) {
+                    // Debug: check what jobs exist for this worker
+                    let debug_jobs = job_queue::Entity::find()
+                        .filter(job_queue::Column::ClaimedBy.eq(worker_id))
+                        .all(self.db.as_ref())
+                        .await?;
+
+                    tracing::debug!("Found {} total jobs claimed by worker {}: {:?}",
+                        debug_jobs.len(), worker_id,
+                        debug_jobs.iter().map(|j| format!("{}(status:{},claimed_at:{})", j.id, j.status, j.claimed_at.unwrap_or(0))).collect::<Vec<_>>());
+                }
+
+                // Fallback: try to find any claimed job by this worker
+                let fallback_job = job_queue::Entity::find()
+                    .filter(job_queue::Column::ClaimedBy.eq(worker_id))
+                    .filter(job_queue::Column::Status.eq(JobStatus::Claimed.to_string()))
+                    .one(self.db.as_ref())
+                    .await?;
+
+                if let Some(job) = fallback_job {
+                    tracing::warn!("Found fallback job {} for worker {} (claimed_at={})", job.id, worker_id, job.claimed_at.unwrap_or(0));
+                    Ok(Some(job))
+                } else {
+                    tracing::error!("No fallback job found for worker {}", worker_id);
+                    Ok(None)
+                }
             }
         } else {
             // No job was available to claim
