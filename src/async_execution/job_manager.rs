@@ -2,12 +2,10 @@ use crate::database::job_queue::{self, JobStatus};
 use crate::workflow::errors::{Result, SwissPipeError};
 use sea_orm::{
     ActiveModelTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    ColumnTrait, Set,
+    ColumnTrait, Set, QueryOrder,
 };
 use std::sync::Arc;
 
-/// Time window for job claim lookup to handle timestamp precision issues (1 second in microseconds)
-const CLAIM_LOOKUP_WINDOW_MICROS: i64 = 1_000_000;
 
 #[derive(Clone)]
 pub struct JobManager {
@@ -21,121 +19,103 @@ impl JobManager {
 
     /// Claim the next available job for a worker
     pub async fn claim_job(&self, worker_id: &str) -> Result<Option<job_queue::Model>> {
-        use sea_orm::{ConnectionTrait, Statement};
-        
-        // Use atomic UPDATE with WHERE condition to prevent race conditions
-        // This ensures only one worker can claim a job by updating only if status is still 'pending'
+        use sea_orm::{ConnectionTrait, Statement, TransactionTrait};
+
         let now = chrono::Utc::now().timestamp_micros();
-        
-        // Atomic claim using raw SQL for database-level atomicity
         let backend = self.db.get_database_backend();
-        let (sql, values) = match backend {
+
+        match backend {
             sea_orm::DbBackend::Postgres => {
-                (r#"
-                UPDATE job_queue
-                SET
-                    status = $1,
-                    claimed_at = $2,
-                    claimed_by = $3,
-                    updated_at = $4
-                WHERE id = (
-                    SELECT id FROM job_queue
-                    WHERE status = 'pending'
-                      AND scheduled_at <= $5
-                    ORDER BY priority DESC, scheduled_at ASC
-                    LIMIT 1
-                )
-                RETURNING *
-                "#,
-                vec![
-                    JobStatus::Claimed.to_string().into(),
-                    now.into(),
-                    worker_id.to_string().into(),
-                    now.into(),
-                    now.into(),
-                ])
-            }
-            _ => {
-                // SQLite and other databases don't support RETURNING in UPDATE
-                (r#"
-                UPDATE job_queue
-                SET
-                    status = ?,
-                    claimed_at = ?,
-                    claimed_by = ?,
-                    updated_at = ?
-                WHERE id = (
-                    SELECT id FROM job_queue
-                    WHERE status = 'pending'
-                      AND scheduled_at <= ?
-                    ORDER BY priority DESC, scheduled_at ASC
-                    LIMIT 1
-                )
-                "#,
-                vec![
-                    JobStatus::Claimed.to_string().into(),
-                    now.into(),
-                    worker_id.to_string().into(),
-                    now.into(),
-                    now.into(),
-                ])
-            }
-        };
+                // PostgreSQL supports RETURNING, so we can get the job data directly in one atomic operation
+                let (sql, values) = (r#"
+                    UPDATE job_queue
+                    SET
+                        status = $1,
+                        claimed_at = $2,
+                        claimed_by = $3,
+                        updated_at = $4
+                    WHERE id = (
+                        SELECT id FROM job_queue
+                        WHERE status = 'pending'
+                          AND scheduled_at <= $5
+                        ORDER BY priority DESC, scheduled_at ASC
+                        LIMIT 1
+                        FOR UPDATE SKIP LOCKED
+                    )
+                    RETURNING id, execution_id, status, claimed_at, claimed_by,
+                              scheduled_at, priority, retry_count, max_retries,
+                              error_message, payload, created_at, updated_at
+                    "#,
+                    vec![
+                        JobStatus::Claimed.to_string().into(),
+                        now.into(),
+                        worker_id.to_string().into(),
+                        now.into(),
+                        now.into(),
+                    ]
+                );
 
-        let statement = Statement::from_sql_and_values(backend, sql, values);
+                let statement = Statement::from_sql_and_values(backend, sql, values);
+                let query_result = self.db.as_ref().query_all(statement).await?;
 
-        // Execute the atomic update
-        let query_result = self.db.as_ref().execute(statement).await?;
-        
-        if query_result.rows_affected() > 0 {
-            // If we successfully claimed a job, get its details
-            // Query for the most recently claimed job by this worker (within a reasonable time window)
-            let claimed_job = job_queue::Entity::find()
-                .filter(job_queue::Column::ClaimedBy.eq(worker_id))
-                .filter(job_queue::Column::Status.eq(JobStatus::Claimed.to_string()))
-                .filter(job_queue::Column::ClaimedAt.gte(now - CLAIM_LOOKUP_WINDOW_MICROS))
-                .filter(job_queue::Column::ClaimedAt.lte(now + CLAIM_LOOKUP_WINDOW_MICROS))
-                .one(self.db.as_ref())
-                .await?;
+                if let Some(row) = query_result.first() {
+                    // Parse the returned row directly into a job_queue::Model
+                    let job = job_queue::Model {
+                        id: row.try_get("", "id")?,
+                        execution_id: row.try_get("", "execution_id")?,
+                        priority: row.try_get("", "priority")?,
+                        scheduled_at: row.try_get("", "scheduled_at")?,
+                        claimed_at: row.try_get("", "claimed_at")?,
+                        claimed_by: row.try_get("", "claimed_by")?,
+                        max_retries: row.try_get("", "max_retries")?,
+                        retry_count: row.try_get("", "retry_count")?,
+                        status: row.try_get("", "status")?,
+                        error_message: row.try_get("", "error_message")?,
+                        payload: row.try_get("", "payload")?,
+                        created_at: row.try_get("", "created_at")?,
+                        updated_at: row.try_get("", "updated_at")?,
+                    };
 
-            if let Some(job) = claimed_job {
-                tracing::info!("Worker {} atomically claimed job {} for execution {}",
-                    worker_id, job.id, job.execution_id);
-                Ok(Some(job))
-            } else {
-                tracing::error!("Job claim succeeded but couldn't retrieve job for worker {} (claimed_at={})", worker_id, now);
-
-                // Only perform expensive debug queries when debug logging is enabled
-                if tracing::enabled!(tracing::Level::DEBUG) {
-                    // Debug: check what jobs exist for this worker
-                    let debug_jobs = job_queue::Entity::find()
-                        .filter(job_queue::Column::ClaimedBy.eq(worker_id))
-                        .all(self.db.as_ref())
-                        .await?;
-
-                    tracing::debug!("Found {} total jobs claimed by worker {}: {:?}",
-                        debug_jobs.len(), worker_id,
-                        debug_jobs.iter().map(|j| format!("{}(status:{},claimed_at:{})", j.id, j.status, j.claimed_at.unwrap_or(0))).collect::<Vec<_>>());
-                }
-
-                // Fallback: try to find any claimed job by this worker
-                let fallback_job = job_queue::Entity::find()
-                    .filter(job_queue::Column::ClaimedBy.eq(worker_id))
-                    .filter(job_queue::Column::Status.eq(JobStatus::Claimed.to_string()))
-                    .one(self.db.as_ref())
-                    .await?;
-
-                if let Some(job) = fallback_job {
-                    tracing::warn!("Found fallback job {} for worker {} (claimed_at={})", job.id, worker_id, job.claimed_at.unwrap_or(0));
+                    tracing::info!("Worker {} atomically claimed job {} for execution {} (PostgreSQL RETURNING)",
+                        worker_id, job.id, job.execution_id);
                     Ok(Some(job))
                 } else {
-                    tracing::error!("No fallback job found for worker {}", worker_id);
+                    // No job was available to claim
                     Ok(None)
                 }
             }
-        } else {
-            // No job was available to claim
-            Ok(None)
+            _ => {
+                // For SQLite and other databases, use a transaction to ensure atomicity
+                let txn = self.db.begin().await?;
+
+                // First, find the job to claim within the transaction
+                let job_to_claim = job_queue::Entity::find()
+                    .filter(job_queue::Column::Status.eq("pending"))
+                    .filter(job_queue::Column::ScheduledAt.lte(now))
+                    .order_by_desc(job_queue::Column::Priority)
+                    .order_by_asc(job_queue::Column::ScheduledAt)
+                    .one(&txn)
+                    .await?;
+
+                if let Some(job) = job_to_claim {
+                    // Claim the specific job we found
+                    let mut job_active: job_queue::ActiveModel = job.clone().into();
+                    job_active.status = sea_orm::Set(JobStatus::Claimed.to_string());
+                    job_active.claimed_at = sea_orm::Set(Some(now));
+                    job_active.claimed_by = sea_orm::Set(Some(worker_id.to_string()));
+                    job_active.updated_at = sea_orm::Set(now);
+
+                    let updated_job = job_active.update(&txn).await?;
+                    txn.commit().await?;
+
+                    tracing::info!("Worker {} atomically claimed job {} for execution {}",
+                        worker_id, updated_job.id, updated_job.execution_id);
+                    Ok(Some(updated_job))
+                } else {
+                    txn.rollback().await?;
+                    Ok(None)
+                }
+            }
         }
     }
 
