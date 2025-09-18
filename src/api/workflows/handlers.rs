@@ -113,7 +113,7 @@ pub async fn create_workflow(
                     );
                     return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
                         error: "INVALID_START_NODE".to_string(),
-                        message: format!("Provided start node '{}' is not a trigger node", provided_start_id),
+                        message: format!("Provided start node '{provided_start_id}' is not a trigger node"),
                         details: Some("Start node must be a trigger node that can accept HTTP requests".to_string()),
                     })));
                 }
@@ -126,7 +126,7 @@ pub async fn create_workflow(
                 );
                 return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
                     error: "START_NODE_NOT_FOUND".to_string(),
-                    message: format!("Provided start_node_id '{}' not found in nodes list", provided_start_id),
+                    message: format!("Provided start_node_id '{provided_start_id}' not found in nodes list"),
                     details: Some("Start node ID must reference an existing node in the workflow".to_string()),
                 })));
             }
@@ -203,7 +203,7 @@ pub async fn create_workflow(
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                 error: "DATABASE_ERROR".to_string(),
                 message: "Failed to create workflow".to_string(),
-                details: Some(format!("Database error: {}", e)),
+                details: Some(format!("Database error: {e}")),
             }))
         })?;
 
@@ -310,7 +310,7 @@ pub async fn create_workflow(
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                 error: "DATABASE_ERROR".to_string(),
                 message: "Failed to fetch created workflow nodes".to_string(),
-                details: Some(format!("Database error: {}", e)),
+                details: Some(format!("Database error: {e}")),
             }))
         })?;
 
@@ -324,7 +324,7 @@ pub async fn create_workflow(
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                 error: "DATABASE_ERROR".to_string(),
                 message: "Failed to fetch created workflow edges".to_string(),
-                details: Some(format!("Database error: {}", e)),
+                details: Some(format!("Database error: {e}")),
             }))
         })?;
 
@@ -581,7 +581,7 @@ pub async fn update_workflow(
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                 error: "DATABASE_ERROR".to_string(),
                 message: "Failed to fetch workflow data for validation".to_string(),
-                details: Some(format!("Database error: {}", e)),
+                details: Some(format!("Database error: {e}")),
             }))
         })?;
 
@@ -594,14 +594,14 @@ pub async fn update_workflow(
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                 error: "DATABASE_ERROR".to_string(),
                 message: "Failed to fetch workflow data".to_string(),
-                details: Some(format!("Database error: {}", e)),
+                details: Some(format!("Database error: {e}")),
             }))
         })?
         .ok_or_else(|| {
             tracing::warn!("Workflow not found for validation: workflow_id={}", id);
             (StatusCode::NOT_FOUND, Json(ErrorResponse {
                 error: "WORKFLOW_NOT_FOUND".to_string(),
-                message: format!("Workflow '{}' not found", id),
+                message: format!("Workflow '{id}' not found"),
                 details: None,
             }))
         })?;

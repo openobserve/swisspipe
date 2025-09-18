@@ -47,7 +47,7 @@ pub fn detect_cycles_with_node_info(edges: &[EdgeRequest], nodes: &[super::types
                 .chain(std::iter::once(&node.to_string()))
                 .map(|id| {
                     let name = node_name_map.get(id).cloned().unwrap_or_else(|| "unknown".to_string());
-                    format!("'{}' ({})", name, id)
+                    format!("'{name}' ({id})")
                 })
                 .collect();
 
@@ -86,11 +86,6 @@ pub fn detect_cycles_with_node_info(edges: &[EdgeRequest], nodes: &[super::types
     Ok(())
 }
 
-/// Legacy cycle detection function for backward compatibility
-pub fn detect_cycles(edges: &[EdgeRequest]) -> Result<(), String> {
-    // Use enhanced version with empty node info
-    detect_cycles_with_node_info(edges, &[])
-}
 
 /// Validate workflow update request
 pub fn validate_workflow_update_request(
@@ -137,9 +132,7 @@ pub fn validate_workflow_update_request(
     }
     
     // Validate no cycles in the workflow (using enhanced version with node names)
-    if let Err(cycle_error) = detect_cycles_with_node_info(&request.edges, &request.nodes) {
-        return Err(cycle_error);
-    }
+    detect_cycles_with_node_info(&request.edges, &request.nodes)?;
 
     // Build a comprehensive node lookup map for better error messages
     let mut node_lookup = HashMap::new();
@@ -159,7 +152,7 @@ pub fn validate_workflow_update_request(
     // Helper function to get node display name
     let get_node_display = |node_id: &str| -> String {
         match node_lookup.get(node_id) {
-            Some(name) => format!("'{}' ({})", name, node_id),
+            Some(name) => format!("'{name}' ({node_id})"),
             None => node_id.to_string(),
         }
     };
