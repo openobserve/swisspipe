@@ -3,7 +3,7 @@ use uuid::Uuid;
 use super::types::{CreateWorkflowRequest, EdgeRequest, NodeRequest};
 use crate::database::nodes;
 use crate::workflow::{
-    models::{Edge, Node, NodeType, InputMergeStrategy},
+    models::{Edge, Node, NodeType, InputMergeStrategy, RetryConfig, FailureAction, HttpMethod},
     validation::WorkflowValidator,
     errors::SwissPipeError,
 };
@@ -43,18 +43,37 @@ fn convert_db_node_to_node(db_node: &nodes::Model) -> Result<Node, String> {
         ));
     }
 
-    // Parse the JSON stored node_type
-    let node_type: NodeType = serde_json::from_str(&db_node.node_type)
-        .map_err(|e| {
-            tracing::error!(
-                "JSON parsing failed for node {}: node_type='{}', error={}",
-                db_node.id, db_node.node_type, e
+    // Parse the JSON stored node_type with fallback for legacy data
+    let node_type: NodeType = match serde_json::from_str(&db_node.node_type) {
+        Ok(node_type) => node_type,
+        Err(parse_error) => {
+            tracing::warn!(
+                "Failed to parse node_type as JSON for node {} ('{}'): {} - attempting legacy format conversion",
+                db_node.id, db_node.name, parse_error
             );
-            format!(
-                "Failed to parse node_type for node {} ('{}'): {} - JSON content: '{}'",
-                db_node.id, db_node.name, e, db_node.node_type
-            )
-        })?;
+
+            // Attempt to handle legacy string format
+            match convert_legacy_node_type(&db_node.node_type) {
+                Ok(legacy_node_type) => {
+                    tracing::info!(
+                        "Successfully converted legacy node_type '{}' for node {} ('{}')",
+                        db_node.node_type, db_node.id, db_node.name
+                    );
+                    legacy_node_type
+                }
+                Err(legacy_error) => {
+                    tracing::error!(
+                        "Both JSON parsing and legacy conversion failed for node {}: node_type='{}', json_error={}, legacy_error={}",
+                        db_node.id, db_node.node_type, parse_error, legacy_error
+                    );
+                    return Err(format!(
+                        "Failed to parse node_type for node {} ('{}'): {} - JSON content: '{}' - Legacy conversion also failed: {}",
+                        db_node.id, db_node.name, parse_error, db_node.node_type, legacy_error
+                    ));
+                }
+            }
+        }
+    };
 
     // Parse the JSON stored input_merge_strategy if present
     let input_merge_strategy: Option<InputMergeStrategy> = match &db_node.input_merge_strategy {
@@ -282,4 +301,48 @@ fn build_complete_workflow_model(
     );
 
     Ok((all_nodes, all_edges))
+}
+
+/// Convert legacy string node_type values to proper NodeType structures
+/// This handles database corruption where simple strings were stored instead of JSON
+fn convert_legacy_node_type(legacy_value: &str) -> Result<NodeType, String> {
+    let trimmed = legacy_value.trim().to_lowercase();
+
+    match trimmed.as_str() {
+        "trigger" => Ok(NodeType::Trigger {
+            methods: vec![HttpMethod::Post], // Default to POST for legacy triggers
+        }),
+        "condition" => Ok(NodeType::Condition {
+            script: "function condition(event) { return true; }".to_string(), // Default script
+        }),
+        "transformer" => Ok(NodeType::Transformer {
+            script: "function transformer(event) { return event; }".to_string(), // Default script
+        }),
+        "httprequest" | "http_request" | "http-request" => Ok(NodeType::HttpRequest {
+            url: "https://httpbin.org/post".to_string(), // Default URL
+            method: HttpMethod::Post,
+            timeout_seconds: 30,
+            failure_action: FailureAction::Stop,
+            retry_config: RetryConfig {
+                max_attempts: 3,
+                initial_delay_ms: 100,
+                max_delay_ms: 5000,
+                backoff_multiplier: 2.0,
+            },
+            headers: std::collections::HashMap::new(),
+        }),
+        "openobserve" => Ok(NodeType::OpenObserve {
+            url: "".to_string(), // Will need to be configured
+            authorization_header: "".to_string(),
+            timeout_seconds: 30,
+            failure_action: FailureAction::Stop,
+            retry_config: RetryConfig {
+                max_attempts: 3,
+                initial_delay_ms: 100,
+                max_delay_ms: 5000,
+                backoff_multiplier: 2.0,
+            },
+        }),
+        _ => Err(format!("Unrecognized legacy node_type: '{}'", legacy_value)),
+    }
 }
