@@ -104,28 +104,9 @@ export interface AppNode {
   }
 }
 
-// Email node structure - supports both old (with config wrapper) and new (direct) formats
 export interface EmailNode {
   Email: {
-    // New format: direct fields
-    smtp_config?: string
-    from?: { email: string; name?: string }
-    to?: { email: string; name?: string }[]
-    cc?: { email: string; name?: string }[]
-    bcc?: { email: string; name?: string }[]
-    subject?: string
-    template_type?: 'html' | 'text'
-    body_template?: string
-    text_body_template?: string
-    attachments?: { filename: string; content_type: string; data: string }[]
-    priority?: 'critical' | 'high' | 'normal' | 'low'
-    delivery_receipt?: boolean
-    read_receipt?: boolean
-    queue_if_rate_limited?: boolean
-    max_queue_wait_minutes?: number
-    bypass_rate_limit?: boolean
-    // Old format: config wrapper (for backward compatibility)
-    config?: {
+    config: {
       smtp_config: string
       from: { email: string; name?: string }
       to: { email: string; name?: string }[]
