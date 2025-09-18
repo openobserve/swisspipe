@@ -30,9 +30,31 @@ fn convert_node_request_to_node(
 
 /// Convert existing database node to workflow Node model
 fn convert_db_node_to_node(db_node: &nodes::Model) -> Result<Node, String> {
+    tracing::debug!(
+        "Converting database node to workflow node: id={}, name='{}', node_type_json='{}'",
+        db_node.id, db_node.name, db_node.node_type
+    );
+
+    // Check for empty or invalid JSON before parsing
+    if db_node.node_type.trim().is_empty() {
+        return Err(format!(
+            "Node {} ('{}') has empty node_type JSON - database corruption detected",
+            db_node.id, db_node.name
+        ));
+    }
+
     // Parse the JSON stored node_type
     let node_type: NodeType = serde_json::from_str(&db_node.node_type)
-        .map_err(|e| format!("Failed to parse node_type for node {}: {}", db_node.id, e))?;
+        .map_err(|e| {
+            tracing::error!(
+                "JSON parsing failed for node {}: node_type='{}', error={}",
+                db_node.id, db_node.node_type, e
+            );
+            format!(
+                "Failed to parse node_type for node {} ('{}'): {} - JSON content: '{}'",
+                db_node.id, db_node.name, e, db_node.node_type
+            )
+        })?;
 
     // Parse the JSON stored input_merge_strategy if present
     let input_merge_strategy: Option<InputMergeStrategy> = match &db_node.input_merge_strategy {
@@ -200,10 +222,37 @@ fn build_complete_workflow_model(
     }
 
     // Add remaining existing nodes (not being updated)
+    tracing::debug!(
+        "Processing existing nodes: total_existing={}, nodes_in_request={}",
+        existing_nodes.len(), processed_node_ids.len()
+    );
+
     for existing_node in existing_nodes {
         if !processed_node_ids.contains(&existing_node.id) {
-            let workflow_node = convert_db_node_to_node(existing_node)?;
-            all_nodes.push(workflow_node);
+            tracing::debug!(
+                "Adding existing node to validation: id={}, name='{}'",
+                existing_node.id, existing_node.name
+            );
+            match convert_db_node_to_node(existing_node) {
+                Ok(workflow_node) => {
+                    all_nodes.push(workflow_node);
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to convert existing node {}: {}",
+                        existing_node.id, e
+                    );
+                    return Err(format!(
+                        "Database integrity issue with existing node {} ('{}'): {}",
+                        existing_node.id, existing_node.name, e
+                    ));
+                }
+            }
+        } else {
+            tracing::debug!(
+                "Skipping existing node {} - being updated in request",
+                existing_node.id
+            );
         }
     }
 
