@@ -96,7 +96,8 @@ export function convertApiNodeConfigToVueFlowConfig(nodeType: NodeType): NodeCon
   }
 
   if ('Email' in nodeType) {
-    const emailConfig = nodeType.Email
+    // Handle both old (with config wrapper) and new (direct) Email structures for backward compatibility
+    const emailConfig = (nodeType.Email as any).config || nodeType.Email
     return {
       type: 'email' as const,
       ...DEFAULT_EMAIL_CONFIG,
