@@ -88,7 +88,7 @@ pub async fn list_workflows(
 pub async fn create_workflow(
     State(state): State<AppState>,
     Json(request): Json<CreateWorkflowRequest>,
-) -> std::result::Result<(StatusCode, Json<WorkflowResponse>), StatusCode> {
+) -> std::result::Result<(StatusCode, Json<WorkflowResponse>), (StatusCode, Json<ErrorResponse>)> {
     let workflow_id = Uuid::new_v4().to_string();
 
     // Convert request nodes to internal models first
@@ -111,7 +111,11 @@ pub async fn create_workflow(
                         "Provided start_node_id '{}' is not a trigger node: workflow_name='{}'",
                         provided_start_id, request.name
                     );
-                    return Err(StatusCode::BAD_REQUEST);
+                    return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
+                        error: "INVALID_START_NODE".to_string(),
+                        message: format!("Provided start node '{}' is not a trigger node", provided_start_id),
+                        details: Some("Start node must be a trigger node that can accept HTTP requests".to_string()),
+                    })));
                 }
                 provided_start_id.clone()
             }
@@ -120,7 +124,11 @@ pub async fn create_workflow(
                     "Provided start_node_id '{}' not found in nodes list: workflow_name='{}'",
                     provided_start_id, request.name
                 );
-                return Err(StatusCode::BAD_REQUEST);
+                return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
+                    error: "START_NODE_NOT_FOUND".to_string(),
+                    message: format!("Provided start_node_id '{}' not found in nodes list", provided_start_id),
+                    details: Some("Start node ID must reference an existing node in the workflow".to_string()),
+                })));
             }
         }
     } else {
@@ -164,7 +172,11 @@ pub async fn create_workflow(
             "Workflow creation validation failed: workflow_name='{}', nodes_count={}, edges_count={}, error='{}'",
             request.name, nodes.len(), edges.len(), validation_error
         );
-        return Err(StatusCode::BAD_REQUEST);
+        return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
+            error: "WORKFLOW_VALIDATION_FAILED".to_string(),
+            message: "Workflow validation failed".to_string(),
+            details: Some(validation_error.to_string()),
+        })));
     }
 
     // Check for warnings and log them
@@ -186,18 +198,26 @@ pub async fn create_workflow(
         .insert(&*state.db)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to create workflow: workflow_id={}, name='{}', error={:?}", 
+            tracing::error!("Failed to create workflow: workflow_id={}, name='{}', error={:?}",
                            workflow_id, request.name, e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "DATABASE_ERROR".to_string(),
+                message: "Failed to create workflow".to_string(),
+                details: Some(format!("Database error: {}", e)),
+            }))
         })?;
 
     // Create all nodes (start node + user nodes)
     for node in &nodes {
         let node_config = serde_json::to_string(&node.node_type)
             .map_err(|e| {
-                tracing::error!("Failed to serialize node config during creation: workflow_id={}, node_id={}, error={:?}", 
+                tracing::error!("Failed to serialize node config during creation: workflow_id={}, node_id={}, error={:?}",
                                workflow_id, node.id, e);
-                StatusCode::BAD_REQUEST
+                (StatusCode::BAD_REQUEST, Json(ErrorResponse {
+                    error: "NODE_CONFIG_ERROR".to_string(),
+                    message: format!("Failed to serialize configuration for node '{}'", node.name),
+                    details: Some(format!("Node '{}' ({}): {}", node.name, node.id, e)),
+                }))
             })?;
 
         let (position_x, position_y) = {
@@ -245,9 +265,13 @@ pub async fn create_workflow(
             .insert(&*state.db)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to create node: workflow_id={}, node_id={}, node_name='{}', error={:?}", 
+                tracing::error!("Failed to create node: workflow_id={}, node_id={}, node_name='{}', error={:?}",
                                workflow_id, node.id, node.name, e);
-                StatusCode::INTERNAL_SERVER_ERROR
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                    error: "DATABASE_ERROR".to_string(),
+                    message: format!("Failed to create node '{}'", node.name),
+                    details: Some(format!("Node '{}' ({}): {}", node.name, node.id, e)),
+                }))
             })?;
     }
 
@@ -266,9 +290,13 @@ pub async fn create_workflow(
             .insert(&*state.db)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to create edge: workflow_id={}, from_node={}, to_node={}, error={:?}", 
+                tracing::error!("Failed to create edge: workflow_id={}, from_node={}, to_node={}, error={:?}",
                                workflow_id, edge_req.from_node_id, edge_req.to_node_id, e);
-                StatusCode::INTERNAL_SERVER_ERROR
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                    error: "DATABASE_ERROR".to_string(),
+                    message: "Failed to create workflow edge".to_string(),
+                    details: Some(format!("Edge from {} to {}: {}", edge_req.from_node_id, edge_req.to_node_id, e)),
+                }))
             })?;
     }
 
@@ -279,7 +307,11 @@ pub async fn create_workflow(
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch created nodes: workflow_id={}, error={:?}", workflow_id, e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "DATABASE_ERROR".to_string(),
+                message: "Failed to fetch created workflow nodes".to_string(),
+                details: Some(format!("Database error: {}", e)),
+            }))
         })?;
 
     // Fetch edges
@@ -289,7 +321,11 @@ pub async fn create_workflow(
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch created edges: workflow_id={}, error={:?}", workflow_id, e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "DATABASE_ERROR".to_string(),
+                message: "Failed to fetch created workflow edges".to_string(),
+                details: Some(format!("Database error: {}", e)),
+            }))
         })?;
 
     // Convert nodes to response format
@@ -533,6 +569,65 @@ pub async fn update_workflow(
     Json(request): Json<CreateWorkflowRequest>,
 ) -> Result<Json<WorkflowResponse>, impl IntoResponse> {
     tracing::info!("Updating workflow: workflow_id={}", id);
+
+    // Pre-validate request to provide detailed error messages
+    // Fetch existing nodes for validation context
+    let existing_nodes = nodes::Entity::find()
+        .filter(nodes::Column::WorkflowId.eq(&id))
+        .all(&*state.db)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch existing nodes for validation: workflow_id={}, error={:?}", id, e);
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "DATABASE_ERROR".to_string(),
+                message: "Failed to fetch workflow data for validation".to_string(),
+                details: Some(format!("Database error: {}", e)),
+            }))
+        })?;
+
+    // Get the existing workflow to find start node ID
+    let workflow = entities::Entity::find_by_id(&id)
+        .one(&*state.db)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch workflow for validation: workflow_id={}, error={:?}", id, e);
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "DATABASE_ERROR".to_string(),
+                message: "Failed to fetch workflow data".to_string(),
+                details: Some(format!("Database error: {}", e)),
+            }))
+        })?
+        .ok_or_else(|| {
+            tracing::warn!("Workflow not found for validation: workflow_id={}", id);
+            (StatusCode::NOT_FOUND, Json(ErrorResponse {
+                error: "WORKFLOW_NOT_FOUND".to_string(),
+                message: format!("Workflow '{}' not found", id),
+                details: None,
+            }))
+        })?;
+
+    let start_node_id = workflow.start_node_id.clone().ok_or_else(|| {
+        tracing::error!("Workflow {} has no start_node_id", id);
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            error: "INVALID_WORKFLOW_STATE".to_string(),
+            message: "Workflow is in invalid state - missing start node".to_string(),
+            details: None,
+        }))
+    })?;
+
+    // Validate the update request with detailed error reporting
+    use super::validation::validate_workflow_update_request;
+    if let Err(validation_error) = validate_workflow_update_request(&request, &start_node_id, &existing_nodes) {
+        tracing::warn!(
+            "Workflow update validation failed: workflow_id={}, error='{}'",
+            id, validation_error
+        );
+        return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
+            error: "VALIDATION_FAILED".to_string(),
+            message: "Workflow validation failed".to_string(),
+            details: Some(validation_error),
+        })));
+    }
 
     let workflow_id = id.clone();
     let service = super::service::UpdateWorkflowService::new(&state, id, request);

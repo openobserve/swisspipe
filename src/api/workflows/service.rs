@@ -157,9 +157,10 @@ impl<'a> UpdateWorkflowService<'a> {
         tracing::info!("Workflow update: validating request for workflow_id={}", self.workflow_id);
         if let Err(validation_error) = validate_workflow_update_request(&self.request, &context.existing_start_node_id, &context.existing_nodes) {
             tracing::warn!(
-                "Workflow update validation failed: workflow_id={}, nodes_count={}, edges_count={}, error='{}'", 
+                "Workflow update validation failed: workflow_id={}, nodes_count={}, edges_count={}, error='{}'",
                 self.workflow_id, self.request.nodes.len(), self.request.edges.len(), validation_error
             );
+            // For now, return BAD_REQUEST. In the future, we could enhance this to return detailed error info
             return Err(StatusCode::BAD_REQUEST);
         }
         tracing::info!("Workflow update: validation passed for workflow_id={}", self.workflow_id);

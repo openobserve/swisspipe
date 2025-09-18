@@ -8,12 +8,17 @@ pub fn is_valid_uuid(id: &str) -> bool {
     Uuid::parse_str(id).is_ok()
 }
 
-/// Detect cycles in workflow using DFS
-pub fn detect_cycles(edges: &[EdgeRequest]) -> Result<(), String> {
+/// Detect cycles in workflow using DFS with enhanced error reporting
+pub fn detect_cycles_with_node_info(edges: &[EdgeRequest], nodes: &[super::types::NodeRequest]) -> Result<(), String> {
+    // Build node name mapping for better error messages
+    let node_name_map: HashMap<String, String> = nodes.iter()
+        .filter_map(|n| n.id.as_ref().map(|id| (id.clone(), n.name.clone())))
+        .collect();
+
     // Build adjacency list
     let mut graph: HashMap<String, Vec<String>> = HashMap::new();
     let mut all_nodes: HashSet<String> = HashSet::new();
-    
+
     for edge in edges {
         graph.entry(edge.from_node_id.clone())
             .or_default()
@@ -21,45 +26,70 @@ pub fn detect_cycles(edges: &[EdgeRequest]) -> Result<(), String> {
         all_nodes.insert(edge.from_node_id.clone());
         all_nodes.insert(edge.to_node_id.clone());
     }
-    
+
     let mut visiting: HashSet<String> = HashSet::new();
     let mut visited: HashSet<String> = HashSet::new();
-    
+    let mut path: Vec<String> = Vec::new();
+
     fn dfs(
         node: &str,
         graph: &HashMap<String, Vec<String>>,
         visiting: &mut HashSet<String>,
         visited: &mut HashSet<String>,
+        path: &mut Vec<String>,
+        node_name_map: &HashMap<String, String>,
     ) -> Result<(), String> {
         if visiting.contains(node) {
-            return Err(format!("Cycle detected involving node: {node}"));
+            // Find the cycle start in the path
+            let cycle_start = path.iter().position(|n| n == node).unwrap_or(0);
+            let cycle_nodes: Vec<String> = path[cycle_start..]
+                .iter()
+                .chain(std::iter::once(&node.to_string()))
+                .map(|id| {
+                    let name = node_name_map.get(id).cloned().unwrap_or_else(|| "unknown".to_string());
+                    format!("'{}' ({})", name, id)
+                })
+                .collect();
+
+            return Err(format!(
+                "Cycle detected in workflow. Cycle path: {}",
+                cycle_nodes.join(" → ")
+            ));
         }
-        
+
         if visited.contains(node) {
             return Ok(());
         }
-        
+
         visiting.insert(node.to_string());
-        
+        path.push(node.to_string());
+
         if let Some(neighbors) = graph.get(node) {
             for neighbor in neighbors {
-                dfs(neighbor, graph, visiting, visited)?;
+                dfs(neighbor, graph, visiting, visited, path, node_name_map)?;
             }
         }
-        
+
+        path.pop();
         visiting.remove(node);
         visited.insert(node.to_string());
         Ok(())
     }
-    
+
     // Check each node for cycles
     for node in &all_nodes {
         if !visited.contains(node) {
-            dfs(node, &graph, &mut visiting, &mut visited)?;
+            dfs(node, &graph, &mut visiting, &mut visited, &mut path, &node_name_map)?;
         }
     }
-    
+
     Ok(())
+}
+
+/// Legacy cycle detection function for backward compatibility
+pub fn detect_cycles(edges: &[EdgeRequest]) -> Result<(), String> {
+    // Use enhanced version with empty node info
+    detect_cycles_with_node_info(edges, &[])
 }
 
 /// Validate workflow update request
@@ -106,32 +136,70 @@ pub fn validate_workflow_update_request(
         }
     }
     
-    // Validate no cycles in the workflow
-    if let Err(cycle_error) = detect_cycles(&request.edges) {
-        return Err(format!("Workflow contains cycles: {cycle_error}"));
+    // Validate no cycles in the workflow (using enhanced version with node names)
+    if let Err(cycle_error) = detect_cycles_with_node_info(&request.edges, &request.nodes) {
+        return Err(cycle_error);
     }
-    
+
+    // Build a comprehensive node lookup map for better error messages
+    let mut node_lookup = HashMap::new();
+
+    // Add existing nodes to lookup
+    for existing_node in existing_nodes {
+        node_lookup.insert(existing_node.id.clone(), existing_node.name.clone());
+    }
+
+    // Add/update with request nodes
+    for node in &request.nodes {
+        if let Some(node_id) = &node.id {
+            node_lookup.insert(node_id.clone(), node.name.clone());
+        }
+    }
+
+    // Helper function to get node display name
+    let get_node_display = |node_id: &str| -> String {
+        match node_lookup.get(node_id) {
+            Some(name) => format!("'{}' ({})", name, node_id),
+            None => node_id.to_string(),
+        }
+    };
+
     // Validate edges against the complete set of valid nodes
     for edge in &request.edges {
         // Validate edge node ID formats
         if !is_valid_uuid(&edge.from_node_id) {
-            return Err(format!("Invalid UUID format for edge from_node_id: {}", edge.from_node_id));
+            return Err(format!(
+                "Invalid UUID format for edge from_node_id: {}",
+                get_node_display(&edge.from_node_id)
+            ));
         }
         if !is_valid_uuid(&edge.to_node_id) {
-            return Err(format!("Invalid UUID format for edge to_node_id: {}", edge.to_node_id));
+            return Err(format!(
+                "Invalid UUID format for edge to_node_id: {}",
+                get_node_display(&edge.to_node_id)
+            ));
         }
-        
+
         // Validate that referenced nodes exist (existing OR being created/updated)
         if !all_valid_node_ids.contains(&edge.from_node_id) {
-            return Err(format!("Edge references non-existent from_node_id: {}", edge.from_node_id));
+            return Err(format!(
+                "Edge references non-existent from_node: {}",
+                get_node_display(&edge.from_node_id)
+            ));
         }
         if !all_valid_node_ids.contains(&edge.to_node_id) {
-            return Err(format!("Edge references non-existent to_node_id: {}", edge.to_node_id));
+            return Err(format!(
+                "Edge references non-existent to_node: {}",
+                get_node_display(&edge.to_node_id)
+            ));
         }
-        
+
         // Validate no self-loops
         if edge.from_node_id == edge.to_node_id {
-            return Err(format!("Self-loop detected: node {} connects to itself", edge.from_node_id));
+            return Err(format!(
+                "Self-loop detected: node {} connects to itself",
+                get_node_display(&edge.from_node_id)
+            ));
         }
         
         // Additional validation: Check for edges referencing nodes that will be deleted
@@ -143,14 +211,14 @@ pub fn validate_workflow_update_request(
             
         if from_will_be_deleted {
             return Err(format!(
-                "Edge references from_node_id {} which will be deleted in this update", 
-                edge.from_node_id
+                "Edge references from_node {} which will be deleted in this update",
+                get_node_display(&edge.from_node_id)
             ));
         }
         if to_will_be_deleted {
             return Err(format!(
-                "Edge references to_node_id {} which will be deleted in this update", 
-                edge.to_node_id
+                "Edge references to_node {} which will be deleted in this update",
+                get_node_display(&edge.to_node_id)
             ));
         }
     }
