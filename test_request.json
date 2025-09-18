@@ -1,0 +1,23 @@
+{
+    "name": "website forms",
+    "description": null,
+    "nodes": [
+        {
+            "id": "25b09f8a-6aab-4991-a8e4-cce5324cf5e8",
+            "name": "Is Newsletter signup",
+            "node_type": {
+                "Condition": {
+                    "script": "function condition(event) { return true; }"
+                }
+            },
+            "position_x": 489,
+            "position_y": 211
+        }
+    ],
+    "edges": [
+        {
+            "from_node_id": "4ca3d48b-616c-471d-9ea7-53fde8c1eda0",
+            "to_node_id": "25b09f8a-6aab-4991-a8e4-cce5324cf5e8"
+        }
+    ]
+}

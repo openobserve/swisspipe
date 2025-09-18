@@ -48,19 +48,32 @@ impl WorkflowValidator {
     /// Validate that all edge from_node_id and to_node_id exist in nodes
     fn validate_edge_consistency(nodes: &[Node], edges: &[Edge]) -> Result<()> {
         let node_ids: HashSet<String> = nodes.iter().map(|n| n.id.clone()).collect();
-        
+
+        // Create a mapping of node IDs to names for better error messages
+        let node_names: HashMap<String, String> = nodes.iter()
+            .map(|n| (n.id.clone(), n.name.clone()))
+            .collect();
+
+        // Helper function to get node display name
+        let get_node_display = |node_id: &str| -> String {
+            match node_names.get(node_id) {
+                Some(name) => format!("'{name}' ({node_id})"),
+                None => format!("node with ID '{node_id}'"),
+            }
+        };
+
         for edge in edges {
             if !node_ids.contains(&edge.from_node_id) {
                 return Err(SwissPipeError::Config(format!(
-                    "Edge references non-existent from_node_id: '{}'",
-                    edge.from_node_id
+                    "Edge references non-existent from_node: {}",
+                    get_node_display(&edge.from_node_id)
                 )));
             }
-            
+
             if !node_ids.contains(&edge.to_node_id) {
                 return Err(SwissPipeError::Config(format!(
-                    "Edge references non-existent to_node_id: '{}'",
-                    edge.to_node_id
+                    "Edge references non-existent to_node: {}",
+                    get_node_display(&edge.to_node_id)
                 )));
             }
         }

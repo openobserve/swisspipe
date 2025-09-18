@@ -1,235 +1,236 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use uuid::Uuid;
-use super::types::{CreateWorkflowRequest, EdgeRequest};
+use super::types::{CreateWorkflowRequest, EdgeRequest, NodeRequest};
 use crate::database::nodes;
+use crate::workflow::{
+    models::{Edge, Node, NodeType, InputMergeStrategy},
+    validation::WorkflowValidator,
+    errors::SwissPipeError,
+};
 
 /// Validate that a string is a valid UUID
 pub fn is_valid_uuid(id: &str) -> bool {
     Uuid::parse_str(id).is_ok()
 }
 
-/// Detect cycles in workflow using DFS with enhanced error reporting
-pub fn detect_cycles_with_node_info(edges: &[EdgeRequest], nodes: &[super::types::NodeRequest]) -> Result<(), String> {
-    // Build node name mapping for better error messages
-    let node_name_map: HashMap<String, String> = nodes.iter()
-        .filter_map(|n| n.id.as_ref().map(|id| (id.clone(), n.name.clone())))
-        .collect();
-
-    // Build adjacency list
-    let mut graph: HashMap<String, Vec<String>> = HashMap::new();
-    let mut all_nodes: HashSet<String> = HashSet::new();
-
-    for edge in edges {
-        graph.entry(edge.from_node_id.clone())
-            .or_default()
-            .push(edge.to_node_id.clone());
-        all_nodes.insert(edge.from_node_id.clone());
-        all_nodes.insert(edge.to_node_id.clone());
+/// Convert API NodeRequest to workflow Node model
+fn convert_node_request_to_node(
+    node_request: &NodeRequest,
+    workflow_id: &str,
+    node_id: &str,
+) -> Node {
+    Node {
+        id: node_id.to_string(),
+        workflow_id: workflow_id.to_string(),
+        name: node_request.name.clone(),
+        node_type: node_request.node_type.clone(),
+        input_merge_strategy: None, // Default for API requests
     }
+}
 
-    let mut visiting: HashSet<String> = HashSet::new();
-    let mut visited: HashSet<String> = HashSet::new();
-    let mut path: Vec<String> = Vec::new();
+/// Convert existing database node to workflow Node model
+fn convert_db_node_to_node(db_node: &nodes::Model) -> Result<Node, String> {
+    // Parse the JSON stored node_type
+    let node_type: NodeType = serde_json::from_str(&db_node.node_type)
+        .map_err(|e| format!("Failed to parse node_type for node {}: {}", db_node.id, e))?;
 
-    fn dfs(
-        node: &str,
-        graph: &HashMap<String, Vec<String>>,
-        visiting: &mut HashSet<String>,
-        visited: &mut HashSet<String>,
-        path: &mut Vec<String>,
-        node_name_map: &HashMap<String, String>,
-    ) -> Result<(), String> {
-        if visiting.contains(node) {
-            // Find the cycle start in the path
-            let cycle_start = path.iter().position(|n| n == node).unwrap_or(0);
-            let cycle_nodes: Vec<String> = path[cycle_start..]
-                .iter()
-                .chain(std::iter::once(&node.to_string()))
-                .map(|id| {
-                    let name = node_name_map.get(id).cloned().unwrap_or_else(|| "unknown".to_string());
-                    format!("'{name}' ({id})")
-                })
-                .collect();
+    // Parse the JSON stored input_merge_strategy if present
+    let input_merge_strategy: Option<InputMergeStrategy> = match &db_node.input_merge_strategy {
+        Some(json_str) => Some(serde_json::from_str(json_str)
+            .map_err(|e| format!("Failed to parse input_merge_strategy for node {}: {}", db_node.id, e))?),
+        None => None,
+    };
 
-            return Err(format!(
-                "Cycle detected in workflow. Cycle path: {}",
-                cycle_nodes.join(" → ")
-            ));
-        }
+    Ok(Node {
+        id: db_node.id.clone(),
+        workflow_id: db_node.workflow_id.clone(),
+        name: db_node.name.clone(),
+        node_type,
+        input_merge_strategy,
+    })
+}
 
-        if visited.contains(node) {
-            return Ok(());
-        }
-
-        visiting.insert(node.to_string());
-        path.push(node.to_string());
-
-        if let Some(neighbors) = graph.get(node) {
-            for neighbor in neighbors {
-                dfs(neighbor, graph, visiting, visited, path, node_name_map)?;
-            }
-        }
-
-        path.pop();
-        visiting.remove(node);
-        visited.insert(node.to_string());
-        Ok(())
+/// Convert API EdgeRequest to workflow Edge model
+fn convert_edge_request_to_edge(
+    edge_request: &EdgeRequest,
+    workflow_id: &str,
+    edge_id: &str,
+) -> Edge {
+    Edge {
+        id: edge_id.to_string(),
+        workflow_id: workflow_id.to_string(),
+        from_node_id: edge_request.from_node_id.clone(),
+        to_node_id: edge_request.to_node_id.clone(),
+        condition_result: edge_request.condition_result,
     }
-
-    // Check each node for cycles
-    for node in &all_nodes {
-        if !visited.contains(node) {
-            dfs(node, &graph, &mut visiting, &mut visited, &mut path, &node_name_map)?;
-        }
-    }
-
-    Ok(())
 }
 
 
-/// Validate workflow update request
+/// Comprehensive workflow update validation using core WorkflowValidator
 pub fn validate_workflow_update_request(
-    request: &CreateWorkflowRequest, 
+    request: &CreateWorkflowRequest,
     start_node_id: &str,
     existing_nodes: &[nodes::Model]
 ) -> Result<(), String> {
     tracing::debug!(
-        "Starting workflow update validation: workflow_name='{}', request_nodes={}, request_edges={}, existing_nodes={}", 
+        "Starting comprehensive workflow update validation: workflow_name='{}', request_nodes={}, request_edges={}, existing_nodes={}",
         request.name, request.nodes.len(), request.edges.len(), existing_nodes.len()
     );
-    // Collect ALL valid node IDs (existing + new + updated)
-    let mut all_valid_node_ids = HashSet::new();
-    
-    // Include ALL existing nodes (they will remain valid even if not in update)
-    for existing_node in existing_nodes {
-        all_valid_node_ids.insert(existing_node.id.clone());
+
+    // Step 1: Basic input validation
+    validate_basic_inputs(request)?;
+
+    // Step 2: Build complete node and edge sets for validation
+    let (all_nodes, all_edges) = build_complete_workflow_model(
+        request,
+        existing_nodes,
+        start_node_id
+    )?;
+
+    // Step 3: Use core WorkflowValidator for comprehensive validation
+    match WorkflowValidator::validate_workflow(
+        &request.name,
+        start_node_id,
+        &all_nodes,
+        &all_edges,
+    ) {
+        Ok(()) => {
+            tracing::debug!(
+                "Comprehensive validation completed successfully: workflow_name='{}', total_nodes={}, total_edges={}",
+                request.name, all_nodes.len(), all_edges.len()
+            );
+            Ok(())
+        }
+        Err(SwissPipeError::Config(msg)) => {
+            tracing::warn!(
+                "Workflow validation failed: workflow_name='{}', error='{}'",
+                request.name, msg
+            );
+            Err(msg)
+        }
+        Err(e) => {
+            tracing::error!(
+                "Unexpected validation error: workflow_name='{}', error='{:?}'",
+                request.name, e
+            );
+            Err(format!("Validation error: {e}"))
+        }
     }
-    
-    // Track which nodes are being updated/created in this request
-    let mut request_node_ids = HashSet::new();
-    
-    // Validate request nodes and collect their IDs
+}
+
+/// Validate basic input constraints
+fn validate_basic_inputs(request: &CreateWorkflowRequest) -> Result<(), String> {
+    // Validate workflow name
+    if request.name.trim().is_empty() {
+        return Err("Workflow name cannot be empty".to_string());
+    }
+
+    if request.name.len() > 255 {
+        return Err(format!("Workflow name too long: '{}' ({} characters, max 255)",
+                          request.name, request.name.len()));
+    }
+
+    // Validate request nodes
     for node in &request.nodes {
         // Validate node ID format if provided
         if let Some(node_id) = &node.id {
             if !is_valid_uuid(node_id) {
                 return Err(format!("Invalid UUID format for node ID: {node_id}"));
             }
-            all_valid_node_ids.insert(node_id.clone());
-            request_node_ids.insert(node_id.clone());
         }
-        
+
         // Validate node name is not empty
         if node.name.trim().is_empty() {
             return Err(format!("Node name cannot be empty (node_id: {:?})", node.id));
         }
-        
+
         // Validate node name length (reasonable limit)
         if node.name.len() > 255 {
-            return Err(format!("Node name too long: '{}' ({} characters, max 255, node_id: {:?})", 
+            return Err(format!("Node name too long: '{}' ({} characters, max 255, node_id: {:?})",
                               node.name, node.name.len(), node.id));
         }
     }
-    
-    // Validate no cycles in the workflow (using enhanced version with node names)
-    detect_cycles_with_node_info(&request.edges, &request.nodes)?;
 
-    // Build a comprehensive node lookup map for better error messages
-    let mut node_lookup = HashMap::new();
-
-    // Add existing nodes to lookup
-    for existing_node in existing_nodes {
-        node_lookup.insert(existing_node.id.clone(), existing_node.name.clone());
-    }
-
-    // Add/update with request nodes
-    for node in &request.nodes {
-        if let Some(node_id) = &node.id {
-            node_lookup.insert(node_id.clone(), node.name.clone());
-        }
-    }
-
-    // Helper function to get node display name
-    let get_node_display = |node_id: &str| -> String {
-        match node_lookup.get(node_id) {
-            Some(name) => format!("'{name}' ({node_id})"),
-            None => node_id.to_string(),
-        }
-    };
-
-    // Validate edges against the complete set of valid nodes
+    // Validate edge node ID formats
     for edge in &request.edges {
-        // Validate edge node ID formats
         if !is_valid_uuid(&edge.from_node_id) {
-            return Err(format!(
-                "Invalid UUID format for edge from_node_id: {}",
-                get_node_display(&edge.from_node_id)
-            ));
+            return Err(format!("Invalid UUID format for edge from_node_id: {}", edge.from_node_id));
         }
         if !is_valid_uuid(&edge.to_node_id) {
-            return Err(format!(
-                "Invalid UUID format for edge to_node_id: {}",
-                get_node_display(&edge.to_node_id)
-            ));
+            return Err(format!("Invalid UUID format for edge to_node_id: {}", edge.to_node_id));
         }
+    }
 
-        // Validate that referenced nodes exist (existing OR being created/updated)
-        if !all_valid_node_ids.contains(&edge.from_node_id) {
-            return Err(format!(
-                "Edge references non-existent from_node: {}",
-                get_node_display(&edge.from_node_id)
-            ));
-        }
-        if !all_valid_node_ids.contains(&edge.to_node_id) {
-            return Err(format!(
-                "Edge references non-existent to_node: {}",
-                get_node_display(&edge.to_node_id)
-            ));
-        }
-
-        // Validate no self-loops
-        if edge.from_node_id == edge.to_node_id {
-            return Err(format!(
-                "Self-loop detected: node {} connects to itself",
-                get_node_display(&edge.from_node_id)
-            ));
-        }
-        
-        // Additional validation: Check for edges referencing nodes that will be deleted
-        // A node will be deleted if it exists but is not in the request and is not the start node
-        let from_will_be_deleted = existing_nodes.iter()
-            .any(|n| n.id == edge.from_node_id && n.id != start_node_id && !request_node_ids.contains(&n.id));
-        let to_will_be_deleted = existing_nodes.iter()
-            .any(|n| n.id == edge.to_node_id && n.id != start_node_id && !request_node_ids.contains(&n.id));
-            
-        if from_will_be_deleted {
-            return Err(format!(
-                "Edge references from_node {} which will be deleted in this update",
-                get_node_display(&edge.from_node_id)
-            ));
-        }
-        if to_will_be_deleted {
-            return Err(format!(
-                "Edge references to_node {} which will be deleted in this update",
-                get_node_display(&edge.to_node_id)
-            ));
-        }
-    }
-    
-    // Validate workflow name
-    if request.name.trim().is_empty() {
-        return Err("Workflow name cannot be empty".to_string());
-    }
-    
-    if request.name.len() > 255 {
-        return Err(format!("Workflow name too long: '{}' ({} characters, max 255)", 
-                          request.name, request.name.len()));
-    }
-    
-    tracing::debug!(
-        "Workflow update validation completed successfully: workflow_name='{}', total_valid_nodes={}, request_edges={}", 
-        request.name, all_valid_node_ids.len(), request.edges.len()
-    );
-    
     Ok(())
+}
+
+/// Build complete workflow model for validation (existing + request nodes/edges)
+fn build_complete_workflow_model(
+    request: &CreateWorkflowRequest,
+    existing_nodes: &[nodes::Model],
+    start_node_id: &str,
+) -> Result<(Vec<Node>, Vec<Edge>), String> {
+    let workflow_id = "temp_validation_id"; // Temporary ID for validation
+
+    // Build complete node set
+    let mut all_nodes = Vec::new();
+    let mut processed_node_ids = HashSet::new();
+
+    // Add/update nodes from request
+    for node_request in &request.nodes {
+        if let Some(node_id) = &node_request.id {
+            let workflow_node = convert_node_request_to_node(
+                node_request,
+                workflow_id,
+                node_id
+            );
+            all_nodes.push(workflow_node);
+            processed_node_ids.insert(node_id.clone());
+        } else {
+            // Generate temp ID for validation of nodes without IDs
+            let temp_id = Uuid::new_v4().to_string();
+            let workflow_node = convert_node_request_to_node(
+                node_request,
+                workflow_id,
+                &temp_id
+            );
+            all_nodes.push(workflow_node);
+            processed_node_ids.insert(temp_id);
+        }
+    }
+
+    // Add remaining existing nodes (not being updated)
+    for existing_node in existing_nodes {
+        if !processed_node_ids.contains(&existing_node.id) {
+            let workflow_node = convert_db_node_to_node(existing_node)?;
+            all_nodes.push(workflow_node);
+        }
+    }
+
+    // Build complete edge set
+    let mut all_edges = Vec::new();
+    for (i, edge_request) in request.edges.iter().enumerate() {
+        let edge_id = format!("temp_edge_{i}"); // Temporary ID for validation
+        let workflow_edge = convert_edge_request_to_edge(
+            edge_request,
+            workflow_id,
+            &edge_id
+        );
+        all_edges.push(workflow_edge);
+    }
+
+    // Validate that start_node_id exists in the final node set
+    let node_exists = all_nodes.iter().any(|n| n.id == start_node_id);
+    if !node_exists {
+        return Err(format!(
+            "Start node with ID '{start_node_id}' not found in workflow nodes"
+        ));
+    }
+
+    tracing::debug!(
+        "Built complete workflow model: total_nodes={}, total_edges={}, start_node_id={}",
+        all_nodes.len(), all_edges.len(), start_node_id
+    );
+
+    Ok((all_nodes, all_edges))
 }

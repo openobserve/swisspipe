@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, State, Request, FromRequest},
     http::StatusCode,
     response::{Json, IntoResponse},
 };
@@ -19,6 +19,40 @@ use crate::{
 use super::{
     types::*,
 };
+
+// Custom JSON extractor for better error handling
+pub struct JsonWithBetterErrors<T>(pub T);
+
+#[axum::async_trait]
+impl<T, S> FromRequest<S> for JsonWithBetterErrors<T>
+where
+    T: serde::de::DeserializeOwned,
+    S: Send + Sync,
+{
+    type Rejection = (StatusCode, Json<ErrorResponse>);
+
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+        match Json::<T>::from_request(req, state).await {
+            Ok(Json(value)) => Ok(JsonWithBetterErrors(value)),
+            Err(rejection) => {
+                tracing::warn!("JSON parsing failed: {}", rejection);
+                let error_details = if rejection.to_string().contains("EOF while parsing") {
+                    "Request body is empty or incomplete JSON".to_string()
+                } else if rejection.to_string().contains("expected") {
+                    format!("Invalid JSON format: {rejection}")
+                } else {
+                    format!("Failed to parse JSON request: {rejection}")
+                };
+
+                Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
+                    error: "INVALID_JSON".to_string(),
+                    message: "Request body contains invalid JSON".to_string(),
+                    details: Some(error_details),
+                })))
+            }
+        }
+    }
+}
 
 /// Maps HTTP status codes to structured error responses for workflow operations
 fn map_status_to_error_response(status: StatusCode) -> ErrorResponse {
@@ -87,7 +121,7 @@ pub async fn list_workflows(
 
 pub async fn create_workflow(
     State(state): State<AppState>,
-    Json(request): Json<CreateWorkflowRequest>,
+    JsonWithBetterErrors(request): JsonWithBetterErrors<CreateWorkflowRequest>,
 ) -> std::result::Result<(StatusCode, Json<WorkflowResponse>), (StatusCode, Json<ErrorResponse>)> {
     let workflow_id = Uuid::new_v4().to_string();
 
@@ -566,7 +600,7 @@ pub async fn enable_workflow(
 pub async fn update_workflow(
     State(state): State<AppState>,
     Path(id): Path<String>,
-    Json(request): Json<CreateWorkflowRequest>,
+    JsonWithBetterErrors(request): JsonWithBetterErrors<CreateWorkflowRequest>,
 ) -> Result<Json<WorkflowResponse>, impl IntoResponse> {
     tracing::info!("Updating workflow: workflow_id={}", id);
 
