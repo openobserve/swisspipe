@@ -3,9 +3,7 @@ use axum::{
     http::{HeaderMap, Method, Uri},
     middleware::Next,
     response::Response,
-    body::Body,
 };
-use axum::body::to_bytes;
 use base64::prelude::*;
 use serde_json::{Value, json};
 use std::{time::Instant, sync::Arc};
@@ -144,51 +142,36 @@ fn get_request_info(method: &Method, uri: &Uri, headers: &HeaderMap) -> Value {
     Value::Object(info)
 }
 
-/// Extract request body safely with size limits
-async fn extract_request_body(request: &mut Request) -> Option<String> {
-    const MAX_BODY_SIZE: usize = 4096; // 4KB limit for logging
-
-    // Only capture body for methods that typically have bodies
-    if !matches!(request.method(), &Method::POST | &Method::PUT | &Method::PATCH) {
-        return None;
-    }
-
-    // Check content-type - only log JSON, form data, etc.
-    let content_type = request.headers()
-        .get("content-type")
-        .and_then(|ct| ct.to_str().ok())
-        .unwrap_or("");
-
-    if !content_type.starts_with("application/json")
-        && !content_type.starts_with("application/x-www-form-urlencoded")
-        && !content_type.starts_with("multipart/form-data") {
-        return None;
-    }
-
-    // Extract body
-    let body = std::mem::replace(request.body_mut(), Body::empty());
-
-    match to_bytes(body, MAX_BODY_SIZE).await {
-        Ok(bytes) => {
-            // Put the body back for the actual request
-            *request.body_mut() = Body::from(bytes.clone());
-
-            // Convert to string if it's valid UTF-8
-            match String::from_utf8(bytes.to_vec()) {
-                Ok(body_str) => {
-                    if body_str.len() > MAX_BODY_SIZE {
-                        Some(format!("{}... [truncated at {} bytes]", &body_str[..MAX_BODY_SIZE-50], MAX_BODY_SIZE))
-                    } else {
-                        Some(body_str)
-                    }
-                }
-                Err(_) => Some(format!("<binary data {} bytes>", bytes.len()))
+/// Helper function to emit structured JSON logs with error handling
+fn emit_admin_api_log(data: &serde_json::Value, level: tracing::Level) {
+    match serde_json::to_string(data) {
+        Ok(json_str) => {
+            match level {
+                tracing::Level::DEBUG => tracing::debug!(target: "admin_api", "{}", json_str),
+                tracing::Level::INFO => tracing::info!(target: "admin_api", "{}", json_str),
+                tracing::Level::WARN => tracing::warn!(target: "admin_api", "{}", json_str),
+                _ => tracing::info!(target: "admin_api", "{}", json_str),
             }
         }
-        Err(_) => {
-            // If we fail to read the body, put an empty body back
-            *request.body_mut() = Body::empty();
-            Some("<failed to read body>".to_string())
+        Err(e) => {
+            tracing::error!(target: "admin_api", "Failed to serialize log: {}", e);
+        }
+    }
+}
+
+/// Helper function to emit structured JSON audit logs with error handling
+fn emit_admin_audit_log(data: &serde_json::Value, level: tracing::Level) {
+    match serde_json::to_string(data) {
+        Ok(json_str) => {
+            match level {
+                tracing::Level::DEBUG => tracing::debug!(target: "admin_api_audit", "{}", json_str),
+                tracing::Level::INFO => tracing::info!(target: "admin_api_audit", "{}", json_str),
+                tracing::Level::WARN => tracing::warn!(target: "admin_api_audit", "{}", json_str),
+                _ => tracing::info!(target: "admin_api_audit", "{}", json_str),
+            }
+        }
+        Err(e) => {
+            tracing::error!(target: "admin_api_audit", "Failed to serialize audit log: {}", e);
         }
     }
 }
@@ -196,7 +179,7 @@ async fn extract_request_body(request: &mut Request) -> Option<String> {
 /// Admin API logging middleware that only logs admin routes
 pub async fn admin_api_logging_middleware(
     State(state): State<AppState>,
-    mut request: Request,
+    request: Request,
     next: Next,
 ) -> Response {
     // Only log admin API routes
@@ -211,8 +194,8 @@ pub async fn admin_api_logging_middleware(
     // Single timestamp for all logs in this request
     let timestamp = chrono::Utc::now().to_rfc3339();
 
-    // Extract request body for logging (with size limits)
-    let request_body = extract_request_body(&mut request).await;
+    // Body extraction disabled to prevent request body consumption issue
+    let request_body: Option<String> = None;
 
     // Extract user information with database lookup
     let user = extract_user_info(&headers, &state.db).await;
@@ -240,14 +223,7 @@ pub async fn admin_api_logging_middleware(
         "timestamp": timestamp
     });
 
-    match serde_json::to_string(&request_log) {
-        Ok(json_str) => {
-            tracing::debug!(target: "admin_api", "{}", json_str);
-        }
-        Err(e) => {
-            tracing::error!(target: "admin_api", "Failed to serialize request log: {}", e);
-        }
-    }
+    emit_admin_api_log(&request_log, tracing::Level::DEBUG);
 
     // Process the request
     let response = next.run(request).await;
@@ -270,14 +246,7 @@ pub async fn admin_api_logging_middleware(
         "timestamp": timestamp
     });
 
-    match serde_json::to_string(&response_log) {
-        Ok(json_str) => {
-            tracing::debug!(target: "admin_api", "{}", json_str);
-        }
-        Err(e) => {
-            tracing::error!(target: "admin_api", "Failed to serialize response log: {}", e);
-        }
-    }
+    emit_admin_api_log(&response_log, tracing::Level::DEBUG);
 
     // Create structured JSON audit log (detailed with request_info)
     let audit_log = json!({
@@ -295,18 +264,12 @@ pub async fn admin_api_logging_middleware(
         "timestamp": timestamp
     });
 
-    match serde_json::to_string(&audit_log) {
-        Ok(json_str) => {
-            if status.is_success() {
-                tracing::info!(target: "admin_api_audit", "{}", json_str);
-            } else {
-                tracing::warn!(target: "admin_api_audit", "{}", json_str);
-            }
-        }
-        Err(e) => {
-            tracing::error!(target: "admin_api_audit", "Failed to serialize audit log: {}", e);
-        }
-    }
+    let audit_level = if status.is_success() {
+        tracing::Level::INFO
+    } else {
+        tracing::Level::WARN
+    };
+    emit_admin_audit_log(&audit_log, audit_level);
 
     response
 }

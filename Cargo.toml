@@ -43,3 +43,8 @@ url = "2.4"
 # Static file embedding
 rust-embed = "8.0"
 mime_guess = "2.0"
+
+[dev-dependencies]
+axum-test = "15.0"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }

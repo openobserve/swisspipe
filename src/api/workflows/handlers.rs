@@ -6,6 +6,7 @@ use axum::{
 use sea_orm::{ActiveModelTrait, EntityTrait, Set, ColumnTrait, QueryFilter};
 use std::collections::HashMap;
 use uuid::Uuid;
+use tracing::{info, warn, error, debug};
 
 use crate::{
     database::{edges, entities, nodes},
@@ -31,23 +32,65 @@ where
 {
     type Rejection = (StatusCode, Json<ErrorResponse>);
 
-    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
-        match Json::<T>::from_request(req, state).await {
-            Ok(Json(value)) => Ok(JsonWithBetterErrors(value)),
-            Err(rejection) => {
-                tracing::warn!("JSON parsing failed: {}", rejection);
-                let error_details = if rejection.to_string().contains("EOF while parsing") {
-                    "Request body is empty or incomplete JSON".to_string()
-                } else if rejection.to_string().contains("expected") {
-                    format!("Invalid JSON format: {rejection}")
-                } else {
-                    format!("Failed to parse JSON request: {rejection}")
-                };
+    async fn from_request(req: Request, _state: &S) -> Result<Self, Self::Rejection> {
+        // Extract and log request body details for debugging
+        let content_length = req.headers().get("content-length")
+            .and_then(|h| h.to_str().ok())
+            .and_then(|s| s.parse::<usize>().ok());
+
+        let content_type = req.headers().get("content-type")
+            .and_then(|h| h.to_str().ok())
+            .unwrap_or("unknown");
+
+        tracing::debug!("Processing JSON request: content-length={:?}, content-type={}",
+                       content_length, content_type);
+
+        // For debugging empty body issues, let's read the body first and then reconstruct the request
+        let body_bytes = match axum::body::to_bytes(req.into_body(), usize::MAX).await {
+            Ok(bytes) => bytes,
+            Err(err) => {
+                tracing::error!("Failed to read request body bytes: {}", err);
+                return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
+                    error: "BODY_READ_ERROR".to_string(),
+                    message: "Failed to read request body".to_string(),
+                    details: Some(format!("Body read error: {err}")),
+                })));
+            }
+        };
+
+        tracing::debug!("Request body size: {} bytes", body_bytes.len());
+
+        if body_bytes.is_empty() {
+            tracing::error!("Request body is completely empty - this explains the EOF error");
+            return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
+                error: "EMPTY_BODY".to_string(),
+                message: "Request body is empty".to_string(),
+                details: Some("The request body contains no data. This may indicate a frontend serialization issue or network problem.".to_string()),
+            })));
+        }
+
+        if body_bytes.len() < 100 {
+            // Log small bodies completely for debugging
+            let body_str = String::from_utf8_lossy(&body_bytes);
+            tracing::debug!("Small request body content: '{}'", body_str);
+        } else {
+            // Log first and last 50 chars for large bodies
+            let body_str = String::from_utf8_lossy(&body_bytes);
+            let start = body_str.chars().take(50).collect::<String>();
+            let end = body_str.chars().rev().take(50).collect::<String>().chars().rev().collect::<String>();
+            tracing::debug!("Large request body preview: start='{}' ... end='{}'", start, end);
+        }
+
+        // Now try to deserialize the body
+        match serde_json::from_slice::<T>(&body_bytes) {
+            Ok(value) => Ok(JsonWithBetterErrors(value)),
+            Err(err) => {
+                tracing::error!("JSON deserialization failed: {}", err);
 
                 Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
                     error: "INVALID_JSON".to_string(),
                     message: "Request body contains invalid JSON".to_string(),
-                    details: Some(error_details),
+                    details: Some(format!("Serde JSON error: {err}")),
                 })))
             }
         }
@@ -80,14 +123,17 @@ fn map_status_to_error_response(status: StatusCode) -> ErrorResponse {
     }
 }
 
+
 pub async fn list_workflows(
     State(state): State<AppState>,
 ) -> std::result::Result<Json<WorkflowListResponse>, (StatusCode, Json<ErrorResponse>)> {
+    debug!("Listing all workflows");
+
     let workflows = entities::Entity::find()
         .all(&*state.db)
         .await
         .map_err(|e| {
-            tracing::error!("Database error in list_workflows: {}", e);
+            error!("Database error in list_workflows: {}", e);
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                 error: "DATABASE_ERROR".to_string(),
                 message: "Failed to fetch workflows from database".to_string(),
@@ -95,25 +141,30 @@ pub async fn list_workflows(
             }))
         })?;
 
+    let workflow_count = workflows.len();
     let workflow_responses: Vec<WorkflowResponse> = workflows
         .into_iter()
-        .map(|w| WorkflowResponse {
-            endpoint_url: format!("/api/v1/{}/trigger", w.id),
-            id: w.id.clone(),
-            name: w.name,
-            description: w.description,
-            start_node_id: w.start_node_id.unwrap_or_else(|| {
-                tracing::warn!("Workflow {} has no start_node_id", w.id);
-                "".to_string()
-            }),
-            enabled: w.enabled,
-            created_at: w.created_at,
-            updated_at: w.updated_at,
-            nodes: vec![], // Not included in list view for performance
-            edges: vec![], // Not included in list view for performance
+        .map(|w| {
+            let workflow_id = w.id.clone();
+            WorkflowResponse {
+                endpoint_url: format!("/api/v1/{workflow_id}/trigger"),
+                id: workflow_id.clone(),
+                name: w.name,
+                description: w.description,
+                start_node_id: w.start_node_id.unwrap_or_else(|| {
+                    warn!("Workflow {} has no start_node_id", workflow_id);
+                    String::new() // More efficient than "".to_string()
+                }),
+                enabled: w.enabled,
+                created_at: w.created_at,
+                updated_at: w.updated_at,
+                nodes: Vec::new(), // Not included in list view for performance
+                edges: Vec::new(), // Not included in list view for performance
+            }
         })
         .collect();
 
+    info!("Successfully listed {} workflows", workflow_count);
     Ok(Json(WorkflowListResponse {
         workflows: workflow_responses,
     }))
@@ -659,7 +710,7 @@ pub async fn update_workflow(
         return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
             error: "VALIDATION_FAILED".to_string(),
             message: "Workflow validation failed".to_string(),
-            details: Some(validation_error),
+            details: Some(validation_error.to_string()),
         })));
     }
 

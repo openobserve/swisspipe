@@ -16,8 +16,8 @@ async fn create_test_execution(db: &DatabaseConnection, execution_id: &str) -> R
         name: Set("Test Workflow".to_string()),
         description: Set(Some("Test workflow for input sync".to_string())),
         start_node_id: Set(None),
-        created_at: Set(chrono::Utc::now()),
-        updated_at: Set(chrono::Utc::now()),
+        created_at: Set(chrono::Utc::now().timestamp_micros()),
+        updated_at: Set(chrono::Utc::now().timestamp_micros()),
         ..Default::default()
     };
     // Ignore errors in case the workflow already exists

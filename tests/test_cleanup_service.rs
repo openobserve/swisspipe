@@ -20,8 +20,8 @@ async fn test_cleanup_service_retention() {
         name: Set("Test Workflow".to_string()),
         description: Set(Some("Test workflow for cleanup service".to_string())),
         start_node_id: Set(None),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
+        created_at: Set(Utc::now().timestamp_micros()),
+        updated_at: Set(Utc::now().timestamp_micros()),
         ..Default::default()
     };
     workflow.insert(db.as_ref()).await.unwrap();
@@ -102,8 +102,8 @@ async fn test_cleanup_service_multiple_workflows() {
         name: Set("Test Workflow 1".to_string()),
         description: Set(Some("Test workflow 1 for cleanup service".to_string())),
         start_node_id: Set(None),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
+        created_at: Set(Utc::now().timestamp_micros()),
+        updated_at: Set(Utc::now().timestamp_micros()),
         ..Default::default()
     };
     workflow_1.insert(db.as_ref()).await.unwrap();
@@ -113,8 +113,8 @@ async fn test_cleanup_service_multiple_workflows() {
         name: Set("Test Workflow 2".to_string()),
         description: Set(Some("Test workflow 2 for cleanup service".to_string())),
         start_node_id: Set(None),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
+        created_at: Set(Utc::now().timestamp_micros()),
+        updated_at: Set(Utc::now().timestamp_micros()),
         ..Default::default()
     };
     workflow_2.insert(db.as_ref()).await.unwrap();
@@ -214,8 +214,8 @@ async fn test_cleanup_stats() {
         name: Set("Test Workflow 1".to_string()),
         description: Set(Some("Test workflow 1 for stats".to_string())),
         start_node_id: Set(None),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
+        created_at: Set(Utc::now().timestamp_micros()),
+        updated_at: Set(Utc::now().timestamp_micros()),
         ..Default::default()
     };
     workflow_1.insert(db.as_ref()).await.unwrap();
@@ -225,8 +225,8 @@ async fn test_cleanup_stats() {
         name: Set("Test Workflow 2".to_string()),
         description: Set(Some("Test workflow 2 for stats".to_string())),
         start_node_id: Set(None),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
+        created_at: Set(Utc::now().timestamp_micros()),
+        updated_at: Set(Utc::now().timestamp_micros()),
         ..Default::default()
     };
     workflow_2.insert(db.as_ref()).await.unwrap();
@@ -300,8 +300,8 @@ async fn test_cleanup_no_executions_to_delete() {
         name: Set("Test Workflow".to_string()),
         description: Set(Some("Test workflow for no cleanup case".to_string())),
         start_node_id: Set(None),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
+        created_at: Set(Utc::now().timestamp_micros()),
+        updated_at: Set(Utc::now().timestamp_micros()),
         ..Default::default()
     };
     workflow.insert(db.as_ref()).await.unwrap();

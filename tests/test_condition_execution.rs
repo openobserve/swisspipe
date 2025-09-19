@@ -184,6 +184,7 @@ async fn test_conditional_edge_evaluation_true_path() {
         name: "Conditional Test Workflow".to_string(),
         description: Some("Test conditional edge evaluation".to_string()),
         start_node_id: Some(trigger_node_id.clone()),
+        enabled: true,
         nodes: vec![trigger_node, condition_node, true_transformer, false_transformer],
         edges,
     };
@@ -320,6 +321,7 @@ async fn test_conditional_edge_evaluation_false_path() {
         name: "Conditional Test Workflow False".to_string(),
         description: Some("Test conditional edge evaluation - false path".to_string()),
         start_node_id: Some(trigger_node_id.clone()),
+        enabled: true,
         nodes: vec![trigger_node, condition_node, true_transformer, false_transformer],
         edges,
     };
@@ -429,6 +431,7 @@ async fn test_multiple_conditions_in_workflow() {
         name: "Multiple Conditions Workflow".to_string(),
         description: Some("Test multiple condition nodes".to_string()),
         start_node_id: Some(trigger_node_id.clone()),
+        enabled: true,
         nodes: vec![
             Node {
                 id: trigger_node_id.clone(),

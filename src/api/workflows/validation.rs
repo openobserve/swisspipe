@@ -3,10 +3,39 @@ use uuid::Uuid;
 use super::types::{CreateWorkflowRequest, EdgeRequest, NodeRequest};
 use crate::database::nodes;
 use crate::workflow::{
-    models::{Edge, Node, NodeType, InputMergeStrategy, RetryConfig, FailureAction, HttpMethod},
+    models::{Edge, Node, NodeType, RetryConfig, FailureAction, HttpMethod},
     validation::WorkflowValidator,
     errors::SwissPipeError,
 };
+use thiserror::Error;
+
+/// Custom validation errors with structured information
+#[derive(Error, Debug)]
+pub enum ValidationError {
+    #[error("Invalid UUID format for {field}: {value}")]
+    InvalidUuid { field: String, value: String },
+
+    #[error("Field '{field}' cannot be empty")]
+    EmptyField { field: String },
+
+    #[error("Field '{field}' exceeds maximum length of {max_len}: {actual_len} characters")]
+    FieldTooLong { field: String, max_len: usize, actual_len: usize },
+
+    #[error("Start node '{node_id}' not found in workflow nodes")]
+    StartNodeNotFound { node_id: String },
+
+    #[error("Database integrity issue with node {node_id} ('{node_name}'): {details}")]
+    DatabaseIntegrity { node_id: String, node_name: String, details: String },
+
+    #[error("Workflow validation failed: {message}")]
+    WorkflowValidation { message: String },
+}
+
+impl From<ValidationError> for String {
+    fn from(err: ValidationError) -> Self {
+        err.to_string()
+    }
+}
 
 /// Validate that a string is a valid UUID
 pub fn is_valid_uuid(id: &str) -> bool {
@@ -28,58 +57,54 @@ fn convert_node_request_to_node(
     }
 }
 
-/// Convert existing database node to workflow Node model
-fn convert_db_node_to_node(db_node: &nodes::Model) -> Result<Node, String> {
+/// Convert existing database node to workflow Node model with improved error handling
+fn convert_db_node_to_node(db_node: &nodes::Model) -> Result<Node, ValidationError> {
     tracing::debug!(
-        "Converting database node to workflow node: id={}, name='{}', node_type_json='{}'",
-        db_node.id, db_node.name, db_node.node_type
+        "Converting database node to workflow node: id={}, name='{}'",
+        db_node.id, db_node.name
     );
 
     // Check for empty or invalid JSON before parsing
     if db_node.node_type.trim().is_empty() {
-        return Err(format!(
-            "Node {} ('{}') has empty node_type JSON - database corruption detected",
-            db_node.id, db_node.name
-        ));
+        return Err(ValidationError::DatabaseIntegrity {
+            node_id: db_node.id.clone(),
+            node_name: db_node.name.clone(),
+            details: "Empty node_type JSON - database corruption detected".to_string(),
+        });
     }
 
-    // Parse the JSON stored node_type with fallback for legacy data
-    let node_type: NodeType = match serde_json::from_str(&db_node.node_type) {
-        Ok(node_type) => node_type,
-        Err(parse_error) => {
+    // Parse the JSON stored node_type with improved error handling
+    let node_type: NodeType = serde_json::from_str(&db_node.node_type)
+        .or_else(|parse_error| {
             tracing::warn!(
-                "Failed to parse node_type as JSON for node {} ('{}'): {} - attempting legacy format conversion",
-                db_node.id, db_node.name, parse_error
+                "Failed to parse node_type as JSON for node {}: {} - attempting legacy conversion",
+                db_node.id, parse_error
             );
 
-            // Attempt to handle legacy string format
-            match convert_legacy_node_type(&db_node.node_type) {
-                Ok(legacy_node_type) => {
-                    tracing::info!(
-                        "Successfully converted legacy node_type '{}' for node {} ('{}')",
-                        db_node.node_type, db_node.id, db_node.name
-                    );
-                    legacy_node_type
-                }
-                Err(legacy_error) => {
+            convert_legacy_node_type(&db_node.node_type)
+                .map_err(|legacy_error| {
                     tracing::error!(
-                        "Both JSON parsing and legacy conversion failed for node {}: node_type='{}', json_error={}, legacy_error={}",
-                        db_node.id, db_node.node_type, parse_error, legacy_error
+                        "Both JSON and legacy conversion failed for node {}: json_error={}, legacy_error={}",
+                        db_node.id, parse_error, legacy_error
                     );
-                    return Err(format!(
-                        "Failed to parse node_type for node {} ('{}'): {} - JSON content: '{}' - Legacy conversion also failed: {}",
-                        db_node.id, db_node.name, parse_error, db_node.node_type, legacy_error
-                    ));
-                }
-            }
-        }
-    };
+                    ValidationError::DatabaseIntegrity {
+                        node_id: db_node.id.clone(),
+                        node_name: db_node.name.clone(),
+                        details: format!("Failed to parse node_type: JSON error: {parse_error}, Legacy error: {legacy_error}"),
+                    }
+                })
+        })?;
 
-    // Parse the JSON stored input_merge_strategy if present
-    let input_merge_strategy: Option<InputMergeStrategy> = match &db_node.input_merge_strategy {
-        Some(json_str) => Some(serde_json::from_str(json_str)
-            .map_err(|e| format!("Failed to parse input_merge_strategy for node {}: {}", db_node.id, e))?),
-        None => None,
+    // Parse input_merge_strategy with better error handling
+    let input_merge_strategy = if let Some(json_str) = &db_node.input_merge_strategy {
+        Some(serde_json::from_str(json_str)
+            .map_err(|e| ValidationError::DatabaseIntegrity {
+                node_id: db_node.id.clone(),
+                node_name: db_node.name.clone(),
+                details: format!("Failed to parse input_merge_strategy: {e}"),
+            })?)
+    } else {
+        None
     };
 
     Ok(Node {
@@ -112,7 +137,7 @@ pub fn validate_workflow_update_request(
     request: &CreateWorkflowRequest,
     start_node_id: &str,
     existing_nodes: &[nodes::Model]
-) -> Result<(), String> {
+) -> Result<(), ValidationError> {
     tracing::debug!(
         "Starting comprehensive workflow update validation: workflow_name='{}', request_nodes={}, request_edges={}, existing_nodes={}",
         request.name, request.nodes.len(), request.edges.len(), existing_nodes.len()
@@ -121,12 +146,12 @@ pub fn validate_workflow_update_request(
     // Step 1: Basic input validation
     validate_basic_inputs(request)?;
 
-    // Step 2: Build complete node and edge sets for validation
+    // Step 2: Build complete node and edge sets for validation with improved error handling
     let (all_nodes, all_edges) = build_complete_workflow_model(
         request,
         existing_nodes,
         start_node_id
-    )?;
+    ).map_err(|e| ValidationError::WorkflowValidation { message: e })?;
 
     // Step 3: Use core WorkflowValidator for comprehensive validation
     match WorkflowValidator::validate_workflow(
@@ -147,58 +172,74 @@ pub fn validate_workflow_update_request(
                 "Workflow validation failed: workflow_name='{}', error='{}'",
                 request.name, msg
             );
-            Err(msg)
+            Err(ValidationError::WorkflowValidation { message: msg })
         }
         Err(e) => {
             tracing::error!(
                 "Unexpected validation error: workflow_name='{}', error='{:?}'",
                 request.name, e
             );
-            Err(format!("Validation error: {e}"))
+            Err(ValidationError::WorkflowValidation { message: format!("Validation error: {e}") })
         }
     }
 }
 
-/// Validate basic input constraints
-fn validate_basic_inputs(request: &CreateWorkflowRequest) -> Result<(), String> {
+/// Validate basic input constraints with structured errors and batch validation
+fn validate_basic_inputs(request: &CreateWorkflowRequest) -> Result<(), ValidationError> {
     // Validate workflow name
-    if request.name.trim().is_empty() {
-        return Err("Workflow name cannot be empty".to_string());
+    let name = request.name.trim();
+    if name.is_empty() {
+        return Err(ValidationError::EmptyField { field: "workflow name".to_string() });
+    }
+    if name.len() > 255 {
+        return Err(ValidationError::FieldTooLong {
+            field: "workflow name".to_string(),
+            max_len: 255,
+            actual_len: name.len()
+        });
     }
 
-    if request.name.len() > 255 {
-        return Err(format!("Workflow name too long: '{}' ({} characters, max 255)",
-                          request.name, request.name.len()));
-    }
-
-    // Validate request nodes
-    for node in &request.nodes {
+    // Batch validate nodes for better performance
+    for (index, node) in request.nodes.iter().enumerate() {
         // Validate node ID format if provided
         if let Some(node_id) = &node.id {
             if !is_valid_uuid(node_id) {
-                return Err(format!("Invalid UUID format for node ID: {node_id}"));
+                return Err(ValidationError::InvalidUuid {
+                    field: format!("node[{index}].id"),
+                    value: node_id.clone(),
+                });
             }
         }
 
-        // Validate node name is not empty
-        if node.name.trim().is_empty() {
-            return Err(format!("Node name cannot be empty (node_id: {:?})", node.id));
+        // Validate node name
+        let node_name = node.name.trim();
+        if node_name.is_empty() {
+            return Err(ValidationError::EmptyField {
+                field: format!("node[{index}].name")
+            });
         }
-
-        // Validate node name length (reasonable limit)
-        if node.name.len() > 255 {
-            return Err(format!("Node name too long: '{}' ({} characters, max 255, node_id: {:?})",
-                              node.name, node.name.len(), node.id));
+        if node_name.len() > 255 {
+            return Err(ValidationError::FieldTooLong {
+                field: format!("node[{index}].name"),
+                max_len: 255,
+                actual_len: node_name.len(),
+            });
         }
     }
 
-    // Validate edge node ID formats
-    for edge in &request.edges {
+    // Batch validate edges
+    for (index, edge) in request.edges.iter().enumerate() {
         if !is_valid_uuid(&edge.from_node_id) {
-            return Err(format!("Invalid UUID format for edge from_node_id: {}", edge.from_node_id));
+            return Err(ValidationError::InvalidUuid {
+                field: format!("edge[{index}].from_node_id"),
+                value: edge.from_node_id.clone(),
+            });
         }
         if !is_valid_uuid(&edge.to_node_id) {
-            return Err(format!("Invalid UUID format for edge to_node_id: {}", edge.to_node_id));
+            return Err(ValidationError::InvalidUuid {
+                field: format!("edge[{index}].to_node_id"),
+                value: edge.to_node_id.clone(),
+            });
         }
     }
 
@@ -343,6 +384,6 @@ fn convert_legacy_node_type(legacy_value: &str) -> Result<NodeType, String> {
                 backoff_multiplier: 2.0,
             },
         }),
-        _ => Err(format!("Unrecognized legacy node_type: '{}'", legacy_value)),
+        _ => Err(format!("Unrecognized legacy node_type: '{legacy_value}'")),
     }
 }
