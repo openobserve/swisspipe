@@ -165,6 +165,7 @@ impl<'a> UpdateWorkflowService<'a> {
         }
         tracing::info!("Workflow update: validation passed for workflow_id={}", self.workflow_id);
 
+
         // Validate workflow structure
         if let Err(validation_error) = WorkflowValidator::validate_workflow(
             &self.request.name,

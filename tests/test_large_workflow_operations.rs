@@ -476,3 +476,161 @@ async fn test_payload_size_limits() {
     assert!(!response_text.contains("EOF while parsing a value at line 1 column 0"),
         "Request body was consumed by middleware! Response: {}", response_text);
 }
+
+#[tokio::test]
+async fn test_leaf_node_deletion() {
+    let server = create_test_server().await;
+
+    // Create a simple workflow with trigger -> condition -> leaf node structure
+    let trigger_id = Uuid::new_v4().to_string();
+    let condition_id = Uuid::new_v4().to_string();
+    let leaf_node_id = Uuid::new_v4().to_string();
+
+    let initial_request = json!({
+        "name": "Test Leaf Node Deletion",
+        "description": "Test workflow for leaf node deletion bug",
+        "start_node_id": trigger_id,
+        "nodes": [
+            {
+                "id": trigger_id,
+                "name": "Start",
+                "node_type": {
+                    "Trigger": {
+                        "methods": ["POST"]
+                    }
+                },
+                "position_x": 100.0,
+                "position_y": 100.0
+            },
+            {
+                "id": condition_id,
+                "name": "Condition 307632425301",
+                "node_type": {
+                    "Condition": {
+                        "script": "function condition(event) { return true; }"
+                    }
+                },
+                "position_x": 300.0,
+                "position_y": 100.0
+            },
+            {
+                "id": leaf_node_id,
+                "name": "Leaf Node",
+                "node_type": {
+                    "Transformer": {
+                        "script": "function transformer(event) { return event; }"
+                    }
+                },
+                "position_x": 500.0,
+                "position_y": 100.0
+            }
+        ],
+        "edges": [
+            {
+                "from_node_id": trigger_id,
+                "to_node_id": condition_id
+            },
+            {
+                "from_node_id": condition_id,
+                "to_node_id": leaf_node_id,
+                "condition_result": true
+            }
+        ]
+    });
+
+    // Create the initial workflow
+    let create_response = server
+        .post("/api/admin/v1/workflows")
+        .add_header("Authorization", "Basic YWRtaW46YWRtaW4=")
+        .json(&initial_request)
+        .await;
+
+    assert_eq!(create_response.status_code(), 201);
+    let created_workflow: serde_json::Value = create_response.json();
+    let workflow_id = created_workflow["id"].as_str().unwrap();
+
+    // Now update the workflow to remove the leaf node (but keep its incoming edge)
+    // This simulates the bug scenario
+    let update_request_with_dangling_edge = json!({
+        "name": "Test Leaf Node Deletion",
+        "description": "Updated workflow with leaf node removed but edge still present",
+        "nodes": [
+            {
+                "id": condition_id,
+                "name": "Condition 307632425301",
+                "node_type": {
+                    "Condition": {
+                        "script": "function condition(event) { return true; }"
+                    }
+                },
+                "position_x": 300.0,
+                "position_y": 100.0
+            }
+            // Leaf node is removed but edge to it remains
+        ],
+        "edges": [
+            {
+                "from_node_id": trigger_id,
+                "to_node_id": condition_id
+            },
+            {
+                "from_node_id": condition_id,
+                "to_node_id": leaf_node_id, // This references the deleted node
+                "condition_result": true
+            }
+        ]
+    });
+
+    let update_response_bad = server
+        .put(&format!("/api/admin/v1/workflows/{}", workflow_id))
+        .add_header("Authorization", "Basic YWRtaW46YWRtaW4=")
+        .json(&update_request_with_dangling_edge)
+        .await;
+
+    // Should fail with validation error (could be request validation or structure validation)
+    assert_eq!(update_response_bad.status_code(), 400);
+    let error_text = update_response_bad.text();
+    println!("Error text: {}", error_text);
+    // The actual error might be generic "BAD_REQUEST" or more specific
+    assert!(error_text.contains("BAD_REQUEST") || error_text.contains("non-existent") || error_text.contains("not reachable"),
+        "Expected validation error but got: {}", error_text);
+
+    // Now test the proper way - remove both the node AND its edges
+    // Note: We should NOT include the start/trigger node in the update request,
+    // as it's preserved automatically by the service
+    let update_request_clean = json!({
+        "name": "Test Leaf Node Deletion",
+        "description": "Updated workflow with leaf node and its edges properly removed",
+        "nodes": [
+            {
+                "id": condition_id,
+                "name": "Condition 307632425301",
+                "node_type": {
+                    "Condition": {
+                        "script": "function condition(event) { return true; }"
+                    }
+                },
+                "position_x": 300.0,
+                "position_y": 100.0
+            }
+        ],
+        "edges": [
+            {
+                "from_node_id": trigger_id,
+                "to_node_id": condition_id
+            }
+            // Edge to leaf node is also removed
+        ]
+    });
+
+    let update_response_good = server
+        .put(&format!("/api/admin/v1/workflows/{}", workflow_id))
+        .add_header("Authorization", "Basic YWRtaW46YWRtaW4=")
+        .json(&update_request_clean)
+        .await;
+
+    // Should succeed
+    assert_eq!(update_response_good.status_code(), 200, "Clean leaf node deletion failed: {}", update_response_good.text());
+
+    println!("✅ Leaf node deletion test completed");
+}
