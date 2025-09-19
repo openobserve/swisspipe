@@ -136,7 +136,7 @@
                 📄 Current Input Data
               </label>
               <div class="text-xs text-gray-400">
-                {{ inputData !== '{}' ? Object.keys(JSON.parse(inputData)).length + ' fields' : 'No data' }}
+                {{ inputFieldsText }}
               </div>
             </div>
             <div class="flex-1 min-h-0">
@@ -295,11 +295,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, computed } from 'vue'
+import { ref, watch, computed, onUnmounted } from 'vue'
 import CodeEditor from '../common/CodeEditor.vue'
 import { useWorkflowStore } from '../../stores/workflows'
 import { apiClient } from '../../services/api'
 import { useToast } from '../../composables/useToast'
+import { AI_PROVIDERS, DEFAULT_AI_CONFIG, type AIGenerationRequest } from '../../config/ai'
+import { getUserFriendlyErrorMessage } from '../../utils/errors'
+import { extractGeneratedCode } from '../../utils/codeValidation'
 
 interface Props {
   modelValue: {
@@ -321,33 +324,6 @@ interface WorkflowExecution {
   input_data?: unknown
 }
 
-interface APIError {
-  response?: {
-    data?: {
-      error?: string
-    }
-  }
-  message?: string
-}
-
-// AI Configuration Constants
-const AI_PROVIDERS = {
-  anthropic: {
-    name: 'Anthropic Claude',
-    models: [
-      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
-      { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
-      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' }
-    ]
-  }
-} as const
-
-const DEFAULT_AI_CONFIG = {
-  provider: 'anthropic' as keyof typeof AI_PROVIDERS,
-  model: 'claude-3-5-sonnet-20241022',
-  maxTokens: 4000,
-  temperature: 0.1
-} as const
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
@@ -361,13 +337,14 @@ const inputData = ref('{}')
 const outputData = ref('{}')
 const loading = ref(false)
 const runLoading = ref(false)
+const abortController = ref<AbortController | null>(null)
 
 // AI Assistant state
 const showAIAssistant = ref(false)
 const aiPrompt = ref('')
 const aiGenerating = ref(false)
 const aiProvider = ref<keyof typeof AI_PROVIDERS>(DEFAULT_AI_CONFIG.provider)
-const aiModel = ref(DEFAULT_AI_CONFIG.model)
+const aiModel = ref<string>(DEFAULT_AI_CONFIG.model)
 const aiMaxTokens = ref(DEFAULT_AI_CONFIG.maxTokens)
 const aiTemperature = ref(DEFAULT_AI_CONFIG.temperature)
 
@@ -378,6 +355,27 @@ const inputDataForContext = computed(() => {
     return 'No input data selected. Please select an execution from the dropdown above to see sample data.'
   }
   return inputData.value
+})
+
+const inputFieldsText = computed(() => {
+  try {
+    if (inputData.value === '{}' || !inputData.value.trim()) {
+      return 'No data'
+    }
+    const parsed = JSON.parse(inputData.value)
+    const fieldCount = Object.keys(parsed).length
+    return `${fieldCount} field${fieldCount === 1 ? '' : 's'}`
+  } catch {
+    return 'Invalid JSON'
+  }
+})
+
+const parsedInputData = computed(() => {
+  try {
+    return inputData.value !== '{}' ? JSON.parse(inputData.value) : null
+  } catch {
+    return null
+  }
 })
 
 const availableModels = computed(() => {
@@ -418,15 +416,30 @@ async function fetchPastExecutions() {
     console.warn('No current workflow ID available')
     return
   }
-  
+
+  // Cancel any existing request
+  if (abortController.value) {
+    abortController.value.abort()
+  }
+
+  abortController.value = new AbortController()
   loading.value = true
+
   try {
-    const data = await apiClient.getExecutionsByWorkflow(currentWorkflowId.value, 20)
+    const data = await apiClient.getExecutionsByWorkflow(
+      currentWorkflowId.value,
+      DEFAULT_AI_CONFIG.executionsLimit
+    )
     pastExecutions.value = data.executions || []
   } catch (error) {
-    console.error('Error fetching past executions:', error)
+    if (!abortController.value?.signal.aborted) {
+      console.error('Error fetching past executions:', error)
+      toast.error('Error', 'Failed to fetch past executions')
+    }
   } finally {
-    loading.value = false
+    if (!abortController.value?.signal.aborted) {
+      loading.value = false
+    }
   }
 }
 
@@ -477,34 +490,26 @@ async function executeScript(script: string) {
 
   runLoading.value = true
   try {
-    let parsedInput
-    try {
-      parsedInput = JSON.parse(inputData.value)
-    } catch {
+    if (!parsedInputData.value) {
       outputData.value = JSON.stringify({ error: 'Invalid input JSON format' }, null, 2)
+      toast.error('Error', 'Input data is not valid JSON')
       return
     }
 
     // Use the API client to execute the script
-    const result = await apiClient.executeScript(script, parsedInput)
+    const result = await apiClient.executeScript(script, parsedInputData.value)
     outputData.value = JSON.stringify(result, null, 2)
 
   } catch (error) {
     console.error('Error executing script:', error)
-    
-    // Handle API client errors with improved type safety
-    if (error && typeof error === 'object' && 'response' in error) {
-      const apiError = error as APIError
-      outputData.value = JSON.stringify({
-        error: 'Script execution failed',
-        details: apiError.response?.data?.error || apiError.message || 'Unknown error'
-      }, null, 2)
-    } else {
-      outputData.value = JSON.stringify({
-        error: 'Script execution failed',
-        details: error instanceof Error ? error.message : String(error)
-      }, null, 2)
-    }
+
+    const errorMessage = getUserFriendlyErrorMessage(error)
+    outputData.value = JSON.stringify({
+      error: 'Script execution failed',
+      details: errorMessage
+    }, null, 2)
+
+    toast.error('Execution Failed', errorMessage)
   } finally {
     runLoading.value = false
   }
@@ -517,80 +522,6 @@ function cancelAIAssistant() {
   aiGenerating.value = false
 }
 
-// Extract JavaScript transformer function from AI response
-function extractGeneratedCode(rawCode: string): string {
-  if (!rawCode || typeof rawCode !== 'string') {
-    throw new Error('No code content received from AI')
-  }
-
-  let generatedCode = rawCode.trim()
-
-  // Extract code from markdown blocks first (most common case)
-  const markdownMatch = generatedCode.match(/```(?:javascript|js)?\s*\n?([\s\S]*?)\n?```/)
-  if (markdownMatch && markdownMatch[1]) {
-    generatedCode = markdownMatch[1].trim()
-  }
-
-  // Find the transformer function using manual brace matching
-  const functionStartMatch = generatedCode.match(/function\s+transformer\s*\([^)]*\)\s*\{/)
-  if (functionStartMatch) {
-    const startIndex = generatedCode.indexOf(functionStartMatch[0])
-    const openBraceIndex = startIndex + functionStartMatch[0].lastIndexOf('{')
-    let braceCount = 0
-    let functionEnd = -1
-    let inString = false
-    let stringChar = ''
-
-    // Parse character by character to find matching closing brace
-    for (let i = openBraceIndex; i < generatedCode.length; i++) {
-      const char = generatedCode[i]
-      const prevChar = i > 0 ? generatedCode[i - 1] : ''
-
-      // Handle string literals to avoid counting braces inside strings
-      if ((char === '"' || char === "'" || char === '`') && prevChar !== '\\') {
-        if (!inString) {
-          inString = true
-          stringChar = char
-        } else if (char === stringChar) {
-          inString = false
-          stringChar = ''
-        }
-      }
-
-      // Count braces only outside of string literals
-      if (!inString) {
-        if (char === '{') {
-          braceCount++
-        } else if (char === '}') {
-          braceCount--
-          if (braceCount === 0) {
-            functionEnd = i + 1
-            break
-          }
-        }
-      }
-    }
-
-    if (functionEnd > -1) {
-      generatedCode = generatedCode.substring(startIndex, functionEnd).trim()
-    }
-  } else {
-    // Fallback: try to wrap content if no complete function found
-    const bodyMatch = generatedCode.match(/\{([\s\S]*)\}$/)
-    if (bodyMatch) {
-      generatedCode = `function transformer(event) {\n    ${bodyMatch[1].trim()}\n}`
-    } else if (!generatedCode.startsWith('function transformer')) {
-      generatedCode = `function transformer(event) {\n    ${generatedCode}\n    return event;\n}`
-    }
-  }
-
-  // Validate the result contains a transformer function
-  if (!generatedCode.includes('function transformer')) {
-    throw new Error('Generated code does not contain a valid transformer function')
-  }
-
-  return generatedCode
-}
 
 async function generateCode() {
   if (!aiPrompt.value.trim()) return
@@ -631,13 +562,15 @@ Please generate a transformer function that works with this data structure and i
 Remember to return the complete transformer function with the exact signature specified.`
 
     // Call the AI API with user-selected configuration using apiClient
-    const result = await apiClient.generateCode({
+    const request: AIGenerationRequest = {
       system_prompt: systemPrompt,
       user_prompt: userPrompt,
       model: aiModel.value,
       max_tokens: aiMaxTokens.value,
       temperature: aiTemperature.value
-    })
+    }
+
+    const result = await apiClient.generateCode(request)
 
     // Extract and clean up the generated code
     const rawCode = result.response || ''
@@ -657,25 +590,11 @@ Remember to return the complete transformer function with the exact signature sp
   } catch (error) {
     console.error('AI code generation failed:', error)
 
-    // Show user-friendly error with toast notification
-    const errorTitle = 'Code Generation Failed'
-    let errorMessage = 'Unable to generate code. '
+    const errorMessage = error instanceof Error && error.message.includes('transformer function')
+      ? error.message // Use validation error message directly
+      : getUserFriendlyErrorMessage(error)
 
-    if (error instanceof Error) {
-      if (error.message.includes('fetch') || error.message.includes('network')) {
-        errorMessage = 'Please check your network connection and try again.'
-      } else if (error.message.includes('ANTHROPIC_API_KEY') || error.message.includes('401')) {
-        errorMessage = 'AI service is not properly configured. Please contact your administrator.'
-      } else if (error.message.includes('429')) {
-        errorMessage = 'Too many requests. Please wait a moment and try again.'
-      } else if (error.message.includes('transformer function')) {
-        errorMessage = error.message // Use our custom extraction error message
-      } else {
-        errorMessage = `${error.message}. Please try rephrasing your request.`
-      }
-    }
-
-    toast.error(errorTitle, errorMessage, 5000)
+    toast.error('Code Generation Failed', errorMessage, 5000)
   } finally {
     aiGenerating.value = false
   }
@@ -690,6 +609,13 @@ watch(aiProvider, (newProvider) => {
   }
 })
 
+// Cleanup on unmount
+onUnmounted(() => {
+  if (abortController.value) {
+    abortController.value.abort()
+  }
+})
+
 // Watch for workflow changes to refetch executions
 watch(currentWorkflowId, (newWorkflowId) => {
   if (newWorkflowId) {
@@ -700,10 +626,4 @@ watch(currentWorkflowId, (newWorkflowId) => {
     fetchPastExecutions()
   }
 }, { immediate: true })
-
-onMounted(() => {
-  if (currentWorkflowId.value) {
-    fetchPastExecutions()
-  }
-})
 </script>
