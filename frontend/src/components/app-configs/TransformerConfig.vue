@@ -298,6 +298,7 @@
 import { ref, watch, computed, onUnmounted } from 'vue'
 import CodeEditor from '../common/CodeEditor.vue'
 import { useWorkflowStore } from '../../stores/workflows'
+import { useNodeStore } from '../../stores/nodes'
 import { apiClient } from '../../services/api'
 import { useToast } from '../../composables/useToast'
 import { AI_PROVIDERS, DEFAULT_AI_CONFIG, type AIGenerationRequest } from '../../config/ai'
@@ -329,6 +330,7 @@ interface WorkflowExecution {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 const workflowStore = useWorkflowStore()
+const nodeStore = useNodeStore()
 const toast = useToast()
 
 const localConfig = ref({ script: '', ...props.modelValue })
@@ -444,6 +446,65 @@ async function fetchPastExecutions() {
   }
 }
 
+async function findImmediatePredecessorOutput(nodeId: string, executionSteps: any[]) {
+  // Use nodeStore.edges for real-time working state (includes unsaved changes)
+  const workingEdges = nodeStore.edges
+
+  if (!workingEdges) {
+    console.log('No edges found in node store')
+    return null
+  }
+
+  // Find all edges leading TO this node
+  const incomingEdges = workingEdges.filter((e: any) => e.target === nodeId)
+
+  console.log(`Found ${incomingEdges.length} incoming edges for node ${nodeId}`)
+  console.log('Incoming edges:', incomingEdges)
+  console.log('Total edges in node store:', workingEdges.length || 0)
+  console.log('Total nodes in node store:', nodeStore.nodes?.length || 0)
+
+  if (incomingEdges.length === 0) {
+    return null // No predecessors
+  }
+
+  // Get output data from immediate predecessors only
+  const predecessorOutputs = []
+  for (const edge of incomingEdges) {
+    const predStep = executionSteps.find((step: any) => step.node_id === edge.source)
+    if (predStep?.output_data) {
+      predecessorOutputs.push({
+        nodeId: edge.source,
+        conditionResult: edge.data?.condition_result || null,
+        data: predStep.output_data
+      })
+    }
+  }
+
+  if (predecessorOutputs.length === 0) {
+    return null // Predecessors exist but no output data
+  }
+
+  // Handle multiple predecessors
+  return selectBestImmediatePredecessor(predecessorOutputs)
+}
+
+function selectBestImmediatePredecessor(predecessorOutputs: any[]) {
+  if (predecessorOutputs.length === 1) {
+    // Single predecessor: use directly
+    return predecessorOutputs[0].data
+  }
+
+  // Multiple predecessors: create merged structure for parallel processing
+  // or select first available for condition branches
+  if (predecessorOutputs.some((p: any) => p.conditionResult !== null)) {
+    // This is after condition branches - use any available path
+    return predecessorOutputs[0].data
+  } else {
+    // This is after parallel processing - create merged array
+    return predecessorOutputs.map((output: any) => output.data)
+  }
+}
+
 async function onExecutionSelect() {
   if (!selectedExecutionId.value) {
     inputData.value = '{}'
@@ -484,19 +545,34 @@ async function onExecutionSelect() {
         outputData.value = JSON.stringify({ info: 'No output data available for this transformer step' }, null, 2)
       }
     } else {
-      // Enhanced fallback: handle newly added nodes
-      console.log('No transformer step found, handling fallback')
+      // Enhanced fallback: try to get immediate predecessor output
+      console.log('No transformer step found, looking for immediate predecessor output')
 
       if (props.nodeId) {
-        // For newly added nodes, show a helpful message instead of trigger data
-        inputData.value = JSON.stringify({
-          info: `This transformer node '${props.nodeId}' was not present during this execution. No execution data is available for testing.`,
-          suggestion: 'Please run a new workflow execution to see input data for this transformer node.'
-        }, null, 2)
-        outputData.value = JSON.stringify({
-          info: `No execution step found for transformer node '${props.nodeId}' in this execution`
-        }, null, 2)
-        console.warn(`Transformer node '${props.nodeId}' was not present during this execution`)
+        const predecessorOutput = await findImmediatePredecessorOutput(props.nodeId, stepsResponse.steps)
+
+        if (predecessorOutput) {
+          // Use immediate predecessor's output as input data
+          inputData.value = JSON.stringify(predecessorOutput, null, 2)
+          outputData.value = JSON.stringify({
+            info: 'Test data from immediate predecessor node. Output will be generated when you run the script.'
+          }, null, 2)
+          console.log('Using immediate predecessor output as input data for transformer')
+        } else {
+          // Show informational message when no predecessor data available
+          const incomingEdges = nodeStore.edges?.filter((e: any) => e.target === props.nodeId) || []
+
+          inputData.value = JSON.stringify({
+            info: `This transformer node '${props.nodeId}' was not present during this execution.`,
+            suggestion: 'Please run a new workflow execution to see realistic input data for testing.',
+            reason: incomingEdges.length === 0
+              ? 'No immediate predecessor nodes found.'
+              : 'Immediate predecessor nodes have no output data.'
+          }, null, 2)
+          outputData.value = JSON.stringify({
+            info: 'No execution data available for this node'
+          }, null, 2)
+        }
       } else {
         // Legacy fallback for name-based matching
         console.log('No transformer step found, falling back to workflow-level data')
