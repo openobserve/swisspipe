@@ -448,18 +448,26 @@ async function onExecutionSelect() {
         inputData.value = JSON.stringify({ info: 'No input data available for this condition step' }, null, 2)
       }
     } else {
-      // Fallback: use workflow-level data for backward compatibility
-      console.log('No condition step found, falling back to workflow-level data')
-      const execution = await apiClient.getExecution(selectedExecutionId.value)
-
-      if (execution.input_data) {
-        inputData.value = JSON.stringify(execution.input_data, null, 2)
-      } else {
-        inputData.value = '{}'
-      }
+      // Enhanced fallback: try to find the most recent step's output as input
+      console.log('No condition step found, looking for most recent step output as fallback')
 
       if (props.nodeId) {
-        console.warn(`No execution step found for condition node '${props.nodeId}' in this execution`)
+        // For newly added nodes, show a helpful message instead of trigger data
+        inputData.value = JSON.stringify({
+          info: `This condition node '${props.nodeId}' was not present during this execution. No execution data is available for testing.`,
+          suggestion: 'Please run a new workflow execution to see input data for this condition node.'
+        }, null, 2)
+        console.warn(`Condition node '${props.nodeId}' was not present during this execution`)
+      } else {
+        // Legacy fallback for name-based matching
+        console.log('No condition step found, falling back to workflow-level data')
+        const execution = await apiClient.getExecution(selectedExecutionId.value)
+
+        if (execution.input_data) {
+          inputData.value = JSON.stringify(execution.input_data, null, 2)
+        } else {
+          inputData.value = '{}'
+        }
       }
     }
   } catch (error) {

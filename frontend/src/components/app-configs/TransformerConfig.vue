@@ -484,21 +484,30 @@ async function onExecutionSelect() {
         outputData.value = JSON.stringify({ info: 'No output data available for this transformer step' }, null, 2)
       }
     } else {
-      // Fallback: use workflow-level data for backward compatibility
-      console.log('No transformer step found, falling back to workflow-level data')
-      const execution = await apiClient.getExecution(selectedExecutionId.value)
-
-      if (execution.input_data) {
-        inputData.value = JSON.stringify(execution.input_data, null, 2)
-      } else {
-        inputData.value = '{}'
-      }
+      // Enhanced fallback: handle newly added nodes
+      console.log('No transformer step found, handling fallback')
 
       if (props.nodeId) {
+        // For newly added nodes, show a helpful message instead of trigger data
+        inputData.value = JSON.stringify({
+          info: `This transformer node '${props.nodeId}' was not present during this execution. No execution data is available for testing.`,
+          suggestion: 'Please run a new workflow execution to see input data for this transformer node.'
+        }, null, 2)
         outputData.value = JSON.stringify({
           info: `No execution step found for transformer node '${props.nodeId}' in this execution`
         }, null, 2)
+        console.warn(`Transformer node '${props.nodeId}' was not present during this execution`)
       } else {
+        // Legacy fallback for name-based matching
+        console.log('No transformer step found, falling back to workflow-level data')
+        const execution = await apiClient.getExecution(selectedExecutionId.value)
+
+        if (execution.input_data) {
+          inputData.value = JSON.stringify(execution.input_data, null, 2)
+        } else {
+          inputData.value = '{}'
+        }
+
         outputData.value = JSON.stringify({
           info: 'No transformer steps found in this execution'
         }, null, 2)
