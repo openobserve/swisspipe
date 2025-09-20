@@ -82,7 +82,7 @@
       <!-- Redoc Documentation -->
       <div
         id="redoc-container"
-        class="h-full w-full overflow-y-auto"
+        class="h-full w-full overflow-y-auto bg-white"
         ref="redocContainer"
         v-show="!isLoading && !hasError"
       ></div>
@@ -194,61 +194,8 @@ async function initializeRedoc() {
     // Load Redoc library
     await loadRedocScript()
 
-    // Initialize Redoc with dark mode theme options
+    // Initialize Redoc with default light theme
     const redocOptions = {
-      theme: {
-        colors: {
-          primary: {
-            main: '#60a5fa'
-          },
-          success: {
-            main: '#34d399'
-          },
-          warning: {
-            main: '#fbbf24'
-          },
-          error: {
-            main: '#f87171'
-          },
-          text: {
-            primary: '#f1f5f9',
-            secondary: '#cbd5e1'
-          },
-          border: {
-            dark: '#334155',
-            light: '#475569'
-          }
-        },
-        typography: {
-          fontSize: '14px',
-          lineHeight: '1.6',
-          color: '#f1f5f9',
-          code: {
-            fontSize: '13px',
-            fontFamily: 'Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-            backgroundColor: '#1e293b',
-            color: '#e2e8f0'
-          },
-          headings: {
-            fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            fontWeight: '600',
-            color: '#f1f5f9'
-          }
-        },
-        sidebar: {
-          backgroundColor: '#0f172a',
-          textColor: '#cbd5e1',
-          width: '320px'
-        },
-        rightPanel: {
-          backgroundColor: '#1e293b',
-          textColor: '#e2e8f0',
-          width: '40%'
-        },
-        codeBlock: {
-          backgroundColor: '#1e293b'
-        }
-      },
       scrollYOffset: 0,
       hideDownloadButton: false,
       disableSearch: false,
@@ -381,16 +328,16 @@ onUnmounted(() => {
 }
 
 #redoc-container ::-webkit-scrollbar-track {
-  background: #1e293b;
+  background: #f1f5f9;
 }
 
 #redoc-container ::-webkit-scrollbar-thumb {
-  background: #475569;
+  background: #cbd5e1;
   border-radius: 4px;
 }
 
 #redoc-container ::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+  background: #94a3b8;
 }
 
 /* Ensure Redoc takes full height and allows scrolling */
@@ -442,136 +389,9 @@ onUnmounted(() => {
   height: 100vh !important;
 }
 
-/* Custom dark theme styles for better integration */
-:deep(.redoc-container) {
-  background-color: #0f172a !important;
-}
-
-:deep(.menu-content) {
-  background-color: #0f172a !important;
-  color: #cbd5e1 !important;
-}
-
+/* Basic menu styling for better integration */
 :deep(.menu-content .menu-item-label) {
   font-size: 14px !important;
-  color: #cbd5e1 !important;
-}
-
-:deep(.menu-content .menu-item-label:hover) {
-  color: #60a5fa !important;
-}
-
-/* Dark theme for main content area */
-:deep(.api-content) {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
-}
-
-:deep(.redoc-summary) {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
-}
-
-:deep(.redoc-json) {
-  background-color: #1e293b !important;
-}
-
-/* Content panels and sections */
-:deep(.content-panel) {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
-}
-
-:deep(.section) {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
-}
-
-:deep(.section > div) {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
-}
-
-/* API operation sections */
-:deep(.operation-item) {
-  background-color: #1e293b !important;
-}
-
-:deep(.operation-content) {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
-}
-
-/* Schema and response sections */
-:deep(.schema-container) {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
-}
-
-:deep(.response-samples) {
-  background-color: #0f172a !important;
-}
-
-/* Text and headings */
-:deep(h1, h2, h3, h4, h5, h6) {
-  color: #f1f5f9 !important;
-}
-
-:deep(p, span, div:not(.redoc-json)) {
-  color: #cbd5e1 !important;
-}
-
-/* Tables */
-:deep(table) {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
-}
-
-:deep(th, td) {
-  background-color: #1e293b !important;
-  color: #cbd5e1 !important;
-  border-color: #475569 !important;
-}
-
-/* More specific Redoc element targeting */
-:deep(.redoc-wrap) {
-  background-color: #0f172a !important;
-}
-
-:deep(.redoc-wrap > div) {
-  background-color: #1e293b !important;
-}
-
-:deep([role="main"]) {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
-}
-
-:deep(.tag) {
-  background-color: #1e293b !important;
-}
-
-:deep(.tag-info) {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
-}
-
-:deep(.operation-tag) {
-  background-color: #1e293b !important;
-}
-
-:deep(.http-verb) {
-  background-color: #334155 !important;
-}
-
-/* API Info section */
-:deep(.api-info) {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
-}
-
-:deep(.api-info-description) {
-  color: #cbd5e1 !important;
 }
 
 /* Hide the Redoc title since we have our own */
