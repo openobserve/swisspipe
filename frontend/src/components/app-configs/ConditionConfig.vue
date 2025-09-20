@@ -291,6 +291,7 @@ interface Props {
   modelValue: {
     script?: string
   }
+  nodeId?: string
 }
 
 interface Emits {
@@ -422,12 +423,48 @@ async function onExecutionSelect() {
   }
 
   try {
-    const execution = await apiClient.getExecution(selectedExecutionId.value)
-    if (execution.input_data) {
-      inputData.value = JSON.stringify(execution.input_data, null, 2)
+    // Always fetch execution steps first to get step-level data
+    const stepsResponse = await apiClient.getExecutionSteps(selectedExecutionId.value)
+
+    // Find the specific condition step using nodeId if available
+    let conditionStep = null
+    if (props.nodeId) {
+      console.log(`Looking for condition step with node_id: ${props.nodeId}`)
+      conditionStep = stepsResponse.steps.find(step => step.node_id === props.nodeId)
+    } else {
+      console.log('Falling back to name-based condition step search')
+      conditionStep = stepsResponse.steps.find(step =>
+        step.node_name.toLowerCase().includes('condition') ||
+        step.node_name.toLowerCase().includes('conditional')
+      )
+    }
+
+    if (conditionStep) {
+      // Use step-level input data (output from previous node)
+      if (conditionStep.input_data) {
+        inputData.value = JSON.stringify(conditionStep.input_data, null, 2)
+        console.log('Using step-level input data for condition')
+      } else {
+        inputData.value = JSON.stringify({ info: 'No input data available for this condition step' }, null, 2)
+      }
+    } else {
+      // Fallback: use workflow-level data for backward compatibility
+      console.log('No condition step found, falling back to workflow-level data')
+      const execution = await apiClient.getExecution(selectedExecutionId.value)
+
+      if (execution.input_data) {
+        inputData.value = JSON.stringify(execution.input_data, null, 2)
+      } else {
+        inputData.value = '{}'
+      }
+
+      if (props.nodeId) {
+        console.warn(`No execution step found for condition node '${props.nodeId}' in this execution`)
+      }
     }
   } catch (error) {
     console.error('Error fetching execution details:', error)
+    inputData.value = JSON.stringify({ error: 'Failed to load execution data' }, null, 2)
   }
 }
 

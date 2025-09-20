@@ -91,6 +91,7 @@
         <h3 class="text-sm font-semibold text-gray-300 mb-3">Condition Configuration</h3>
         <ConditionConfig
           v-model="localNodeData.config as ConditionConfigType"
+          :node-id="selectedNodeData.id"
           @update="updateNodeData"
         />
       </div>
