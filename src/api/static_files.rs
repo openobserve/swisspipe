@@ -18,6 +18,7 @@ pub fn routes() -> Router<AppState> {
         .route("/index.html", get(index))
         .route("/assets/*path", get(static_handler))
         .route("/favicon.ico", get(favicon))
+        .route("/openapi.yaml", get(openapi_spec))
         .route("/monacoeditorwork/*path", get(monaco_handler))
         // Catch-all for SPA routing - serve index.html for any unmatched route
         .route("/*path", get(spa_handler))
@@ -42,6 +43,10 @@ async fn favicon() -> Result<Response, StatusCode> {
     serve_static_file("favicon.ico").await
 }
 
+async fn openapi_spec() -> Result<Response, StatusCode> {
+    serve_static_file("openapi.yaml").await
+}
+
 async fn monaco_handler(Path(path): Path<String>) -> Result<Response, StatusCode> {
     let path = format!("monacoeditorwork/{path}");
     serve_static_file(&path).await
@@ -61,9 +66,13 @@ async fn spa_handler(Path(_path): Path<String>) -> Html<String> {
 async fn serve_static_file(path: &str) -> Result<Response, StatusCode> {
     match Assets::get(path) {
         Some(content) => {
-            let mime_type = mime_guess::from_path(path).first_or_octet_stream();
+            let mime_type = if path.ends_with(".yaml") || path.ends_with(".yml") {
+                "text/yaml".to_string()
+            } else {
+                mime_guess::from_path(path).first_or_octet_stream().to_string()
+            };
             let mut headers = HeaderMap::new();
-            headers.insert(header::CONTENT_TYPE, mime_type.as_ref().parse().unwrap());
+            headers.insert(header::CONTENT_TYPE, mime_type.parse().unwrap());
 
             // Add caching headers for static assets
             if path.starts_with("assets/") {

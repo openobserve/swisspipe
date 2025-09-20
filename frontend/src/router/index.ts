@@ -42,6 +42,12 @@ const router = createRouter({
       name: 'settings',
       component: () => import('../views/SettingsView.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/api-docs',
+      name: 'api-docs',
+      component: () => import('../views/ApiDocumentationView.vue'),
+      meta: { requiresAuth: true }
     }
   ],
 })

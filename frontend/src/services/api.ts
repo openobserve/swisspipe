@@ -239,10 +239,11 @@ class ApiClient {
   }
 
   // Script execution endpoint
-  async executeScript(script: string, input: unknown): Promise<unknown> {
+  async executeScript(script: string, input: unknown, scriptType?: 'transformer' | 'condition'): Promise<unknown> {
     const response = await this.client.post('/api/admin/v1/script/execute', {
       script,
-      input
+      input,
+      script_type: scriptType
     })
     return response.data
   }

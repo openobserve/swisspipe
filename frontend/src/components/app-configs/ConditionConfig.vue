@@ -571,7 +571,7 @@ async function executeCondition(script: string) {
     }
 
     // Use the API client to execute the condition script
-    const result = await apiClient.executeScript(script, parsedInput)
+    const result = await apiClient.executeScript(script, parsedInput, 'condition')
 
     // For conditions, we expect a boolean result
     const conditionResult = Boolean(result)

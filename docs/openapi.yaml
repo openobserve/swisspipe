@@ -1,0 +1,1594 @@
+openapi: 3.0.3
+info:
+  title: SwissPipe API
+  description: |
+    SwissPipe is a powerful workflow automation platform that processes data through DAG-based workflows with JavaScript integration.
+
+    ## Features
+    - **Workflow Engine**: DAG-based workflow processing with Trigger, Condition, Transformer, and App nodes
+    - **JavaScript Runtime**: Safe script execution for transformers and conditions using QuickJS
+    - **Async Execution**: Background job processing with worker pools and cleanup services
+    - **Multi-Database Support**: SQLite (development) and PostgreSQL (production) support
+    - **Authentication**: Basic Auth for admin APIs, UUID-based for workflow ingestion
+    - **AI Integration**: Anthropic Claude integration for code and workflow generation
+
+    ## Authentication
+    - **Admin APIs** (`/api/admin/v1/*`): Require Basic Authentication (username/password)
+    - **Workflow Ingestion** (`/api/v1/*`): Use UUID-based workflow authentication
+    - **Google OAuth**: Available for UI authentication when configured
+
+    ## Data Flow
+    1. **Ingestion**: Data enters through workflow trigger endpoints
+    2. **Processing**: Workflows execute as background jobs through the worker pool
+    3. **Execution**: Each workflow step is tracked with input/output data
+    4. **Monitoring**: Real-time execution status and detailed step information available
+  version: 0.1.0
+  contact:
+    name: SwissPipe Team
+    url: https://github.com/prabhatsharma/swisspipe
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3700
+    description: Development server (default)
+  - url: https://api.swisspipe.com
+    description: Production server
+
+security:
+  - basicAuth: []
+  - workflowAuth: []
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: Basic authentication for admin endpoints (username/password)
+    workflowAuth:
+      type: apiKey
+      in: path
+      name: workflow_id
+      description: UUID-based workflow authentication
+
+  schemas:
+    # Core Workflow Models
+    WorkflowEvent:
+      type: object
+      description: Event data structure used throughout workflow processing
+      properties:
+        data:
+          type: object
+          description: The main event payload
+          example: { "user_id": 123, "action": "signup" }
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Workflow metadata
+          example: { "source": "api", "version": "1.0" }
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          description: HTTP headers from the request
+          example: { "user-agent": "curl/7.68.0" }
+        condition_results:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: Results from condition nodes
+          example: { "user_is_premium": true }
+
+    WorkflowExecution:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique execution identifier
+        workflow_id:
+          type: string
+          format: uuid
+          description: ID of the executed workflow
+        status:
+          type: string
+          enum: [pending, running, completed, failed, cancelled]
+          description: Current execution status
+        current_node_id:
+          type: string
+          nullable: true
+          description: ID of the currently executing node
+        input_data:
+          type: object
+          nullable: true
+          description: Original input data for the workflow
+        output_data:
+          type: object
+          nullable: true
+          description: Final output data from workflow execution
+        error_message:
+          type: string
+          nullable: true
+          description: Error message if execution failed
+        started_at:
+          type: integer
+          format: int64
+          nullable: true
+          description: Execution start time (microseconds since Unix epoch)
+        completed_at:
+          type: integer
+          format: int64
+          nullable: true
+          description: Execution completion time (microseconds since Unix epoch)
+        duration_ms:
+          type: integer
+          nullable: true
+          description: Execution duration in milliseconds
+        created_at:
+          type: integer
+          format: int64
+          description: Record creation time (microseconds since Unix epoch)
+        updated_at:
+          type: integer
+          format: int64
+          description: Record last update time (microseconds since Unix epoch)
+
+    ExecutionStep:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique step identifier
+        execution_id:
+          type: string
+          format: uuid
+          description: Parent execution ID
+        node_id:
+          type: string
+          description: Workflow node ID
+        node_name:
+          type: string
+          description: Human-readable node name
+        status:
+          type: string
+          enum: [pending, running, completed, failed, skipped]
+          description: Step execution status
+        input_data:
+          type: object
+          nullable: true
+          description: Input data for this step
+        output_data:
+          type: object
+          nullable: true
+          description: Output data from this step
+        error_message:
+          type: string
+          nullable: true
+          description: Error message if step failed
+        started_at:
+          type: integer
+          format: int64
+          nullable: true
+          description: Step start time (microseconds since Unix epoch)
+        completed_at:
+          type: integer
+          format: int64
+          nullable: true
+          description: Step completion time (microseconds since Unix epoch)
+        created_at:
+          type: integer
+          format: int64
+          description: Step creation time (microseconds since Unix epoch)
+
+    Workflow:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique workflow identifier
+        name:
+          type: string
+          description: Workflow name
+        description:
+          type: string
+          nullable: true
+          description: Workflow description
+        enabled:
+          type: boolean
+          description: Whether workflow is enabled for execution
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Node'
+          description: Workflow nodes
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/Edge'
+          description: Workflow edges (connections between nodes)
+        start_node_id:
+          type: string
+          nullable: true
+          description: ID of the workflow's start node (usually trigger)
+        created_at:
+          type: integer
+          format: int64
+          description: Creation time (microseconds since Unix epoch)
+        updated_at:
+          type: integer
+          format: int64
+          description: Last update time (microseconds since Unix epoch)
+
+    Node:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique node identifier
+        type:
+          type: string
+          enum: [trigger, condition, transformer, webhook, email, anthropic, openobserve, delay]
+          description: Node type
+        name:
+          type: string
+          description: Node name
+        description:
+          type: string
+          nullable: true
+          description: Node description
+        config:
+          type: object
+          description: Node-specific configuration
+        position:
+          type: object
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+          description: Node position in workflow designer
+
+    Edge:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique edge identifier
+        from_node_id:
+          type: string
+          description: Source node ID
+        to_node_id:
+          type: string
+          description: Target node ID
+        condition_result:
+          type: boolean
+          nullable: true
+          description: Required condition result for this edge (for condition nodes)
+
+    # Request/Response Models
+    CreateWorkflowRequest:
+      type: object
+      required: [name, nodes, edges]
+      properties:
+        name:
+          type: string
+          description: Workflow name
+          example: "User Registration Workflow"
+        description:
+          type: string
+          description: Workflow description
+          example: "Processes new user registrations with email notifications"
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/NodeRequest'
+          description: Workflow nodes
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/EdgeRequest'
+          description: Workflow edges
+
+    NodeRequest:
+      type: object
+      required: [id, type, name]
+      properties:
+        id:
+          type: string
+          description: Node ID
+        type:
+          type: string
+          enum: [trigger, condition, transformer, webhook, email, anthropic, openobserve, delay]
+        name:
+          type: string
+          description: Node name
+        description:
+          type: string
+          description: Node description
+        config:
+          type: object
+          description: Node configuration
+        position:
+          type: object
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+
+    EdgeRequest:
+      type: object
+      required: [id, from_node_id, to_node_id]
+      properties:
+        id:
+          type: string
+          description: Edge ID
+        from_node_id:
+          type: string
+          description: Source node ID
+        to_node_id:
+          type: string
+          description: Target node ID
+        condition_result:
+          type: boolean
+          nullable: true
+          description: Condition result requirement
+
+    ScriptExecuteRequest:
+      type: object
+      required: [script, input]
+      properties:
+        script:
+          type: string
+          description: JavaScript code to execute
+          example: |
+            function condition(event) {
+              return event.data.user_id > 0;
+            }
+        input:
+          type: object
+          description: Input data for script execution
+          example: { "user_id": 123, "email": "user@example.com" }
+        script_type:
+          type: string
+          enum: [transformer, condition]
+          description: Type of script to execute
+          default: transformer
+          example: "condition"
+
+    ScriptExecuteResponse:
+      oneOf:
+        - type: object
+          description: Transformer result
+          example: { "data": { "processed": true }, "metadata": {} }
+        - type: boolean
+          description: Condition result
+          example: true
+
+    GenerateCodeRequest:
+      type: object
+      required: [system_prompt, user_prompt]
+      properties:
+        system_prompt:
+          type: string
+          description: System prompt for AI code generation
+          example: "Generate a JavaScript condition function that returns true/false"
+        user_prompt:
+          type: string
+          description: User prompt describing the desired functionality
+          example: "Check if user age is greater than 18"
+        model:
+          type: string
+          description: AI model to use
+          default: "claude-3-5-sonnet-20241022"
+          example: "claude-3-5-sonnet-20241022"
+        max_tokens:
+          type: integer
+          description: Maximum tokens for response
+          default: 4000
+          example: 1000
+        temperature:
+          type: number
+          format: float
+          description: Creativity/randomness (0.0-1.0)
+          default: 0.1
+          example: 0.3
+
+    GenerateCodeResponse:
+      type: object
+      properties:
+        response:
+          type: string
+          description: Generated code
+          example: |
+            function condition(event) {
+              return event.data.age && event.data.age > 18;
+            }
+        usage:
+          type: object
+          description: Token usage statistics
+          nullable: true
+
+    # Settings Models
+    Setting:
+      type: object
+      properties:
+        key:
+          type: string
+          description: Setting key
+        value:
+          type: string
+          description: Setting value
+        description:
+          type: string
+          nullable: true
+          description: Setting description
+        created_at:
+          type: integer
+          format: int64
+          description: Creation time
+        updated_at:
+          type: integer
+          format: int64
+          description: Last update time
+
+    UpdateSettingRequest:
+      type: object
+      required: [value]
+      properties:
+        value:
+          type: string
+          description: New setting value
+
+    # Authentication Models
+    UserInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          description: User ID
+        email:
+          type: string
+          format: email
+          description: User email
+        name:
+          type: string
+          description: User display name
+        picture:
+          type: string
+          format: uri
+          nullable: true
+          description: User profile picture URL
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether operation was successful
+        message:
+          type: string
+          description: Response message
+        user:
+          $ref: '#/components/schemas/UserInfo'
+          nullable: true
+          description: User information (when authenticated)
+        session_id:
+          type: string
+          nullable: true
+          description: Session identifier
+
+    # Error Models
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error code or type
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: string
+          nullable: true
+          description: Additional error details
+
+paths:
+  # Health Check
+  /health:
+    get:
+      tags: [Health]
+      summary: Health Check
+      description: Check if the service is running and healthy
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  service:
+                    type: string
+                    example: swisspipe
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2024-01-01T00:00:00Z"
+
+  # Workflow Ingestion APIs
+  /api/v1/{workflow_id}/trigger:
+    parameters:
+      - name: workflow_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Workflow UUID for ingestion
+    get:
+      tags: [Workflow Ingestion]
+      summary: Trigger Workflow (GET)
+      description: Trigger workflow execution using query parameters as data
+      security:
+        - workflowAuth: []
+      parameters:
+        - name: param1
+          in: query
+          schema:
+            type: string
+          description: Example query parameter (any query params become data)
+      responses:
+        '202':
+          description: Workflow execution queued successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: accepted
+                  execution_id:
+                    type: string
+                    format: uuid
+                  message:
+                    type: string
+                    example: "Workflow execution has been queued"
+        '404':
+          description: Workflow not found
+        '403':
+          description: Workflow is disabled
+    post:
+      tags: [Workflow Ingestion]
+      summary: Trigger Workflow (POST)
+      description: Trigger workflow execution with JSON payload
+      security:
+        - workflowAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Any JSON payload becomes workflow data
+            example:
+              user_id: 123
+              action: "signup"
+              email: "user@example.com"
+      responses:
+        '202':
+          description: Workflow execution queued successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: accepted
+                  execution_id:
+                    type: string
+                    format: uuid
+                  message:
+                    type: string
+                    example: "Workflow execution has been queued"
+        '404':
+          description: Workflow not found
+        '403':
+          description: Workflow is disabled
+    put:
+      tags: [Workflow Ingestion]
+      summary: Trigger Workflow (PUT)
+      description: Trigger workflow execution with JSON payload (same as POST)
+      security:
+        - workflowAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Any JSON payload becomes workflow data
+      responses:
+        '202':
+          description: Workflow execution queued successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: accepted
+                  execution_id:
+                    type: string
+                    format: uuid
+                  message:
+                    type: string
+                    example: "Workflow execution has been queued"
+
+  /api/v1/{workflow_id}/json_array:
+    parameters:
+      - name: workflow_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Workflow Ingestion]
+      summary: Trigger Workflow with Array Data
+      description: Trigger workflow execution with array of JSON objects
+      security:
+        - workflowAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+              description: Array of JSON objects to process
+            example:
+              - { "user_id": 123, "action": "signup" }
+              - { "user_id": 456, "action": "login" }
+      responses:
+        '202':
+          description: Workflow execution queued successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: accepted
+                  execution_id:
+                    type: string
+                    format: uuid
+                  message:
+                    type: string
+                    example: "Workflow execution has been queued"
+
+  # Admin Workflow Management APIs
+  /api/admin/v1/workflows:
+    get:
+      tags: [Admin - Workflows]
+      summary: List Workflows
+      description: Get list of all workflows with metadata
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: List of workflows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workflows:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Workflow'
+        '401':
+          description: Unauthorized
+    post:
+      tags: [Admin - Workflows]
+      summary: Create Workflow
+      description: Create a new workflow with nodes and edges
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkflowRequest'
+      responses:
+        '201':
+          description: Workflow created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                  message:
+                    type: string
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/admin/v1/workflows/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Admin - Workflows]
+      summary: Get Workflow
+      description: Get detailed workflow information by ID
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: Workflow details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+        '404':
+          description: Workflow not found
+    put:
+      tags: [Admin - Workflows]
+      summary: Update Workflow
+      description: Update an existing workflow
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkflowRequest'
+      responses:
+        '200':
+          description: Workflow updated successfully
+        '404':
+          description: Workflow not found
+        '400':
+          description: Invalid request data
+    delete:
+      tags: [Admin - Workflows]
+      summary: Delete Workflow
+      description: Delete a workflow and all its executions
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: Workflow deleted successfully
+        '404':
+          description: Workflow not found
+
+  /api/admin/v1/workflows/{id}/enable:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      tags: [Admin - Workflows]
+      summary: Enable/Disable Workflow
+      description: Enable or disable a workflow
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  description: Whether to enable or disable the workflow
+      responses:
+        '200':
+          description: Workflow status updated
+        '404':
+          description: Workflow not found
+
+  # Admin Execution Management APIs
+  /api/admin/v1/executions:
+    get:
+      tags: [Admin - Executions]
+      summary: List Executions
+      description: Get list of workflow executions with filtering
+      security:
+        - basicAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 50
+          description: Maximum number of executions to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of executions to skip
+        - name: workflow_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by workflow ID
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, running, completed, failed, cancelled]
+          description: Filter by execution status
+      responses:
+        '200':
+          description: List of executions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  executions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkflowExecution'
+                  count:
+                    type: integer
+                    description: Number of executions returned
+                  workflow_id:
+                    type: string
+                    nullable: true
+                    description: Filter workflow ID if provided
+                  status:
+                    type: string
+                    nullable: true
+                    description: Filter status if provided
+
+  /api/admin/v1/executions/{execution_id}:
+    parameters:
+      - name: execution_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Admin - Executions]
+      summary: Get Execution
+      description: Get detailed execution information
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: Execution details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowExecution'
+        '404':
+          description: Execution not found
+
+  /api/admin/v1/executions/{execution_id}/status:
+    parameters:
+      - name: execution_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Admin - Executions]
+      summary: Get Execution Status
+      description: Get lightweight execution status (without data payloads)
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: Execution status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  workflow_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [pending, running, completed, failed, cancelled]
+                  current_node_id:
+                    type: string
+                    nullable: true
+                  error_message:
+                    type: string
+                    nullable: true
+                  started_at:
+                    type: integer
+                    format: int64
+                    nullable: true
+                  completed_at:
+                    type: integer
+                    format: int64
+                    nullable: true
+                  created_at:
+                    type: integer
+                    format: int64
+                  updated_at:
+                    type: integer
+                    format: int64
+        '404':
+          description: Execution not found
+
+  /api/admin/v1/executions/{execution_id}/steps:
+    parameters:
+      - name: execution_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Admin - Executions]
+      summary: Get Execution Steps
+      description: Get detailed steps for a workflow execution
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: Execution steps
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  execution_id:
+                    type: string
+                    format: uuid
+                  steps:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ExecutionStep'
+        '404':
+          description: Execution not found
+
+  /api/admin/v1/executions/{execution_id}/cancel:
+    parameters:
+      - name: execution_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Admin - Executions]
+      summary: Cancel Execution
+      description: Cancel a running execution and any scheduled delays
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: Execution cancelled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: cancelled
+                  execution_id:
+                    type: string
+                    format: uuid
+                  message:
+                    type: string
+                    example: "Execution cancelled successfully"
+        '404':
+          description: Execution not found
+
+  /api/admin/v1/executions/stats:
+    get:
+      tags: [Admin - Monitoring]
+      summary: Get Worker Pool Statistics
+      description: Get worker pool and system statistics
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: Worker pool statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  worker_pool:
+                    type: object
+                    description: Worker pool metrics
+                  system:
+                    type: object
+                    properties:
+                      timestamp:
+                        type: integer
+                        format: int64
+                      version:
+                        type: string
+                      build_profile:
+                        type: string
+                        enum: [debug, release]
+                  health:
+                    type: string
+                    example: healthy
+
+  /api/admin/v1/executions/cleanup/stats:
+    get:
+      tags: [Admin - Monitoring]
+      summary: Get Cleanup Statistics
+      description: Get execution cleanup service statistics
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: Cleanup statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cleanup_stats:
+                    type: object
+                    description: Cleanup metrics
+                  config:
+                    type: object
+                    properties:
+                      retention_count:
+                        type: integer
+                      cleanup_interval_minutes:
+                        type: integer
+                  timestamp:
+                    type: integer
+                    format: int64
+
+  # Script Execution API
+  /api/admin/v1/script/execute:
+    post:
+      tags: [Admin - Script Testing]
+      summary: Execute Script
+      description: Execute JavaScript transformer or condition scripts for testing
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScriptExecuteRequest'
+      responses:
+        '200':
+          description: Script executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScriptExecuteResponse'
+        '400':
+          description: Invalid script or input
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: string
+                    nullable: true
+
+  # AI Code Generation APIs
+  /api/admin/v1/ai/generate-code:
+    post:
+      tags: [Admin - AI]
+      summary: Generate Code
+      description: Generate JavaScript code using Anthropic Claude AI
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateCodeRequest'
+      responses:
+        '200':
+          description: Code generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateCodeResponse'
+        '500':
+          description: AI service error
+
+  /api/admin/v1/ai/generate-workflow:
+    post:
+      tags: [Admin - AI]
+      summary: Generate Workflow
+      description: Generate complete workflow using AI from natural language description
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt:
+                  type: string
+                  description: Natural language description of desired workflow
+                  example: "Create a workflow that processes user signups, validates email, and sends welcome message"
+      responses:
+        '200':
+          description: Workflow generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  workflow_id:
+                    type: string
+                    format: uuid
+                    nullable: true
+                  workflow_name:
+                    type: string
+                    nullable: true
+                  error:
+                    type: string
+                    nullable: true
+
+  /api/admin/v1/ai/update-workflow:
+    post:
+      tags: [Admin - AI]
+      summary: Update Workflow with AI
+      description: Update existing workflow using AI from natural language instructions
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workflow_id, prompt]
+              properties:
+                workflow_id:
+                  type: string
+                  format: uuid
+                  description: ID of workflow to update
+                prompt:
+                  type: string
+                  description: Natural language instructions for workflow changes
+                  example: "Add email validation step after user signup"
+      responses:
+        '200':
+          description: Workflow updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  workflow_name:
+                    type: string
+                    nullable: true
+                  changes_made:
+                    type: array
+                    items:
+                      type: string
+                  error:
+                    type: string
+                    nullable: true
+
+  # Settings Management APIs
+  /api/admin/v1/settings:
+    get:
+      tags: [Admin - Settings]
+      summary: List Settings
+      description: Get all application settings
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: List of settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  settings:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Setting'
+
+  /api/admin/v1/settings/{key}:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Setting key
+    get:
+      tags: [Admin - Settings]
+      summary: Get Setting
+      description: Get a specific setting by key
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: Setting details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+        '404':
+          description: Setting not found
+    put:
+      tags: [Admin - Settings]
+      summary: Update Setting
+      description: Update a setting value
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettingRequest'
+      responses:
+        '200':
+          description: Setting updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+        '404':
+          description: Setting not found
+
+  # Authentication APIs
+  /auth/google/login:
+    get:
+      tags: [Authentication]
+      summary: Google OAuth Login
+      description: Initiate Google OAuth authentication flow
+      security: []
+      responses:
+        '302':
+          description: Redirect to Google OAuth
+        '503':
+          description: Google OAuth not configured
+
+  /auth/google/callback:
+    get:
+      tags: [Authentication]
+      summary: Google OAuth Callback
+      description: Handle Google OAuth callback
+      security: []
+      parameters:
+        - name: code
+          in: query
+          schema:
+            type: string
+          description: OAuth authorization code
+        - name: state
+          in: query
+          schema:
+            type: string
+          description: OAuth state parameter
+        - name: error
+          in: query
+          schema:
+            type: string
+          description: OAuth error if any
+      responses:
+        '302':
+          description: Redirect to frontend with session cookie
+        '400':
+          description: Invalid OAuth callback
+        '401':
+          description: Authentication failed
+
+  /auth/user:
+    get:
+      tags: [Authentication]
+      summary: Get Current User
+      description: Get information about the currently authenticated user
+      security: []
+      responses:
+        '200':
+          description: User information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Not authenticated
+
+  /auth/logout:
+    get:
+      tags: [Authentication]
+      summary: Logout
+      description: Logout and clear session
+      security: []
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+
+  # Segment Analytics APIs (Webhook-compatible)
+  /api/v1/track:
+    post:
+      tags: [Analytics]
+      summary: Segment Track Event
+      description: Track analytics events (Segment API compatible)
+      security:
+        - workflowAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                anonymousId:
+                  type: string
+                event:
+                  type: string
+                properties:
+                  type: object
+                context:
+                  type: object
+                timestamp:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Event tracked successfully
+
+  /api/v1/identify:
+    post:
+      tags: [Analytics]
+      summary: Segment Identify User
+      description: Identify user (Segment API compatible)
+      security:
+        - workflowAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                anonymousId:
+                  type: string
+                traits:
+                  type: object
+                context:
+                  type: object
+                timestamp:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: User identified successfully
+
+  /api/v1/page:
+    post:
+      tags: [Analytics]
+      summary: Segment Page View
+      description: Track page views (Segment API compatible)
+      security:
+        - workflowAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                anonymousId:
+                  type: string
+                name:
+                  type: string
+                category:
+                  type: string
+                properties:
+                  type: object
+                context:
+                  type: object
+                timestamp:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Page view tracked successfully
+
+  /api/v1/screen:
+    post:
+      tags: [Analytics]
+      summary: Segment Screen View
+      description: Track screen views (Segment API compatible)
+      security:
+        - workflowAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                anonymousId:
+                  type: string
+                name:
+                  type: string
+                category:
+                  type: string
+                properties:
+                  type: object
+      responses:
+        '200':
+          description: Screen view tracked successfully
+
+  /api/v1/group:
+    post:
+      tags: [Analytics]
+      summary: Segment Group User
+      description: Associate user with group (Segment API compatible)
+      security:
+        - workflowAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                groupId:
+                  type: string
+                traits:
+                  type: object
+      responses:
+        '200':
+          description: User grouped successfully
+
+  /api/v1/alias:
+    post:
+      tags: [Analytics]
+      summary: Segment Alias User
+      description: Create alias for user (Segment API compatible)
+      security:
+        - workflowAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                previousId:
+                  type: string
+      responses:
+        '200':
+          description: Alias created successfully
+
+  /api/v1/batch:
+    post:
+      tags: [Analytics]
+      summary: Segment Batch Events
+      description: Send multiple events in batch (Segment API compatible)
+      security:
+        - workflowAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                batch:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: Batch processed successfully
+
+  /api/v1/import:
+    post:
+      tags: [Analytics]
+      summary: Segment Import Historical Data
+      description: Import historical analytics data (Segment API compatible)
+      security:
+        - workflowAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Data imported successfully
+
+tags:
+  - name: Health
+    description: Service health and status
+  - name: Workflow Ingestion
+    description: APIs for triggering workflow execution (public, UUID-authenticated)
+  - name: Admin - Workflows
+    description: Workflow management (admin authentication required)
+  - name: Admin - Executions
+    description: Execution monitoring and management (admin authentication required)
+  - name: Admin - Monitoring
+    description: System monitoring and statistics (admin authentication required)
+  - name: Admin - Script Testing
+    description: JavaScript code testing and execution (admin authentication required)
+  - name: Admin - AI
+    description: AI-powered code and workflow generation (admin authentication required)
+  - name: Admin - Settings
+    description: Application settings management (admin authentication required)
+  - name: Authentication
+    description: User authentication and session management
+  - name: Analytics
+    description: Segment-compatible analytics event tracking

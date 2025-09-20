@@ -11,6 +11,7 @@ use crate::AppState;
 pub struct ScriptExecuteRequest {
     pub script: String,
     pub input: Value,
+    pub script_type: Option<String>, // "transformer" or "condition"
 }
 
 
@@ -24,13 +25,18 @@ pub fn routes() -> Router<AppState> {
     Router::new().route("/execute", axum::routing::post(execute_script))
 }
 
-/// Execute a transformer script with input data for testing purposes.
-/// 
+/// Execute a script (transformer or condition) with input data for testing purposes.
+///
 /// This endpoint accepts either:
 /// - Raw input data (will be wrapped in a WorkflowEvent)
 /// - Complete WorkflowEvent structure (will be used directly)
-/// 
-/// Returns the transformed WorkflowEvent or error details.
+///
+/// The script_type parameter determines how the script is executed:
+/// - "transformer": Executes as transformer script, returns WorkflowEvent
+/// - "condition": Executes as condition script, returns boolean result
+/// - If not specified, defaults to "transformer" for backward compatibility
+///
+/// Returns the script result or error details.
 pub async fn execute_script(
     State(_state): State<AppState>,
     Json(request): Json<ScriptExecuteRequest>,
@@ -72,38 +78,74 @@ pub async fn execute_script(
         }
     };
 
-    // Execute the transformer script
-    match js_executor.execute_transformer(&request.script, workflow_event).await {
-        Ok(result_event) => {
-            // Convert the result event back to JSON
-            let result_json = serde_json::to_value(result_event)
-                .map_err(|e| {
-                    (
+    // Determine script type - default to "transformer" for backward compatibility
+    let script_type = request.script_type.as_deref().unwrap_or("transformer");
+
+    match script_type {
+        "condition" => {
+            // Execute as condition script
+            match js_executor.execute_condition(&request.script, &workflow_event).await {
+                Ok(condition_result) => {
+                    // Return boolean result
+                    Ok(Json(serde_json::json!(condition_result)))
+                },
+                Err(error) => {
+                    let error_message = error.to_string();
+                    Err((
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Json(ScriptExecuteError {
-                            error: "Failed to serialize result".to_string(),
-                            details: Some(e.to_string()),
+                            error: "Condition script execution failed".to_string(),
+                            details: Some(error_message),
                         }),
-                    )
-                })?;
-            
-            Ok(Json(result_json))
-        },
-        Err(error) => {
-            let error_message = error.to_string();
-            
-            // Check if it's an event dropped error (transformer returned null)
-            if matches!(error, JavaScriptError::EventDropped) {
-                Ok(Json(serde_json::json!({ "dropped": true, "message": "Event was dropped (transformer returned null)" })))
-            } else {
-                Err((
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ScriptExecuteError {
-                        error: "Script execution failed".to_string(),
-                        details: Some(error_message),
-                    }),
-                ))
+                    ))
+                }
             }
+        },
+        "transformer" => {
+            // Execute as transformer script
+            match js_executor.execute_transformer(&request.script, workflow_event).await {
+                Ok(result_event) => {
+                    // Convert the result event back to JSON
+                    let result_json = serde_json::to_value(result_event)
+                        .map_err(|e| {
+                            (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(ScriptExecuteError {
+                                    error: "Failed to serialize result".to_string(),
+                                    details: Some(e.to_string()),
+                                }),
+                            )
+                        })?;
+
+                    Ok(Json(result_json))
+                },
+                Err(error) => {
+                    let error_message = error.to_string();
+
+                    // Check if it's an event dropped error (transformer returned null)
+                    if matches!(error, JavaScriptError::EventDropped) {
+                        Ok(Json(serde_json::json!({ "dropped": true, "message": "Event was dropped (transformer returned null)" })))
+                    } else {
+                        Err((
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(ScriptExecuteError {
+                                error: "Transformer script execution failed".to_string(),
+                                details: Some(error_message),
+                            }),
+                        ))
+                    }
+                }
+            }
+        },
+        _ => {
+            // Invalid script type
+            Err((
+                StatusCode::BAD_REQUEST,
+                Json(ScriptExecuteError {
+                    error: "Invalid script_type".to_string(),
+                    details: Some("script_type must be either 'transformer' or 'condition'".to_string()),
+                }),
+            ))
         }
     }
 }

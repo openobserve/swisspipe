@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SwissPipe API Documentation</title>
+    <meta name="description" content="Comprehensive API documentation for SwissPipe - a powerful workflow automation platform">
+
+    <!-- Redoc CSS -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        /* Custom header */
+        .api-header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 2rem 0;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            margin-bottom: 2rem;
+        }
+
+        .api-header h1 {
+            margin: 0;
+            font-size: 3rem;
+            font-weight: 700;
+            background: linear-gradient(45deg, #fff, #e0e7ff);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: none;
+        }
+
+        .api-header p {
+            margin: 1rem 0 0 0;
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.6;
+        }
+
+        .api-header .features {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .feature-badge {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        /* Main container */
+        .api-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        /* Quick navigation */
+        .quick-nav {
+            background: linear-gradient(90deg, #f8fafc, #e2e8f0);
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .quick-nav h3 {
+            margin: 0 0 1rem 0;
+            color: #1e293b;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .nav-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .nav-link {
+            background: white;
+            color: #475569;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .nav-link:hover {
+            background: #3b82f6;
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Redoc container */
+        .redoc-container {
+            background: white;
+        }
+
+        /* Custom Redoc theme overrides */
+        redoc {
+            --redoc-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        /* Footer */
+        .api-footer {
+            background: #1e293b;
+            color: #94a3b8;
+            text-align: center;
+            padding: 2rem;
+            margin-top: 3rem;
+        }
+
+        .api-footer p {
+            margin: 0;
+            font-size: 0.9rem;
+        }
+
+        .api-footer a {
+            color: #60a5fa;
+            text-decoration: none;
+        }
+
+        .api-footer a:hover {
+            color: #93c5fd;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .api-header h1 {
+                font-size: 2rem;
+            }
+
+            .api-header p {
+                font-size: 1rem;
+                padding: 0 1rem;
+            }
+
+            .api-header .features {
+                gap: 1rem;
+                padding: 0 1rem;
+            }
+
+            .feature-badge {
+                font-size: 0.8rem;
+                padding: 0.4rem 0.8rem;
+            }
+
+            .quick-nav {
+                padding: 1rem;
+            }
+
+            .nav-links {
+                gap: 0.5rem;
+            }
+
+            .nav-link {
+                font-size: 0.8rem;
+                padding: 0.4rem 0.8rem;
+            }
+        }
+
+        /* Loading animation */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            flex-direction: column;
+            color: #64748b;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e2e8f0;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="api-header">
+        <h1>SwissPipe API</h1>
+        <p>Powerful workflow automation platform with JavaScript integration, AI-powered code generation, and comprehensive execution monitoring</p>
+        <div class="features">
+            <span class="feature-badge">🔄 DAG Workflows</span>
+            <span class="feature-badge">⚡ JavaScript Runtime</span>
+            <span class="feature-badge">🤖 AI Integration</span>
+            <span class="feature-badge">📊 Real-time Monitoring</span>
+            <span class="feature-badge">🔒 Secure Authentication</span>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="api-container">
+        <!-- Quick Navigation -->
+        <div class="quick-nav">
+            <h3>🚀 Quick Navigation</h3>
+            <div class="nav-links">
+                <a href="#tag/Health" class="nav-link">Health Check</a>
+                <a href="#tag/Workflow-Ingestion" class="nav-link">Workflow Ingestion</a>
+                <a href="#tag/Admin---Workflows" class="nav-link">Workflow Management</a>
+                <a href="#tag/Admin---Executions" class="nav-link">Execution Monitoring</a>
+                <a href="#tag/Admin---Script-Testing" class="nav-link">Script Testing</a>
+                <a href="#tag/Admin---AI" class="nav-link">AI Code Generation</a>
+                <a href="#tag/Authentication" class="nav-link">Authentication</a>
+                <a href="#tag/Analytics" class="nav-link">Analytics</a>
+            </div>
+        </div>
+
+        <!-- Loading indicator -->
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading API documentation...</p>
+        </div>
+
+        <!-- Redoc container -->
+        <div id="redoc" class="redoc-container" style="display: none;"></div>
+    </div>
+
+    <!-- Footer -->
+    <div class="api-footer">
+        <p>
+            Built with ❤️ using <a href="https://github.com/Redocly/redoc" target="_blank">Redoc</a> •
+            <a href="https://github.com/prabhatsharma/swisspipe" target="_blank">SwissPipe on GitHub</a> •
+            Version 0.1.0
+        </p>
+    </div>
+
+    <!-- Redoc bundle -->
+    <script src="https://cdn.redoc.ly/redoc/2.1.3/bundles/redoc.standalone.js"></script>
+
+    <script>
+        // OpenAPI specification embedded as JavaScript object
+        const openApiSpec = {
+            "openapi": "3.0.3",
+            "info": {
+                "title": "SwissPipe API",
+                "description": "SwissPipe is a powerful workflow automation platform that processes data through DAG-based workflows with JavaScript integration.\n\n## Features\n- **Workflow Engine**: DAG-based workflow processing with Trigger, Condition, Transformer, and App nodes\n- **JavaScript Runtime**: Safe script execution for transformers and conditions using QuickJS\n- **Async Execution**: Background job processing with worker pools and cleanup services\n- **Multi-Database Support**: SQLite (development) and PostgreSQL (production) support\n- **Authentication**: Basic Auth for admin APIs, UUID-based for workflow ingestion\n- **AI Integration**: Anthropic Claude integration for code and workflow generation\n\n## Authentication\n- **Admin APIs** (`/api/admin/v1/*`): Require Basic Authentication (username/password)\n- **Workflow Ingestion** (`/api/v1/*`): Use UUID-based workflow authentication\n- **Google OAuth**: Available for UI authentication when configured\n\n## Data Flow\n1. **Ingestion**: Data enters through workflow trigger endpoints\n2. **Processing**: Workflows execute as background jobs through the worker pool\n3. **Execution**: Each workflow step is tracked with input/output data\n4. **Monitoring**: Real-time execution status and detailed step information available",
+                "version": "0.1.0",
+                "contact": {
+                    "name": "SwissPipe Team",
+                    "url": "https://github.com/prabhatsharma/swisspipe"
+                },
+                "license": {
+                    "name": "MIT",
+                    "url": "https://opensource.org/licenses/MIT"
+                }
+            },
+            "servers": [
+                {
+                    "url": "http://localhost:3700",
+                    "description": "Development server (default)"
+                },
+                {
+                    "url": "https://api.swisspipe.com",
+                    "description": "Production server"
+                }
+            ]
+        };
+
+        // Load the full OpenAPI spec from the YAML file
+        async function loadAndRenderDocs() {
+            try {
+                const response = await fetch('./openapi.yaml');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const yamlText = await response.text();
+
+                // Parse YAML (using simple parser for demo, in production you'd use a proper YAML parser)
+                // For now, we'll use the embedded spec
+
+                // Initialize Redoc
+                Redoc.init(
+                    './openapi.yaml', // URL to the OpenAPI spec
+                    {
+                        theme: {
+                            colors: {
+                                primary: {
+                                    main: '#3b82f6'
+                                },
+                                success: {
+                                    main: '#10b981'
+                                },
+                                warning: {
+                                    main: '#f59e0b'
+                                },
+                                error: {
+                                    main: '#ef4444'
+                                },
+                                gray: {
+                                    50: '#f9fafb',
+                                    100: '#f3f4f6'
+                                }
+                            },
+                            typography: {
+                                fontSize: '14px',
+                                lineHeight: '1.6',
+                                code: {
+                                    fontSize: '13px',
+                                    fontFamily: 'Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+                                },
+                                headings: {
+                                    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                                    fontWeight: '600'
+                                }
+                            },
+                            sidebar: {
+                                backgroundColor: '#f8fafc',
+                                width: '300px'
+                            },
+                            rightPanel: {
+                                backgroundColor: '#1e293b',
+                                width: '40%'
+                            }
+                        },
+                        scrollYOffset: 80,
+                        hideDownloadButton: false,
+                        disableSearch: false,
+                        expandResponses: '200,201',
+                        jsonSampleExpandLevel: 2,
+                        hideSingleRequestSampleTab: true,
+                        menuToggle: true,
+                        nativeScrollbars: false,
+                        pathInMiddlePanel: true,
+                        requiredPropsFirst: true,
+                        sortPropsAlphabetically: true,
+                        expandSingleSchemaField: true,
+                        showObjectSchemaExamples: true,
+                        showExtensions: true,
+                        hideSchemaPattern: true
+                    },
+                    document.getElementById('redoc')
+                );
+
+                // Hide loading, show content
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('redoc').style.display = 'block';
+
+            } catch (error) {
+                console.error('Error loading API documentation:', error);
+                document.getElementById('loading').innerHTML = `
+                    <div style="color: #ef4444; text-align: center;">
+                        <h3>❌ Error Loading Documentation</h3>
+                        <p>Could not load the OpenAPI specification. Please ensure the <code>openapi.yaml</code> file is accessible.</p>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p style="margin-top: 2rem; color: #64748b; font-size: 0.9rem;">
+                            💡 <strong>Tip:</strong> If you're viewing this locally, you may need to serve the files through a web server (e.g., <code>python -m http.server</code>)
+                        </p>
+                    </div>
+                `;
+            }
+        }
+
+        // Initialize documentation when page loads
+        document.addEventListener('DOMContentLoaded', loadAndRenderDocs);
+
+        // Smooth scroll for navigation links
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('nav-link')) {
+                e.preventDefault();
+                const target = e.target.getAttribute('href');
+                const element = document.querySelector(target);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
+        });
+    </script>
+</body>
+</html>
