@@ -101,6 +101,7 @@
         <div class="flex-1 min-h-0">
           <TransformerConfig
             v-model="localNodeData.config as TransformerConfigType"
+            :node-id="selectedNodeData.id"
             @update="updateNodeData"
           />
         </div>

@@ -308,6 +308,7 @@ interface Props {
   modelValue: {
     script?: string
   }
+  nodeId?: string
 }
 
 interface Emits {
@@ -451,29 +452,62 @@ async function onExecutionSelect() {
   }
 
   try {
-    const execution = await apiClient.getExecution(selectedExecutionId.value)
-    if (execution.input_data) {
-      inputData.value = JSON.stringify(execution.input_data, null, 2)
-    }
-    // Try to fetch execution steps to get transformer node output
-    try {
-      const stepsResponse = await apiClient.getExecutionSteps(selectedExecutionId.value)
-      // Find transformer step output if available
-      const transformerStep = stepsResponse.steps.find(step =>
+    // Always fetch execution steps first to get step-level data
+    const stepsResponse = await apiClient.getExecutionSteps(selectedExecutionId.value)
+
+    // Find the specific transformer step using nodeId if available
+    let transformerStep = null
+    if (props.nodeId) {
+      console.log(`Looking for transformer step with node_id: ${props.nodeId}`)
+      transformerStep = stepsResponse.steps.find(step => step.node_id === props.nodeId)
+    } else {
+      console.log('Falling back to name-based transformer step search')
+      transformerStep = stepsResponse.steps.find(step =>
         step.node_name.toLowerCase().includes('transformer') ||
         step.node_name.toLowerCase().includes('transform')
       )
-      if (transformerStep?.output_data) {
+    }
+
+    if (transformerStep) {
+      // Use step-level input data (output from previous node)
+      if (transformerStep.input_data) {
+        inputData.value = JSON.stringify(transformerStep.input_data, null, 2)
+        console.log('Using step-level input data for transformer')
+      } else {
+        inputData.value = JSON.stringify({ info: 'No input data available for this transformer step' }, null, 2)
+      }
+
+      // Use step-level output data
+      if (transformerStep.output_data) {
         outputData.value = JSON.stringify(transformerStep.output_data, null, 2)
       } else {
-        outputData.value = JSON.stringify({ info: 'No transformer output found in this execution' }, null, 2)
+        outputData.value = JSON.stringify({ info: 'No output data available for this transformer step' }, null, 2)
       }
-    } catch (stepError) {
-      console.warn('Could not fetch execution steps:', stepError)
-      outputData.value = JSON.stringify({ info: 'Execution steps not available' }, null, 2)
+    } else {
+      // Fallback: use workflow-level data for backward compatibility
+      console.log('No transformer step found, falling back to workflow-level data')
+      const execution = await apiClient.getExecution(selectedExecutionId.value)
+
+      if (execution.input_data) {
+        inputData.value = JSON.stringify(execution.input_data, null, 2)
+      } else {
+        inputData.value = '{}'
+      }
+
+      if (props.nodeId) {
+        outputData.value = JSON.stringify({
+          info: `No execution step found for transformer node '${props.nodeId}' in this execution`
+        }, null, 2)
+      } else {
+        outputData.value = JSON.stringify({
+          info: 'No transformer steps found in this execution'
+        }, null, 2)
+      }
     }
   } catch (error) {
     console.error('Error fetching execution details:', error)
+    inputData.value = JSON.stringify({ error: 'Failed to load execution data' }, null, 2)
+    outputData.value = JSON.stringify({ error: 'Failed to load execution data' }, null, 2)
   }
 }
 
