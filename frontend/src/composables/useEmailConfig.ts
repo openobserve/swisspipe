@@ -2,11 +2,12 @@
  * Email configuration composable - centralized state management and business logic
  */
 
-import { ref, watch, computed, type Ref } from 'vue'
+import { ref, watch, computed, onMounted, type Ref } from 'vue'
 import type { EmailConfig } from '../types/nodes'
 import { emailConfigEqual, deepClone } from '../utils/comparison'
 import { debugLog } from '../utils/debug'
 import { validateEmailConfig, safeSync, type ValidationResult } from '../utils/error-handling'
+import { apiClient } from '../services/api'
 
 interface EmailConfigProps {
   modelValue: EmailConfig
@@ -172,8 +173,47 @@ export function useEmailConfig(props: EmailConfigProps, emit: EmailConfigEmits) 
     return a.length === b.length && a.every((val, i) => val === b[i])
   }
 
+  // Function to apply default settings from database
+  async function applyDefaultSettings() {
+    try {
+      const { defaultFromEmail, defaultFromName } = await apiClient.getDefaultEmailSettings()
+
+      // Only apply defaults if current values are empty or match the hardcoded defaults
+      const shouldApplyEmailDefault = !localConfig.value.from.email ||
+        localConfig.value.from.email === 'noreply@company.com' ||
+        localConfig.value.from.email === ''
+
+      const shouldApplyNameDefault = !localConfig.value.from.name ||
+        localConfig.value.from.name === 'SwissPipe Workflow' ||
+        localConfig.value.from.name === ''
+
+      if (shouldApplyEmailDefault && defaultFromEmail) {
+        debugLog.component('EmailConfig', 'Applying default from email', { defaultFromEmail })
+        localConfig.value.from.email = defaultFromEmail
+      }
+
+      if (shouldApplyNameDefault && defaultFromName) {
+        debugLog.component('EmailConfig', 'Applying default from name', { defaultFromName })
+        localConfig.value.from.name = defaultFromName
+      }
+
+      // Emit update if any defaults were applied
+      if ((shouldApplyEmailDefault && defaultFromEmail) || (shouldApplyNameDefault && defaultFromName)) {
+        emitUpdate()
+      }
+    } catch (error) {
+      debugLog.component('EmailConfig', 'Failed to fetch default settings', { error })
+      // Continue without defaults if fetching fails
+    }
+  }
+
   // Initialize validation
   validateConfig()
+
+  // Apply default settings on mount
+  onMounted(() => {
+    applyDefaultSettings()
+  })
 
   return {
     // State

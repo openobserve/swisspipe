@@ -8,6 +8,7 @@ use lettre::{
     transport::smtp::{authentication::Credentials, client::{Tls, TlsParameters}},
 };
 use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, Set, QueryFilter, ColumnTrait, QueryOrder, PaginatorTrait};
+use crate::database::settings;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use governor::{Quota, RateLimiter, state::NotKeyed, state::InMemoryState, clock::DefaultClock};
 use uuid::Uuid;
@@ -102,7 +103,45 @@ impl EmailService {
         
         Ok(configs)
     }
-    
+
+    async fn apply_default_settings(&self, mut config: EmailConfig) -> Result<EmailConfig, EmailError> {
+        // Only apply defaults if the email/name fields are empty
+        if config.from.email.is_empty() || config.from.name.is_none() || config.from.name.as_ref().map_or(true, |s| s.is_empty()) {
+            // Fetch default settings from database
+            let default_email_setting = settings::Entity::find()
+                .filter(settings::Column::Key.eq("default_from_email"))
+                .one(&*self.db)
+                .await?;
+
+            let default_name_setting = settings::Entity::find()
+                .filter(settings::Column::Key.eq("default_from_name"))
+                .one(&*self.db)
+                .await?;
+
+            // Apply default email if current one is empty and default exists
+            if config.from.email.is_empty() {
+                if let Some(setting) = default_email_setting {
+                    if !setting.value.is_empty() {
+                        tracing::debug!("Applying default from email: {}", setting.value);
+                        config.from.email = setting.value;
+                    }
+                }
+            }
+
+            // Apply default name if current one is empty/None and default exists
+            if config.from.name.is_none() || config.from.name.as_ref().map_or(true, |s| s.is_empty()) {
+                if let Some(setting) = default_name_setting {
+                    if !setting.value.is_empty() {
+                        tracing::debug!("Applying default from name: {}", setting.value);
+                        config.from.name = Some(setting.value);
+                    }
+                }
+            }
+        }
+
+        Ok(config)
+    }
+
     pub async fn send_email(
         &self,
         email_config: &EmailConfig,
@@ -110,9 +149,12 @@ impl EmailService {
         execution_id: &str,
         node_id: &str,
     ) -> Result<EmailSendResult, EmailError> {
-        tracing::debug!("Starting email send for execution_id: {}, node_id: {}, smtp_config: {}", 
+        tracing::debug!("Starting email send for execution_id: {}, node_id: {}, smtp_config: {}",
             execution_id, node_id, email_config.smtp_config);
-        
+
+        // Apply default settings to email config
+        let config_with_defaults = self.apply_default_settings(email_config.clone()).await?;
+
         // Check rate limiter
         if self.rate_limiter.check().is_err() {
             tracing::debug!("Rate limit exceeded, email will be queued");
@@ -121,10 +163,10 @@ impl EmailService {
         }
         
         if self.rate_limiter.check().is_err() {
-            if email_config.queue_if_rate_limited {
+            if config_with_defaults.queue_if_rate_limited {
                 // Queue the email
                 let queue_id = self.enqueue_email(
-                    email_config,
+                    &config_with_defaults,
                     workflow_event,
                     Some(execution_id.to_string()),
                     Some(node_id.to_string()),
@@ -144,7 +186,7 @@ impl EmailService {
         // Render email template
         tracing::debug!("Rendering email template for execution_id: {}", execution_id);
         let email_message = self.template_engine.render_email(
-            email_config,
+            &config_with_defaults,
             workflow_event,
             execution_id,
             node_id,
@@ -155,14 +197,14 @@ impl EmailService {
             email_message.subject);
         
         // Send email immediately
-        tracing::debug!("Sending email via SMTP config: {}", email_config.smtp_config);
-        let result = self.send_email_message(&email_config.smtp_config, &email_message).await?;
-        
+        tracing::debug!("Sending email via SMTP config: {}", config_with_defaults.smtp_config);
+        let result = self.send_email_message(&config_with_defaults.smtp_config, &email_message).await?;
+
         // Log to audit table
         self.log_email_audit(
             execution_id,
             node_id,
-            &email_config.smtp_config,
+            &config_with_defaults.smtp_config,
             &email_message,
             &result,
         ).await?;

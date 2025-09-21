@@ -312,6 +312,13 @@ class ApiClient {
     const response = await this.client.put<SettingResponse>(`/api/admin/v1/settings/${key}`, { value })
     return response.data
   }
+
+  async getDefaultEmailSettings(): Promise<{ defaultFromEmail: string; defaultFromName: string }> {
+    const settings = await this.getSettings()
+    const defaultFromEmail = settings.settings.find(s => s.key === 'default_from_email')?.value || ''
+    const defaultFromName = settings.settings.find(s => s.key === 'default_from_name')?.value || ''
+    return { defaultFromEmail, defaultFromName }
+  }
 }
 
 export const apiClient = new ApiClient()

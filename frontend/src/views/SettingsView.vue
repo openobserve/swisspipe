@@ -61,6 +61,68 @@
               {{ saveMessage }}
             </div>
           </div>
+
+          <!-- Default From Email Setting -->
+          <div>
+            <label for="defaultFromEmail" class="block text-sm font-medium text-gray-300 mb-2">
+              Default From Email
+            </label>
+            <p class="text-xs text-gray-500 mb-3">
+              Default from email address for Email nodes when not specified. Leave empty to use the node's configured value.
+            </p>
+            <div class="flex space-x-3">
+              <input
+                id="defaultFromEmail"
+                v-model="defaultFromEmailValue"
+                type="email"
+                placeholder="noreply@example.com"
+                class="flex-1 glass border border-slate-600/50 text-gray-100 px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500/50"
+                :disabled="saving"
+              />
+              <button
+                @click="saveDefaultFromEmail()"
+                :disabled="saving || defaultFromEmailValue === originalDefaultFromEmail"
+                class="bg-primary-600 hover:bg-primary-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md font-medium transition-colors"
+              >
+                <span v-if="saving">Saving...</span>
+                <span v-else>Save</span>
+              </button>
+            </div>
+            <div v-if="saveMessage" class="mt-2 text-sm" :class="saveSuccess ? 'text-green-400' : 'text-red-400'">
+              {{ saveMessage }}
+            </div>
+          </div>
+
+          <!-- Default From Name Setting -->
+          <div>
+            <label for="defaultFromName" class="block text-sm font-medium text-gray-300 mb-2">
+              Default From Name
+            </label>
+            <p class="text-xs text-gray-500 mb-3">
+              Default from name for Email nodes when not specified. Leave empty to use the node's configured value.
+            </p>
+            <div class="flex space-x-3">
+              <input
+                id="defaultFromName"
+                v-model="defaultFromNameValue"
+                type="text"
+                placeholder="SwissPipe"
+                class="flex-1 glass border border-slate-600/50 text-gray-100 px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500/50"
+                :disabled="saving"
+              />
+              <button
+                @click="saveDefaultFromName()"
+                :disabled="saving || defaultFromNameValue === originalDefaultFromName"
+                class="bg-primary-600 hover:bg-primary-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md font-medium transition-colors"
+              >
+                <span v-if="saving">Saving...</span>
+                <span v-else>Save</span>
+              </button>
+            </div>
+            <div v-if="saveMessage" class="mt-2 text-sm" :class="saveSuccess ? 'text-green-400' : 'text-red-400'">
+              {{ saveMessage }}
+            </div>
+          </div>
         </div>
       </div>
     </main>
@@ -80,6 +142,10 @@ const saveMessage = ref('')
 const saveSuccess = ref(false)
 const apiBaseUrlValue = ref('')
 const originalApiBaseUrl = ref('')
+const defaultFromEmailValue = ref('')
+const originalDefaultFromEmail = ref('')
+const defaultFromNameValue = ref('')
+const originalDefaultFromName = ref('')
 
 // Load settings from API
 const loadSettings = async () => {
@@ -89,10 +155,22 @@ const loadSettings = async () => {
   try {
     const settings = await apiClient.getSettings()
     const apiBaseUrlSetting = settings.settings.find(s => s.key === 'api_base_url')
+    const defaultFromEmailSetting = settings.settings.find(s => s.key === 'default_from_email')
+    const defaultFromNameSetting = settings.settings.find(s => s.key === 'default_from_name')
 
     if (apiBaseUrlSetting) {
       apiBaseUrlValue.value = apiBaseUrlSetting.value
       originalApiBaseUrl.value = apiBaseUrlSetting.value
+    }
+
+    if (defaultFromEmailSetting) {
+      defaultFromEmailValue.value = defaultFromEmailSetting.value
+      originalDefaultFromEmail.value = defaultFromEmailSetting.value
+    }
+
+    if (defaultFromNameSetting) {
+      defaultFromNameValue.value = defaultFromNameSetting.value
+      originalDefaultFromName.value = defaultFromNameSetting.value
     }
   } catch (err: any) {
     console.error('Failed to load settings:', err)
@@ -124,6 +202,62 @@ const saveApiBaseUrl = async () => {
   } catch (err: any) {
     console.error('Failed to save API Base URL:', err)
     saveMessage.value = err.message || 'Failed to save API Base URL'
+    saveSuccess.value = false
+  } finally {
+    saving.value = false
+  }
+}
+
+// Save Default From Email setting
+const saveDefaultFromEmail = async () => {
+  if (defaultFromEmailValue.value === originalDefaultFromEmail.value) {
+    return
+  }
+
+  saving.value = true
+  saveMessage.value = ''
+
+  try {
+    await apiClient.updateSetting('default_from_email', defaultFromEmailValue.value)
+    originalDefaultFromEmail.value = defaultFromEmailValue.value
+    saveMessage.value = 'Default from email saved successfully'
+    saveSuccess.value = true
+
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      saveMessage.value = ''
+    }, 3000)
+  } catch (err: any) {
+    console.error('Failed to save default from email:', err)
+    saveMessage.value = err.message || 'Failed to save default from email'
+    saveSuccess.value = false
+  } finally {
+    saving.value = false
+  }
+}
+
+// Save Default From Name setting
+const saveDefaultFromName = async () => {
+  if (defaultFromNameValue.value === originalDefaultFromName.value) {
+    return
+  }
+
+  saving.value = true
+  saveMessage.value = ''
+
+  try {
+    await apiClient.updateSetting('default_from_name', defaultFromNameValue.value)
+    originalDefaultFromName.value = defaultFromNameValue.value
+    saveMessage.value = 'Default from name saved successfully'
+    saveSuccess.value = true
+
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      saveMessage.value = ''
+    }, 3000)
+  } catch (err: any) {
+    console.error('Failed to save default from name:', err)
+    saveMessage.value = err.message || 'Failed to save default from name'
     saveSuccess.value = false
   } finally {
     saving.value = false
