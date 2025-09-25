@@ -35,8 +35,14 @@
       <template #node-transformer="{ data }">
         <TransformerNode :data="data" />
       </template>
-      <template #node-http-request="{ data }">
-        <HttpRequestNode :data="data" />
+      <template #node-http-request="nodeProps">
+        <HttpRequestNode
+          :data="nodeProps.data"
+          :node-id="nodeProps.id"
+          @pause-loop="$emit('pause-loop', $event)"
+          @stop-loop="$emit('stop-loop', $event)"
+          @retry-loop="$emit('retry-loop', $event)"
+        />
       </template>
       <template #node-openobserve="{ data }">
         <OpenObserveNode :data="data" />
@@ -87,6 +93,9 @@ interface Emits {
   (e: 'nodes-initialized'): void
   (e: 'nodes-delete', event: { nodes: Node[] }): void
   (e: 'drop', event: DragEvent): void
+  (e: 'pause-loop', loopId: string): void
+  (e: 'stop-loop', loopId: string): void
+  (e: 'retry-loop', loopId: string): void
 }
 
 defineProps<Props>()

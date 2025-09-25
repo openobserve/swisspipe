@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full">
+  <div class="flex flex-col h-full space-y-4 overflow-y-scroll h-screen max-h-[600px]">
     <!-- 2 Column Grid -->
     <div class="grid grid-cols-2 gap-4 h-[600px]">
       <!-- Input Column -->
@@ -418,7 +418,26 @@ async function fetchPastExecutions() {
   }
 }
 
-async function findImmediatePredecessorOutput(nodeId: string, executionSteps: any[]) {
+interface ExecutionStep {
+  node_id: string
+  output_data?: unknown
+}
+
+interface WorkflowEdge {
+  source: string
+  target: string
+  data?: {
+    condition_result?: unknown
+  }
+}
+
+interface PredecessorOutput {
+  nodeId: string
+  conditionResult: unknown
+  data: unknown
+}
+
+async function findImmediatePredecessorOutput(nodeId: string, executionSteps: ExecutionStep[]) {
   // Use nodeStore.edges for real-time working state (includes unsaved changes)
   const workingEdges = nodeStore.edges
 
@@ -428,7 +447,7 @@ async function findImmediatePredecessorOutput(nodeId: string, executionSteps: an
   }
 
   // Find all edges leading TO this node
-  const incomingEdges = workingEdges.filter((e: any) => e.target === nodeId)
+  const incomingEdges = (workingEdges as WorkflowEdge[]).filter(e => e.target === nodeId)
 
   console.log(`Found ${incomingEdges.length} incoming edges for node ${nodeId}`)
   console.log('Incoming edges:', incomingEdges)
@@ -440,9 +459,9 @@ async function findImmediatePredecessorOutput(nodeId: string, executionSteps: an
   }
 
   // Get output data from immediate predecessors only
-  const predecessorOutputs = []
+  const predecessorOutputs: PredecessorOutput[] = []
   for (const edge of incomingEdges) {
-    const predStep = executionSteps.find((step: any) => step.node_id === edge.source)
+    const predStep = executionSteps.find(step => step.node_id === edge.source)
     if (predStep?.output_data) {
       predecessorOutputs.push({
         nodeId: edge.source,
@@ -460,7 +479,7 @@ async function findImmediatePredecessorOutput(nodeId: string, executionSteps: an
   return selectBestImmediatePredecessor(predecessorOutputs)
 }
 
-function selectBestImmediatePredecessor(predecessorOutputs: any[]) {
+function selectBestImmediatePredecessor(predecessorOutputs: PredecessorOutput[]) {
   if (predecessorOutputs.length === 1) {
     // Single predecessor: use directly
     return predecessorOutputs[0].data
@@ -468,12 +487,12 @@ function selectBestImmediatePredecessor(predecessorOutputs: any[]) {
 
   // Multiple predecessors: create merged structure for parallel processing
   // or select first available for condition branches
-  if (predecessorOutputs.some((p: any) => p.conditionResult !== null)) {
+  if (predecessorOutputs.some(p => p.conditionResult !== null)) {
     // This is after condition branches - use any available path
     return predecessorOutputs[0].data
   } else {
     // This is after parallel processing - create merged array
-    return predecessorOutputs.map((output: any) => output.data)
+    return predecessorOutputs.map(output => output.data)
   }
 }
 
@@ -521,7 +540,7 @@ async function onExecutionSelect() {
           console.log('Using immediate predecessor output as input data for condition')
         } else {
           // Show informational message when no predecessor data available
-          const incomingEdges = nodeStore.edges?.filter((e: any) => e.target === props.nodeId) || []
+          const incomingEdges = (nodeStore.edges as WorkflowEdge[] | undefined)?.filter(e => e.target === props.nodeId) || []
 
           inputData.value = JSON.stringify({
             info: `This condition node '${props.nodeId}' was not present during this execution.`,

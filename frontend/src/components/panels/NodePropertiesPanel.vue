@@ -1,40 +1,32 @@
 <template>
   <!-- Modal Backdrop -->
-  <div
-    v-if="selectedNodeData"
+  <div v-if="selectedNodeData"
     class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-    @click.self="handleClose"
-  >
+    @click.self="handleClose">
     <!-- Modal Content -->
     <div class="bg-slate-800 rounded-xl border border-slate-700 w-[90vw] h-[90vh] overflow-hidden shadow-2xl">
       <!-- Modal Header -->
       <div class="flex items-center justify-between p-6 border-b border-slate-700/50">
         <div class="flex items-center space-x-4">
-          
+
           <h2 class="text-lg font-semibold text-white">Node Properties</h2>
           <div class="flex items-center space-x-3">
-            <div
-              class="w-4 h-4 rounded-full"
-              :style="{ backgroundColor: nodeTypeDefinition?.color || '#6b7280' }"
-            ></div>
+            <div class="w-4 h-4 rounded-full" :style="{ backgroundColor: nodeTypeDefinition?.color || '#6b7280' }">
+            </div>
             <span class="text-sm font-medium text-gray-300">{{ nodeTypeDefinition?.label || 'Node' }}</span>
           </div>
-          <button
-            v-if="selectedNodeData?.type !== 'trigger'"
-            @click="deleteNode"
-            class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center space-x-2"
-          >
+          <button v-if="selectedNodeData?.type !== 'trigger'" @click="deleteNode"
+            class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center space-x-2">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
             <span>Delete</span>
           </button>
         </div>
-        <button
-          @click="handleClose"
+        <button @click="handleClose"
           class="text-gray-400 hover:text-gray-200 transition-colors p-2 rounded-md hover:bg-slate-700/30"
-          aria-label="Close"
-        >
+          aria-label="Close">
           <XMarkIcon class="h-5 w-5" />
         </button>
       </div>
@@ -42,134 +34,121 @@
       <!-- Modal Body -->
       <div class="px-6 py-1 h-[calc(90vh-120px)] flex flex-col">
 
-    <!-- Node Basic Info -->
-    <div class="mb-6">
-      
-      <div class="grid grid-cols-[30%_70%] gap-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">Node Name</label>
-          <input
-            v-model="localNodeData.label"
-            type="text"
-            :readonly="selectedNodeData?.type === 'trigger'"
-            :class="[
-              'w-full border text-gray-100 px-3 py-2 rounded-md focus:outline-none',
-              selectedNodeData?.type === 'trigger' 
-                ? 'bg-slate-800 border-slate-700 text-gray-400 cursor-not-allowed' 
-                : 'bg-slate-700 border-slate-600 focus:ring-2 focus:ring-primary-500'
-            ]"
-          />
-          <p v-if="selectedNodeData?.type === 'trigger'" class="text-xs text-gray-500 mt-1">
-            Trigger node name is always "Start" and cannot be changed
-          </p>
+        <!-- Node Basic Info -->
+        <div class="mb-6">
+
+          <div class="grid grid-cols-[30%_70%] gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-2">Node Name</label>
+              <input
+                v-model="localNodeData.label"
+                type="text"
+                :readonly="selectedNodeData?.type === 'trigger'"
+                :class="[
+                  'w-full border text-gray-100 px-3 py-2 rounded-md focus:outline-none',
+                  selectedNodeData?.type === 'trigger'
+                    ? 'bg-slate-800 border-slate-700 text-gray-400 cursor-not-allowed'
+                    : 'bg-slate-700 border-slate-600 focus:ring-2 focus:ring-primary-500'
+                ]"
+              />
+              <p v-if="selectedNodeData?.type === 'trigger'" class="text-xs text-gray-500 mt-1">
+                Trigger node name is always "Start" and cannot be changed
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-2">Description</label>
+              <textarea
+                v-model="localNodeData.description"
+                rows="2"
+                class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              ></textarea>
+            </div>
+          </div>
         </div>
-        
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">Description</label>
-          <textarea
-            v-model="localNodeData.description"
-            rows="2"
-            class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-          ></textarea>
-        </div>
-      </div>
-    </div>
 
-    <!-- Node-specific Configuration -->
-    <div class="flex-1 min-h-0">
-      <!-- Trigger Node Configuration -->
-      <div v-if="selectedNodeData.type === 'trigger'">
-        <h3 class="text-sm font-semibold text-gray-300 mb-3">Trigger Configuration</h3>
-        <TriggerConfig
-          v-model="localNodeData.config as TriggerConfigType"
-          @update="updateNodeData"
-        />
-      </div>
-
-      <!-- Condition Node Configuration -->
-      <div v-if="selectedNodeData.type === 'condition'">
-        <h3 class="text-sm font-semibold text-gray-300 mb-3">Condition Configuration</h3>
-        <ConditionConfig
-          v-model="localNodeData.config as ConditionConfigType"
-          :node-id="selectedNodeData.id"
-          @update="updateNodeData"
-        />
-      </div>
-
-      <!-- Transformer Node Configuration -->
-      <div v-if="selectedNodeData.type === 'transformer'" class="h-full flex flex-col">
-        <h3 class="text-sm font-semibold text-gray-300 mb-3">Transformer Configuration</h3>
+        <!-- Node-specific Configuration -->
         <div class="flex-1 min-h-0">
-          <TransformerConfig
-            v-model="localNodeData.config as TransformerConfigType"
-            :node-id="selectedNodeData.id"
-            @update="updateNodeData"
-          />
+          <!-- Trigger Node Configuration -->
+          <div v-if="selectedNodeData.type === 'trigger'">
+            <h3 class="text-sm font-semibold text-gray-300 mb-3">Trigger Configuration</h3>
+            <TriggerConfig v-model="triggerConfig" @update="updateNodeData" />
+          </div>
+
+          <!-- Condition Node Configuration -->
+          <div v-if="selectedNodeData.type === 'condition'" class="h-full flex flex-col">
+            <h3 class="text-sm font-semibold text-gray-300 mb-3">Condition Configuration</h3>
+            <ConditionConfig
+              v-model="conditionConfig"
+              :node-id="selectedNodeData.id"
+              @update="updateNodeData"
+            />
+          </div>
+
+          <!-- Transformer Node Configuration -->
+          <div v-if="selectedNodeData.type === 'transformer'" class="h-full flex flex-col">
+            <h3 class="text-sm font-semibold text-gray-300 mb-3">Transformer Configuration</h3>
+            <div class="flex-1 min-h-0">
+              <TransformerConfig
+                v-model="transformerConfig"
+                :node-id="selectedNodeData.id"
+                @update="updateNodeData"
+              />
+            </div>
+          </div>
+
+          <!-- HTTP Request Node Configuration -->
+          <div v-if="selectedNodeData.type === 'http-request'" class="h-full flex flex-col">
+            <h3 class="text-sm font-semibold text-gray-300 mb-3">HTTP Request Configuration</h3>
+            <div class="flex-1 min-h-0 overflow-y-auto">
+              <div class="space-y-4">
+                <HttpRequestConfig v-model="httpRequestConfig" @update="updateNodeData" />
+                <CommonConfigFields
+                  v-model="commonConfig"
+                  @update="updateNodeData"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- OpenObserve Node Configuration -->
+          <div v-if="selectedNodeData.type === 'openobserve'" class="h-full flex flex-col">
+            <h3 class="text-sm font-semibold text-gray-300 mb-3">OpenObserve Configuration</h3>
+            <div class="flex-1 min-h-0 overflow-y-auto">
+              <div class="space-y-4">
+                <OpenObserveConfig v-model="openObserveConfig" @update="updateNodeData" />
+                <CommonConfigFields
+                  v-model="commonConfig"
+                  @update="updateNodeData"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Email Node Configuration -->
+          <div v-if="selectedNodeData.type === 'email'" class="h-full flex flex-col">
+            <h3 class="text-sm font-semibold text-gray-300 mb-3">Email Configuration</h3>
+            <div class="flex-1 min-h-0 overflow-y-auto">
+              <EmailConfig v-model="emailConfig" @update="updateNodeData" />
+            </div>
+          </div>
+
+          <!-- Delay Node Configuration -->
+          <div v-if="selectedNodeData.type === 'delay'" class="h-full flex flex-col">
+            <h3 class="text-sm font-semibold text-gray-300 mb-3">Delay Configuration</h3>
+            <div class="flex-1 min-h-0 overflow-y-auto">
+              <DelayConfig v-model="delayConfig" @update="updateNodeData" />
+            </div>
+          </div>
+
+          <!-- Anthropic Node Configuration -->
+          <div v-if="selectedNodeData.type === 'anthropic'" class="h-full flex flex-col">
+            <h3 class="text-sm font-semibold text-gray-300 mb-3">Anthropic Configuration</h3>
+            <div class="flex-1 min-h-0 overflow-y-auto">
+              <AnthropicConfig v-model="anthropicConfig" @update="updateNodeData" />
+            </div>
+          </div>
         </div>
-      </div>
-
-      <!-- HTTP Request Node Configuration -->
-      <div v-if="selectedNodeData.type === 'http-request'">
-        <h3 class="text-sm font-semibold text-gray-300 mb-3">HTTP Request Configuration</h3>
-        <div class="space-y-4">
-          <HttpRequestConfig
-            v-model="localNodeData.config as HttpRequestConfigType"
-            @update="updateNodeData"
-          />
-          <CommonConfigFields
-            v-model="localNodeData.config as { timeout_seconds?: number; failure_action?: string; retry_config?: { max_attempts?: number } }"
-            @update="updateNodeData"
-          />
-        </div>
-      </div>
-
-      <!-- OpenObserve Node Configuration -->
-      <div v-if="selectedNodeData.type === 'openobserve'">
-        <h3 class="text-sm font-semibold text-gray-300 mb-3">OpenObserve Configuration</h3>
-        <div class="space-y-4">
-          <OpenObserveConfig
-            v-model="localNodeData.config as OpenObserveConfigType"
-            @update="updateNodeData"
-          />
-          <CommonConfigFields
-            v-model="localNodeData.config as { timeout_seconds?: number; failure_action?: string; retry_config?: { max_attempts?: number } }"
-            @update="updateNodeData"
-          />
-        </div>
-      </div>
-
-
-      <!-- Email Node Configuration -->
-      <div v-if="selectedNodeData.type === 'email'" class="h-full flex flex-col">
-        <h3 class="text-sm font-semibold text-gray-300 mb-3">Email Configuration</h3>
-        <div class="flex-1 min-h-0 overflow-y-auto">
-          <EmailConfig
-            v-model="localNodeData.config as EmailConfigType"
-            @update="updateNodeData"
-          />
-        </div>
-      </div>
-
-      <!-- Delay Node Configuration -->
-      <div v-if="selectedNodeData.type === 'delay'">
-        <h3 class="text-sm font-semibold text-gray-300 mb-3">Delay Configuration</h3>
-        <DelayConfig
-          v-model="localNodeData.config as DelayConfigType"
-          @update="updateNodeData"
-        />
-      </div>
-
-      <!-- Anthropic Node Configuration -->
-      <div v-if="selectedNodeData.type === 'anthropic'" class="h-full flex flex-col">
-        <h3 class="text-sm font-semibold text-gray-300 mb-3">Anthropic Configuration</h3>
-        <div class="flex-1 min-h-0 overflow-y-auto">
-          <AnthropicConfig
-            v-model="localNodeData.config as AnthropicConfigType"
-            @update="updateNodeData"
-          />
-        </div>
-      </div>
-    </div>
 
 
       </div> <!-- Modal Body -->
@@ -207,11 +186,59 @@ import type {
 const nodeStore = useNodeStore()
 
 const selectedNodeData = computed(() => nodeStore.selectedNodeData)
-const nodeTypeDefinition = computed(() => 
+const nodeTypeDefinition = computed(() =>
   selectedNodeData.value ? nodeStore.nodeTypeByType(selectedNodeData.value.type) : null
 )
 
 const localNodeData = ref<WorkflowNodeData>({} as WorkflowNodeData)
+
+// Computed properties for typed configs with getters and setters
+const triggerConfig = computed({
+  get: () => localNodeData.value.config as TriggerConfigType,
+  set: (value) => { localNodeData.value.config = value }
+})
+
+const conditionConfig = computed({
+  get: () => localNodeData.value.config as ConditionConfigType,
+  set: (value) => { localNodeData.value.config = value }
+})
+
+const transformerConfig = computed({
+  get: () => localNodeData.value.config as TransformerConfigType,
+  set: (value) => { localNodeData.value.config = value }
+})
+
+const httpRequestConfig = computed({
+  get: () => localNodeData.value.config as HttpRequestConfigType,
+  set: (value) => { localNodeData.value.config = value }
+})
+
+const openObserveConfig = computed({
+  get: () => localNodeData.value.config as OpenObserveConfigType,
+  set: (value) => { localNodeData.value.config = value }
+})
+
+const emailConfig = computed({
+  get: () => localNodeData.value.config as EmailConfigType,
+  set: (value) => { localNodeData.value.config = value }
+})
+
+const delayConfig = computed({
+  get: () => localNodeData.value.config as DelayConfigType,
+  set: (value) => { localNodeData.value.config = value }
+})
+
+const anthropicConfig = computed({
+  get: () => localNodeData.value.config as AnthropicConfigType,
+  set: (value) => { localNodeData.value.config = value }
+})
+
+const commonConfig = computed({
+  get: () => localNodeData.value.config as { timeout_seconds?: number; failure_action?: string; retry_config?: { max_attempts?: number } },
+  set: (value) => {
+    localNodeData.value.config = { ...localNodeData.value.config, ...value } as typeof localNodeData.value.config
+  }
+})
 
 // Watch for selected node changes
 watch(selectedNodeData, (newNode) => {
@@ -229,7 +256,7 @@ function updateNodeData() {
       isEmailNode: selectedNodeData.value.type === 'email',
       labelChange: localNodeData.value.label !== selectedNodeData.value.data.label
     })
-    
+
     if (selectedNodeData.value.type === 'email') {
       debugLog.component('NodePropertiesPanel', 'email-node-update', {
         hasEmailConfig: !!localNodeData.value.config,
@@ -242,22 +269,30 @@ function updateNodeData() {
         bccCount: Array.isArray((localNodeData.value.config as unknown as Record<string, unknown>)?.bcc) ? ((localNodeData.value.config as unknown as Record<string, unknown>).bcc as unknown[]).length : 0
       })
     }
-    
+
+    if (selectedNodeData.value.type === 'http-request') {
+      debugLog.component('NodePropertiesPanel', 'http-node-update', {
+        hasHttpConfig: !!localNodeData.value.config,
+        hasLoopConfig: !!(localNodeData.value.config as unknown as Record<string, unknown>)?.loop_config,
+        loopConfigType: typeof (localNodeData.value.config as unknown as Record<string, unknown>)?.loop_config
+      })
+    }
+
     // Get the current node from store
     const currentNode = nodeStore.getNodeById(selectedNodeData.value.id)
     if (currentNode) {
       // Create a completely new node object to force Vue reactivity
       const updatedNode = {
         ...currentNode,
-        data: { 
+        data: {
           ...localNodeData.value,
           status: localNodeData.value.status as NodeStatus || 'ready'
         }
       }
-      
+
       // Force reactivity by replacing the entire node
       nodeStore.updateNode(selectedNodeData.value.id, updatedNode)
-      
+
     }
   }
 }

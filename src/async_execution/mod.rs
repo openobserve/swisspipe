@@ -5,6 +5,7 @@ pub mod resumption_service;
 pub mod delay_scheduler;
 pub mod input_coordination;
 pub mod cleanup_service;
+pub mod http_loop_scheduler;
 
 pub use execution_service::ExecutionService;
 pub use worker_pool::WorkerPool;
@@ -12,3 +13,4 @@ pub use job_manager::JobManager;
 pub use resumption_service::ResumptionService;
 pub use delay_scheduler::DelayScheduler;
 pub use cleanup_service::CleanupService;
+pub use http_loop_scheduler::HttpLoopScheduler;

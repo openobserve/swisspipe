@@ -114,7 +114,7 @@ const quickLinks = [
 function loadRedocScript(): Promise<void> {
   return new Promise((resolve, reject) => {
     // Check if Redoc is already loaded
-    if ((window as any).Redoc) {
+    if ((window as unknown as { Redoc?: unknown }).Redoc) {
       resolve()
       return
     }
@@ -149,7 +149,7 @@ function loadRedocScript(): Promise<void> {
       script.onload = () => {
         clearTimeout(timeout)
         // Double-check that Redoc is available
-        if ((window as any).Redoc) {
+        if ((window as unknown as { Redoc?: unknown }).Redoc) {
           resolve()
         } else {
           currentIndex++
@@ -214,7 +214,7 @@ async function initializeRedoc() {
     }
 
     // Initialize Redoc
-    ;(window as any).Redoc.init(openApiSpecUrl, redocOptions, redocContainer.value)
+    ;((window as unknown as { Redoc: { init: (url: string, options: Record<string, unknown>, container: HTMLElement) => void } }).Redoc).init(openApiSpecUrl, redocOptions, redocContainer.value)
 
     isLoading.value = false
   } catch (error) {

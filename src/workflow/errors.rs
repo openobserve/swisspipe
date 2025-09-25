@@ -61,6 +61,18 @@ pub enum JavaScriptError {
     
     #[error("JavaScript memory limit exceeded")]
     MemoryLimitExceeded,
+
+    #[error("JavaScript validation error: {0}")]
+    ValidationError(String),
+
+    #[error("JavaScript security violation: {0}")]
+    SecurityError(String),
+}
+
+impl From<rquickjs::Error> for JavaScriptError {
+    fn from(err: rquickjs::Error) -> Self {
+        JavaScriptError::RuntimeError(err.to_string())
+    }
 }
 
 #[derive(Debug, Error)]

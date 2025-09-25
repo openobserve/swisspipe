@@ -12,6 +12,7 @@ pub mod node_input_sync;
 pub mod sessions;
 pub mod csrf_tokens;
 pub mod settings;
+pub mod http_loop_states;
 
 use sea_orm::{Database, DatabaseConnection, DbErr, ConnectionTrait, DatabaseBackend};
 use sea_orm_migration::MigratorTrait;
@@ -48,12 +49,19 @@ pub async fn establish_connection(database_url: &str) -> Result<DatabaseConnecti
         }
         DatabaseBackend::Sqlite => {
             tracing::debug!("Applying SQLite optimizations");
-            // SQLite optimizations via PRAGMA statements
+            // SQLite optimizations via PRAGMA statements for high concurrency
             let _ = db.execute_unprepared("PRAGMA journal_mode = WAL").await;
             let _ = db.execute_unprepared("PRAGMA synchronous = NORMAL").await;
             let _ = db.execute_unprepared("PRAGMA cache_size = 1000000").await;
             let _ = db.execute_unprepared("PRAGMA temp_store = MEMORY").await;
             let _ = db.execute_unprepared("PRAGMA mmap_size = 268435456").await; // 256MB
+
+            // Additional concurrency optimizations
+            let _ = db.execute_unprepared("PRAGMA busy_timeout = 30000").await; // 30 seconds
+            let _ = db.execute_unprepared("PRAGMA wal_autocheckpoint = 1000").await;
+            let _ = db.execute_unprepared("PRAGMA optimize").await;
+
+            tracing::info!("SQLite WAL mode enabled with concurrency optimizations");
         }
         _ => {
             tracing::debug!("No specific optimizations for this database backend");

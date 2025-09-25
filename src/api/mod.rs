@@ -2,6 +2,7 @@ pub mod ai;
 pub mod executions;
 pub mod health;
 pub mod ingestion;
+pub mod loops;
 pub mod middleware;
 pub mod script;
 pub mod segment;
@@ -22,6 +23,7 @@ pub fn create_router() -> Router<AppState> {
         // Admin routes with logging middleware
         .nest("/api/admin/v1/workflows", workflows::routes())
         .nest("/api/admin/v1/executions", executions::routes())
+        .nest("/api/admin/v1/loops", loops::routes())
         .nest("/api/admin/v1/script", script::routes())
         .nest("/api/admin/v1/ai", ai::create_ai_routes())
         .nest("/api/admin/v1/settings", settings::routes())

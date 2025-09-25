@@ -36,7 +36,8 @@ export const DEFAULT_HTTP_CONFIG = {
   timeout_seconds: 30,
   failure_action: 'Stop' as const,
   headers: {},
-  retry_config: DEFAULT_RETRY_CONFIG
+  retry_config: DEFAULT_RETRY_CONFIG,
+  loop_config: undefined
 }
 
 export const DEFAULT_OPENOBSERVE_CONFIG = {

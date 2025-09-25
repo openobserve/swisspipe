@@ -21,4 +21,5 @@ pub struct AppState {
     pub worker_pool: Arc<async_execution::worker_pool::WorkerPool>,
     pub workflow_cache: Arc<cache::WorkflowCache>,
     pub delay_scheduler: Arc<async_execution::DelayScheduler>,
+    pub http_loop_scheduler: Arc<async_execution::HttpLoopScheduler>,
 }

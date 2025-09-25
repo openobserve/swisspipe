@@ -20,7 +20,8 @@ impl AppExecutor {
     pub fn new() -> Self {
         // Create client with reasonable default timeout to prevent hanging
         let client = Client::builder()
-            .timeout(Duration::from_secs(60)) // Default 60s timeout as fallback
+            .timeout(Duration::from_secs(120)) // Default 120s timeout as fallback for external services
+            .connect_timeout(Duration::from_secs(30)) // Connection timeout
             .build()
             .unwrap_or_else(|_| Client::new());
             
@@ -148,6 +149,8 @@ impl AppExecutor {
                 let mut request = match method {
                     HttpMethod::Post => self.client.post(url).json(&event.data),
                     HttpMethod::Put => self.client.put(url).json(&event.data),
+                    HttpMethod::Delete => self.client.delete(url).json(&event.data),
+                    HttpMethod::Patch => self.client.patch(url).json(&event.data),
                     HttpMethod::Get => {
                         // For GET, convert data to query parameters
                         let query_params = self.json_to_query_params(&event.data)?;

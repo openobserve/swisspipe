@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
-use crate::async_execution::{ExecutionService, DelayScheduler, input_coordination::InputCoordination};
+use crate::async_execution::{ExecutionService, DelayScheduler, HttpLoopScheduler, input_coordination::InputCoordination};
 use crate::database::workflow_execution_steps::StepStatus;
 use crate::workflow::{
     engine::WorkflowEngine,
@@ -23,6 +23,7 @@ pub struct WorkflowExecutor {
     workflow_engine: Arc<WorkflowEngine>,
     input_sync_service: Arc<InputSyncService>,
     node_executor: NodeExecutor,
+    http_loop_scheduler: Arc<RwLock<Option<Arc<HttpLoopScheduler>>>>,
 }
 
 impl InputCoordination for WorkflowExecutor {
@@ -38,13 +39,41 @@ impl WorkflowExecutor {
         input_sync_service: Arc<InputSyncService>,
         delay_scheduler: Arc<RwLock<Option<Arc<DelayScheduler>>>>,
     ) -> Self {
+        // For now, create without HTTP loop scheduler - will be updated when available
         let node_executor = NodeExecutor::new(workflow_engine.clone(), delay_scheduler);
+        let http_loop_scheduler = Arc::new(RwLock::new(None));
 
         Self {
             execution_service,
             workflow_engine,
             input_sync_service,
             node_executor,
+            http_loop_scheduler,
+        }
+    }
+
+    /// Set the HTTP loop scheduler for this workflow executor
+    pub async fn set_http_loop_scheduler(&self, scheduler: Arc<HttpLoopScheduler>) {
+        *self.http_loop_scheduler.write().await = Some(scheduler);
+    }
+
+    /// Create a NodeExecutor with the current HTTP loop scheduler
+    async fn create_node_executor(&self) -> NodeExecutor {
+        let http_loop_scheduler = self.http_loop_scheduler.read().await;
+        match http_loop_scheduler.as_ref() {
+            Some(scheduler) => {
+                NodeExecutor::new_with_http_loop_scheduler(
+                    self.workflow_engine.clone(),
+                    self.node_executor.delay_scheduler.clone(),
+                    scheduler.clone()
+                )
+            }
+            None => {
+                NodeExecutor::new(
+                    self.workflow_engine.clone(),
+                    self.node_executor.delay_scheduler.clone()
+                )
+            }
         }
     }
 
@@ -146,8 +175,9 @@ impl WorkflowExecutor {
                     .update_execution_step(&step_id, StepStatus::Running, None, None)
                     .await?;
 
-                // Execute the node
-                match self.node_executor.execute_node(execution_id, workflow, node, current_event.clone()).await {
+                // Execute the node using updated node executor with HTTP loop scheduler
+                let node_executor = self.create_node_executor().await;
+                match node_executor.execute_node(execution_id, workflow, node, current_event.clone()).await {
                     Ok(result_event) => {
                         // Mark step as completed
                         let output_data = serde_json::to_value(&result_event).ok();
@@ -182,7 +212,7 @@ impl WorkflowExecutor {
                 }
             }
 
-            // Get next nodes using the workflow engine's logic
+            // Get next nodes using the workflow engine's logic (use existing node executor for this utility function)
             let next_nodes = self.node_executor.get_next_nodes(workflow, &current_node_id, &current_event)?;
             match next_nodes.len() {
                 0 => break, // End of workflow
@@ -198,12 +228,10 @@ impl WorkflowExecutor {
                         let workflow_clone = workflow.clone();
                         let event_clone = current_event.clone();
                         let execution_service = self.execution_service.clone();
-                        let workflow_engine = self.workflow_engine.clone();
+                        let _workflow_engine = self.workflow_engine.clone();
                         let input_sync_service = self.input_sync_service.clone();
-                        let node_executor = NodeExecutor::new(
-                            workflow_engine.clone(),
-                            self.node_executor.delay_scheduler.clone()
-                        );
+                        // Create node executor with HTTP loop scheduler if available
+                        let node_executor = self.create_node_executor().await;
 
                         let handle = tokio::spawn(async move {
                             let parallel_executor = ParallelBranchExecutor {
@@ -271,6 +299,7 @@ impl ParallelBranchExecutor {
         input_sync_service: Arc<InputSyncService>,
         delay_scheduler: Arc<RwLock<Option<Arc<DelayScheduler>>>>,
     ) -> Self {
+        // For now, create without HTTP loop scheduler - will be updated when available
         let node_executor = NodeExecutor::new(workflow_engine, delay_scheduler);
 
         Self {
@@ -337,7 +366,7 @@ impl ParallelBranchExecutor {
                 .update_execution_step(&step_id, StepStatus::Running, None, None)
                 .await?;
 
-            // Execute the node
+            // Execute the node using current node executor (parallel branches use their own executor)
             match self.node_executor.execute_node(execution_id, workflow, node, event).await {
                 Ok(result_event) => {
                     // Mark step as completed

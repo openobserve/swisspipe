@@ -106,7 +106,7 @@ impl EmailService {
 
     async fn apply_default_settings(&self, mut config: EmailConfig) -> Result<EmailConfig, EmailError> {
         // Only apply defaults if the email/name fields are empty
-        if config.from.email.is_empty() || config.from.name.is_none() || config.from.name.as_ref().map_or(true, |s| s.is_empty()) {
+        if config.from.email.is_empty() || config.from.name.is_none() || config.from.name.as_ref().is_none_or(|s| s.is_empty()) {
             // Fetch default settings from database
             let default_email_setting = settings::Entity::find()
                 .filter(settings::Column::Key.eq("default_from_email"))
@@ -129,7 +129,7 @@ impl EmailService {
             }
 
             // Apply default name if current one is empty/None and default exists
-            if config.from.name.is_none() || config.from.name.as_ref().map_or(true, |s| s.is_empty()) {
+            if config.from.name.is_none() || config.from.name.as_ref().is_none_or(|s| s.is_empty()) {
                 if let Some(setting) = default_name_setting {
                     if !setting.value.is_empty() {
                         tracing::debug!("Applying default from name: {}", setting.value);

@@ -3503,6 +3503,7 @@ dependencies = [
  "mime_guess",
  "oauth2",
  "rand",
+ "regex",
  "reqwest",
  "rquickjs",
  "rust-embed",

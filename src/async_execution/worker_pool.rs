@@ -10,7 +10,7 @@ mod workflow_executor;
 pub use config::*;
 pub use workflow_executor::{WorkflowExecutor, ParallelBranchExecutor};
 
-use crate::async_execution::{ExecutionService, JobManager, DelayScheduler, input_coordination::InputCoordination};
+use crate::async_execution::{ExecutionService, JobManager, DelayScheduler, HttpLoopScheduler, input_coordination::InputCoordination};
 use crate::database::{
     workflow_executions::ExecutionStatus,
     workflow_execution_steps::StepStatus,
@@ -83,6 +83,30 @@ impl WorkerPool {
             delay_scheduler,
             workflow_executor,
         }
+    }
+
+    /// Set the HTTP loop scheduler for this worker pool
+    pub async fn set_http_loop_scheduler(&self, scheduler: Arc<HttpLoopScheduler>) -> Result<()> {
+        tracing::info!("Setting HTTP loop scheduler on worker pool");
+
+        // Try to set the scheduler on the workflow engine (might already be set)
+        match self.workflow_engine.set_http_loop_scheduler(scheduler.clone()) {
+            Ok(()) => {
+                tracing::info!("HTTP loop scheduler set on workflow engine");
+            }
+            Err(e) if e.to_string().contains("already initialized") => {
+                tracing::info!("HTTP loop scheduler already set on workflow engine, skipping");
+            }
+            Err(e) => {
+                tracing::error!("Failed to set HTTP loop scheduler on workflow engine: {}", e);
+                return Err(e);
+            }
+        }
+
+        // Set the scheduler on the workflow executor as well
+        self.workflow_executor.set_http_loop_scheduler(scheduler).await;
+
+        Ok(())
     }
 
     pub async fn start(&self) -> Result<()> {

@@ -51,9 +51,8 @@ impl WorkflowCache {
             if !entry.is_expired() {
                 tracing::debug!("Cache hit for workflow: {}", workflow_id);
                 return Some(entry.clone());
-            } else {
-                tracing::debug!("Cache entry expired for workflow: {}", workflow_id);
             }
+            tracing::debug!("Cache entry expired for workflow: {}", workflow_id);
         }
         
         tracing::debug!("Cache miss for workflow: {}", workflow_id);

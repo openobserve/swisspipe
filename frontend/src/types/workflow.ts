@@ -79,6 +79,15 @@ export interface HttpRequestNode {
     failure_action: FailureAction
     retry_config: RetryConfig
     headers: Record<string, string>
+    loop_config?: {
+      max_iterations?: number
+      interval_seconds: number
+      backoff_strategy: { Fixed: number } | { Exponential: { base: number; multiplier: number; max: number } }
+      termination_condition?: {
+        script: string            // JavaScript function: function condition(event) { return boolean; }
+        action: 'Success' | 'Failure' | 'Stop'
+      }
+    }
   }
 }
 

@@ -425,6 +425,7 @@ pub async fn create_workflow(
                     failure_action: FailureAction::Stop,
                     retry_config: RetryConfig::default(),
                     headers: HashMap::new(),
+                    loop_config: None,
                 });
             NodeResponse {
                 id: node.id,
@@ -514,6 +515,7 @@ pub async fn get_workflow(
                     failure_action: FailureAction::Stop,
                     retry_config: RetryConfig::default(),
                     headers: HashMap::new(),
+                    loop_config: None,
                 });
             NodeResponse {
                 id: node.id,

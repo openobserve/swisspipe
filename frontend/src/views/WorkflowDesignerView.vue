@@ -68,6 +68,9 @@
         @nodes-initialized="onNodesInitialized"
         @nodes-delete="onNodesDelete"
         @drop="onDrop"
+        @pause-loop="pauseLoop"
+        @stop-loop="stopLoop"
+        @retry-loop="retryLoop"
       />
 
 
@@ -107,6 +110,7 @@
     
     <!-- Toast Notifications -->
     <ToastContainer />
+
   </div>
 </template>
 
@@ -131,8 +135,9 @@ import { useWorkflowData } from '../composables/useWorkflowData'
 import { useExecutionTracing } from '../composables/useExecutionTracing'
 import { useVueFlowInteraction } from '../composables/useVueFlowInteraction'
 import { usePanelState } from '../composables/usePanelState'
+import { useHttpLoop } from '../composables/useHttpLoop'
 import ToastContainer from '../components/common/ToastContainer.vue'
-import type { NodeTypeDefinition, WorkflowNodeData } from '../types/nodes'
+import type { NodeTypeDefinition, WorkflowNodeData, WorkflowNode, HttpRequestConfig } from '../types/nodes'
 
 const route = useRoute()
 const router = useRouter()
@@ -190,6 +195,35 @@ const {
   handleKeyDown
 } = useVueFlowInteraction()
 
+
+// HTTP Loop integration
+const {
+  loopStatuses,
+  activeLoops,
+  refreshLoopData,
+  stopPolling,
+  pauseLoop,
+  stopLoop,
+  retryLoop,
+  setExecutionId
+} = useHttpLoop()
+
+// Check if any HTTP nodes have loop configurations and refresh loop data if needed
+const checkAndRefreshLoopData = async () => {
+  const httpNodesWithLoops = nodeStore.nodes.filter((node: WorkflowNode) => {
+    if (node.type === 'http-request') {
+      const config = node.data.config as HttpRequestConfig
+      return config.loop_config !== undefined && config.loop_config !== null
+    }
+    return false
+  })
+
+  // Only fetch loop data if there are HTTP nodes with loop configurations
+  if (httpNodesWithLoops.length > 0) {
+    await refreshLoopData()
+  }
+}
+
 // Computed properties
 const workflowJson = computed(() => {
   return {
@@ -213,7 +247,7 @@ const workflowJson = computed(() => {
 
 onMounted(async () => {
   nodeStore.clearWorkflow()
-  
+
   if (workflowId.value) {
     await workflowStore.fetchWorkflow(workflowId.value)
     if (workflowStore.currentWorkflow) {
@@ -223,18 +257,42 @@ onMounted(async () => {
   } else {
     loadWorkflowData()
   }
-  
+
+  // Don't start automatic polling - load loop data only when needed
+  checkAndRefreshLoopData()
+
   document.addEventListener('keydown', handleKeyDown)
 })
 
 onUnmounted(() => {
   // Remove keyboard event listener
   document.removeEventListener('keydown', handleKeyDown)
+
+  // Stop HTTP loop polling
+  stopPolling()
 })
 
 watch(() => workflowStore.currentWorkflow, (workflow) => {
   if (workflow) {
     workflowName.value = workflow.name
+    // Check for loop data when workflow loads
+    checkAndRefreshLoopData()
+  }
+})
+
+// Watch for changes in nodes to refresh loop data if needed
+watch(() => nodeStore.nodes, () => {
+  checkAndRefreshLoopData()
+}, { deep: false })
+
+// Watch for execution tracing changes to update HTTP loop execution filtering
+watch(tracingExecution, (newExecution) => {
+  if (newExecution) {
+    // When tracing starts, filter HTTP loops by the execution ID
+    setExecutionId(newExecution.id)
+  } else {
+    // When tracing stops, clear the execution filter (show all loops)
+    setExecutionId(undefined)
   }
 })
 
@@ -330,6 +388,69 @@ function handleLogout() {
   authStore.logout()
   router.push('/login')
 }
+
+// HTTP Loop control handlers
+async function handlePauseLoop(loopId: string) {
+  try {
+    await pauseLoop(loopId)
+  } catch (error) {
+    console.error('Failed to pause loop:', error)
+    // TODO: Show error toast
+  }
+}
+
+async function handleStopLoop(loopId: string) {
+  try {
+    await stopLoop(loopId)
+  } catch (error) {
+    console.error('Failed to stop loop:', error)
+    // TODO: Show error toast
+  }
+}
+
+async function handleRetryLoop(loopId: string) {
+  try {
+    await retryLoop(loopId)
+  } catch (error) {
+    console.error('Failed to retry loop:', error)
+    // TODO: Show error toast
+  }
+}
+
+// Type guard for HTTP request nodes
+function isHttpRequestNode(node: WorkflowNode): node is WorkflowNode & {
+  data: WorkflowNodeData & { config: HttpRequestConfig }
+} {
+  return node.type === 'http-request'
+}
+
+// Watch for loop status changes and update node data
+watch(loopStatuses, (newLoopStatuses) => {
+  // Update node data with loop status information
+  newLoopStatuses.forEach((loopStatus, loopId) => {
+    const httpNodes = nodeStore.nodes
+      .filter(isHttpRequestNode)
+      .filter(node => node.data.config.loop_config !== undefined)
+
+    // Find nodes that might be associated with this loop
+    // Note: This is a simplified approach - in a real implementation,
+    // you'd need a proper mapping between loop IDs and node IDs
+    httpNodes.forEach(node => {
+      const nodeData = node.data as WorkflowNodeData & { loopStatus?: typeof loopStatus }
+      if (nodeData.loopStatus?.loop_id === loopId) {
+        // Update the node's loop status
+        const updatedNode = {
+          ...node,
+          data: {
+            ...node.data,
+            loopStatus
+          }
+        }
+        nodeStore.updateNode(node.id, updatedNode)
+      }
+    })
+  })
+}, { deep: true })
 
 </script>
 

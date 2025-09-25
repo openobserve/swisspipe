@@ -423,8 +423,17 @@ async function refreshExecution() {
 }
 
 function openStepModal(step: ExecutionStep) {
-  selectedStep.value = step
-  showStepModal.value = true
+  try {
+    console.log('Opening step modal for:', step?.id)
+    if (!step || !step.id) {
+      console.error('Invalid step object:', step)
+      return
+    }
+    selectedStep.value = step
+    showStepModal.value = true
+  } catch (error) {
+    console.error('Error in openStepModal:', error)
+  }
 }
 
 function closeStepModal() {

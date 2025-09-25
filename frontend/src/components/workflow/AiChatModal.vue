@@ -51,8 +51,8 @@
         <div class="flex-1">
           <textarea
             v-model="currentMessage"
-            @keydown.enter.prevent="handleSendMessage"
-            @keydown.shift.enter="addNewLine"
+            @keydown.enter.exact.prevent="handleSendMessage"
+            @keydown.shift.enter.exact="addNewLine"
             placeholder="Ask me to modify your workflow..."
             class="w-full bg-slate-700 text-white placeholder-gray-400 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-500"
             rows="3"

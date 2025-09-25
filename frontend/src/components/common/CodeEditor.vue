@@ -62,7 +62,7 @@ import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
 import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
 
 // Configure Monaco Environment for web workers
-(self as any).MonacoEnvironment = {
+(self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
   getWorker(_: string, label: string) {
     switch (label) {
       case 'json':

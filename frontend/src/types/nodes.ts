@@ -13,6 +13,7 @@ export interface WorkflowNodeData {
   config: NodeConfig
   status?: NodeStatus
   isTracing?: boolean
+  tracingExecutionId?: string
   executionStatus?: string
   executionDuration?: number
   executionError?: string
@@ -70,6 +71,42 @@ export interface HttpRequestConfig {
     max_delay_ms: number
     backoff_multiplier: number
   }
+  loop_config?: LoopConfig
+}
+
+export interface LoopConfig {
+  max_iterations?: number
+  interval_seconds: number
+  backoff_strategy: BackoffStrategy
+  termination_condition?: TerminationCondition
+}
+
+export type BackoffStrategy =
+  | { Fixed: number }
+  | { Exponential: { base: number; multiplier: number; max: number } }
+
+export interface TerminationCondition {
+  script: string            // JavaScript function: function condition(event) { return boolean; }
+  action: TerminationAction // Success | Failure | Stop
+}
+
+export type TerminationAction = 'Success' | 'Failure' | 'Stop'
+
+export interface LoopStatus {
+  loop_id: string
+  execution_step_id: string
+  current_iteration: number
+  max_iterations?: number
+  next_execution_at?: number
+  consecutive_failures: number
+  loop_started_at: number
+  last_response_status?: number
+  last_response_body?: string
+  status: string
+  termination_reason?: string
+  created_at: number
+  updated_at: number
+  success_rate?: number
 }
 
 export interface OpenObserveConfig {

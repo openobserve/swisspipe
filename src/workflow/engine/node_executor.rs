@@ -1,5 +1,6 @@
 use crate::{
     anthropic::{AnthropicService, AnthropicCallConfig},
+    async_execution::HttpLoopScheduler,
     email::{service::EmailService, EmailConfig},
     utils::{http_client::AppExecutor, javascript::JavaScriptExecutor},
     workflow::{
@@ -7,13 +8,17 @@ use crate::{
         models::{Node, NodeType, WorkflowEvent, FailureAction, RetryConfig},
     },
 };
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
+use sea_orm::DatabaseConnection;
 
 pub struct NodeExecutor {
     js_executor: Arc<JavaScriptExecutor>,
     app_executor: Arc<AppExecutor>,
     email_service: Arc<EmailService>,
     anthropic_service: Arc<AnthropicService>,
+    #[allow(dead_code)] // May be used in future for direct database operations
+    db: Arc<DatabaseConnection>,
+    http_loop_scheduler: Arc<OnceLock<Arc<HttpLoopScheduler>>>,
 }
 
 impl NodeExecutor {
@@ -22,13 +27,22 @@ impl NodeExecutor {
         app_executor: Arc<AppExecutor>,
         email_service: Arc<EmailService>,
         anthropic_service: Arc<AnthropicService>,
+        db: Arc<DatabaseConnection>,
     ) -> Self {
         Self {
             js_executor,
             app_executor,
             email_service,
             anthropic_service,
+            db,
+            http_loop_scheduler: Arc::new(OnceLock::new()),
         }
+    }
+
+    /// Set the HTTP loop scheduler (used for dependency injection after construction)
+    pub fn set_http_loop_scheduler(&self, scheduler: Arc<HttpLoopScheduler>) -> Result<()> {
+        self.http_loop_scheduler.set(scheduler)
+            .map_err(|_| SwissPipeError::Generic("HTTP loop scheduler already initialized".to_string()))
     }
 
     /// Execute a single node based on its type
@@ -38,6 +52,7 @@ impl NodeExecutor {
         event: WorkflowEvent,
         execution_id: &str,
     ) -> Result<WorkflowEvent> {
+        tracing::debug!("NodeExecutor::execute_node called for node '{}' (type: {:?})", node.name, std::mem::discriminant(&node.node_type));
         self.execute_node_by_type(
             &node.node_type,
             event,
@@ -53,7 +68,7 @@ impl NodeExecutor {
         &self,
         node_type: &NodeType,
         event: WorkflowEvent,
-        _execution_id: &str,
+        execution_id: &str,
         node_name: &str,
         workflow_id: &str,
         node_id: &str,
@@ -66,7 +81,7 @@ impl NodeExecutor {
             NodeType::Transformer { script } => {
                 self.execute_transformer_node(script, event, node_name).await
             }
-            NodeType::HttpRequest { url, method, timeout_seconds, failure_action, retry_config, headers } => {
+            NodeType::HttpRequest { url, method, timeout_seconds, failure_action, retry_config, headers, loop_config } => {
                 let config = HttpRequestConfig {
                     url,
                     method,
@@ -75,8 +90,9 @@ impl NodeExecutor {
                     retry_config,
                     headers,
                     node_name,
+                    loop_config,
                 };
-                self.execute_http_request_node(&config, event).await
+                self.execute_http_request_node(&config, event, execution_id, node_id).await
             }
             NodeType::OpenObserve { url, authorization_header, timeout_seconds, failure_action, retry_config } => {
                 let config = OpenObserveConfig {
@@ -145,8 +161,31 @@ impl NodeExecutor {
         Ok(transformed_event)
     }
 
-    /// Execute HTTP request node
+    /// Execute HTTP request node (supports both single requests and loops)
     async fn execute_http_request_node(
+        &self,
+        config: &HttpRequestConfig<'_>,
+        event: WorkflowEvent,
+        execution_id: &str,
+        node_id: &str,
+    ) -> Result<WorkflowEvent> {
+        tracing::debug!("Executing HTTP request node: loop_config_present={}", config.loop_config.is_some());
+        match config.loop_config {
+            None => {
+                tracing::debug!("Taking single HTTP request path (no loop)");
+                // Standard HTTP request (existing behavior)
+                self.execute_single_http_request(config, event).await
+            }
+            Some(loop_config) => {
+                tracing::debug!("Taking HTTP loop path");
+                // HTTP loop request (new functionality)
+                self.execute_http_loop(config, event, loop_config, execution_id, node_id).await
+            }
+        }
+    }
+
+    /// Execute a single HTTP request (existing behavior)
+    async fn execute_single_http_request(
         &self,
         config: &HttpRequestConfig<'_>,
         event: WorkflowEvent,
@@ -197,6 +236,59 @@ impl NodeExecutor {
                 ).await
             }
         }
+    }
+
+    /// Execute an HTTP loop (new functionality)
+    async fn execute_http_loop(
+        &self,
+        config: &HttpRequestConfig<'_>,
+        event: WorkflowEvent,
+        loop_config: &crate::workflow::models::LoopConfig,
+        execution_id: &str,
+        node_id: &str,
+    ) -> Result<WorkflowEvent> {
+        use crate::async_execution::http_loop_scheduler::{HttpLoopConfig};
+        use uuid::Uuid;
+
+        tracing::info!("Starting HTTP loop for node: {}", config.node_name);
+        tracing::debug!("HTTP loop config: max_iterations={:?}, interval_seconds={}, termination_condition={:?}",
+            loop_config.max_iterations, loop_config.interval_seconds,
+            loop_config.termination_condition.as_ref().map(|t| &t.script));
+
+        // Create HTTP loop configuration
+        let loop_id = Uuid::new_v4().to_string();
+        // Generate execution step ID using execution_id + node_id for consistency
+        let execution_step_id = format!("{execution_id}_{node_id}");
+
+        let http_loop_config = HttpLoopConfig {
+            loop_id: loop_id.clone(),
+            execution_step_id,
+            url: config.url.to_string(),
+            method: config.method.clone(),
+            timeout_seconds: config.timeout_seconds,
+            headers: config.headers.clone(),
+            loop_config: loop_config.clone(),
+            initial_event: event.clone(),
+        };
+
+        // Use the injected singleton HTTP loop scheduler
+        let loop_scheduler = self.http_loop_scheduler.get()
+            .ok_or_else(|| SwissPipeError::Generic("HTTP loop scheduler not initialized".to_string()))?;
+
+        // Schedule the HTTP loop
+        let scheduled_loop_id = loop_scheduler.schedule_http_loop(http_loop_config).await?;
+
+        tracing::info!("HTTP loop scheduled with ID: {}, waiting for completion...", scheduled_loop_id);
+
+        // Add debug logging before waiting
+        tracing::debug!("About to call wait_for_loop_completion for loop: {}", scheduled_loop_id);
+
+        // Wait for the loop to complete and return the final result
+        let final_result = loop_scheduler.wait_for_loop_completion(&scheduled_loop_id).await?;
+
+        tracing::info!("HTTP loop completed successfully: {}", scheduled_loop_id);
+        tracing::debug!("Final result from HTTP loop: {:?}", final_result);
+        Ok(final_result)
     }
 
     /// Execute OpenObserve node
@@ -366,6 +458,7 @@ struct HttpRequestConfig<'a> {
     retry_config: &'a RetryConfig,
     headers: &'a std::collections::HashMap<String, String>,
     node_name: &'a str,
+    loop_config: &'a Option<crate::workflow::models::LoopConfig>,
 }
 
 struct OpenObserveConfig<'a> {

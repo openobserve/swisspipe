@@ -32,6 +32,7 @@ html-escape = "0.2"
 governor = "0.6"
 tokio-util = { version = "0.7", features = ["time"] }
 futures = "0.3"
+regex = "1.0"
 # tokio-cron-scheduler = "0.10"  # Causing stack overflow - disabled
 
 # Google OAuth dependencies

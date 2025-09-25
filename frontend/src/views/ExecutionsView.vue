@@ -88,7 +88,7 @@
                 v-for="execution in executionStore.filteredExecutions"
                 :key="execution.id"
                 class="hover:bg-white/5 transition-all duration-200 cursor-pointer backdrop-blur-sm"
-                @click="executionStore.openExecutionDetails(execution)"
+                @click="openExecutionDetailsWithErrorHandling(execution)"
               >
                 <td class="px-6 py-4">
                   <div class="text-sm font-medium text-white font-mono">
@@ -126,7 +126,7 @@
                       <StopIcon class="h-5 w-5" />
                     </button>
                     <button
-                      @click.stop="executionStore.openExecutionDetails(execution)"
+                      @click.stop="openExecutionDetailsWithErrorHandling(execution)"
                       class="text-primary-400 hover:text-primary-300 transition-colors"
                       title="View Details"
                     >
@@ -187,6 +187,29 @@ async function cancelExecution(execution: WorkflowExecution) {
     await executionStore.cancelExecution(execution.id)
   } catch (error) {
     console.error('Failed to cancel execution:', error)
+  }
+}
+
+function openExecutionDetailsWithErrorHandling(execution: WorkflowExecution) {
+  try {
+    console.log('Attempting to open execution details for:', execution?.id)
+
+    if (!execution || !execution.id) {
+      console.error('Invalid execution object:', execution)
+      return
+    }
+
+    // Call the store method with additional error handling
+    executionStore.openExecutionDetails(execution)
+  } catch (error) {
+    console.error('Error in openExecutionDetailsWithErrorHandling:', error)
+
+    // Show a user-friendly error message
+    if (error instanceof Error) {
+      alert(`Failed to open execution details: ${error.message}`)
+    } else {
+      alert('Failed to open execution details due to an unexpected error')
+    }
   }
 }
 </script>

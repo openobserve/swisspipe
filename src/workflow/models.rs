@@ -20,6 +20,22 @@ pub enum HttpMethod {
     Post,
     #[serde(alias = "PUT")]
     Put,
+    #[serde(alias = "DELETE")]
+    Delete,
+    #[serde(alias = "PATCH")]
+    Patch,
+}
+
+impl std::fmt::Display for HttpMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HttpMethod::Get => write!(f, "GET"),
+            HttpMethod::Post => write!(f, "POST"),
+            HttpMethod::Put => write!(f, "PUT"),
+            HttpMethod::Delete => write!(f, "DELETE"),
+            HttpMethod::Patch => write!(f, "PATCH"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,7 +58,7 @@ impl Default for RetryConfig {
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum FailureAction {
     Continue,    // Continue to next node
     Stop,        // Stop workflow execution
@@ -55,6 +71,40 @@ pub enum DelayUnit {
     Minutes,
     Hours,
     Days,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoopConfig {
+    pub max_iterations: Option<u32>,
+    pub interval_seconds: u64,
+    pub backoff_strategy: BackoffStrategy,
+    pub termination_condition: Option<TerminationCondition>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BackoffStrategy {
+    Fixed(u64),                    // Fixed interval
+    Exponential { base: u64, multiplier: f64, max: u64 },
+    Custom(String),                // JavaScript expression
+}
+
+impl Default for BackoffStrategy {
+    fn default() -> Self {
+        BackoffStrategy::Fixed(3600) // Default 1 hour
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminationCondition {
+    pub script: String,           // JavaScript function: function condition(event) { return boolean; }
+    pub action: TerminationAction,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum TerminationAction {
+    Success,   // Emit success signal and continue workflow
+    Failure,   // Emit failure signal and continue workflow
+    Stop,      // Stop workflow execution
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +135,7 @@ pub enum NodeType {
         failure_action: FailureAction,
         retry_config: RetryConfig,
         headers: HashMap<String, String>,
+        loop_config: Option<LoopConfig>,
     },
     OpenObserve {
         url: String,

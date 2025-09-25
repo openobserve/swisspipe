@@ -18,7 +18,7 @@ use cache::WorkflowCache;
 use config::Config;
 use database::establish_connection;
 use workflow::engine::WorkflowEngine;
-use async_execution::{WorkerPool, ResumptionService, DelayScheduler, CleanupService};
+use async_execution::{WorkerPool, ResumptionService, DelayScheduler, CleanupService, HttpLoopScheduler};
 use sea_orm::{EntityTrait, ColumnTrait, QueryFilter};
 
 #[derive(Clone)]
@@ -29,6 +29,7 @@ pub struct AppState {
     pub worker_pool: Arc<WorkerPool>,
     pub workflow_cache: Arc<WorkflowCache>,
     pub delay_scheduler: Arc<DelayScheduler>,
+    pub http_loop_scheduler: Arc<HttpLoopScheduler>,
 }
 
 #[tokio::main]
@@ -180,6 +181,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // Initialize and start HTTP loop scheduler
+    tracing::info!("Initializing HTTP loop scheduler...");
+    let http_loop_scheduler = match HttpLoopScheduler::new(db.clone(), config.http_loop.clone()).await {
+        Ok(scheduler) => {
+            tracing::info!("HTTP loop scheduler initialized");
+            Arc::new(scheduler)
+        }
+        Err(e) => {
+            tracing::error!("Failed to initialize HTTP loop scheduler: {}", e);
+            return Err(e.into());
+        }
+    };
+
+    // Inject HTTP loop scheduler into workflow engine
+    engine.set_http_loop_scheduler(http_loop_scheduler.clone())?;
+    tracing::info!("HTTP loop scheduler injected into workflow engine");
+
+    // Inject HTTP loop scheduler into worker pool
+    worker_pool.set_http_loop_scheduler(http_loop_scheduler.clone()).await?;
+    tracing::info!("HTTP loop scheduler injected into worker pool");
+
+    // Resume interrupted HTTP loops
+    match http_loop_scheduler.resume_interrupted_loops().await {
+        Ok(count) => {
+            if count > 0 {
+                tracing::info!("Resumed {} interrupted HTTP loops", count);
+            } else {
+                tracing::info!("No interrupted HTTP loops to resume");
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to resume interrupted HTTP loops: {}", e);
+            // Don't fail startup, just log the error
+        }
+    }
+
+    // Start HTTP loop scheduler service
+    match http_loop_scheduler.start_scheduler_service().await {
+        Ok(()) => {
+            tracing::info!("HTTP loop scheduler service started");
+        }
+        Err(e) => {
+            tracing::error!("Failed to start HTTP loop scheduler service: {}", e);
+            return Err(e.into());
+        }
+    }
+
     // Start workflow cache cleanup task
     let cache_cleanup = workflow_cache.clone();
     tokio::spawn(async move {
@@ -297,6 +345,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         worker_pool: worker_pool.clone(),
         workflow_cache: workflow_cache.clone(),
         delay_scheduler: delay_scheduler.clone(),
+        http_loop_scheduler: http_loop_scheduler.clone(),
     };
 
     // Build application

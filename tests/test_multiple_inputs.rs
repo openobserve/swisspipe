@@ -35,8 +35,7 @@ async fn create_test_execution(db: &DatabaseConnection, execution_id: &str) -> R
         started_at: Set(None),
         completed_at: Set(None),
         created_at: Set(chrono::Utc::now().timestamp_micros()),
-        updated_at: Set(chrono::Utc::now().timestamp_micros()),
-        ..Default::default()
+        updated_at: Set(chrono::Utc::now().timestamp_micros())
     };
     execution.insert(db).await?;
     Ok(())

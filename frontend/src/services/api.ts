@@ -6,6 +6,7 @@ import type {
   ExecutionListResponse,
   ExecutionStepsResponse
 } from '../types/execution'
+import type { LoopStatus } from '../types/nodes'
 
 // AI Code Generation types
 interface GenerateCodeRequest {
@@ -219,7 +220,23 @@ class ApiClient {
   }
 
   async getExecutionSteps(executionId: string): Promise<ExecutionStepsResponse> {
-    const response = await this.client.get<ExecutionStepsResponse>(`/api/admin/v1/executions/${executionId}/steps`)
+    // Validate input
+    if (!executionId || typeof executionId !== 'string' || executionId.trim() === '') {
+      throw new Error('Invalid execution ID provided to getExecutionSteps')
+    }
+
+    const response = await this.client.get<ExecutionStepsResponse>(`/api/admin/v1/executions/${executionId.trim()}/steps`)
+
+    // Validate response structure
+    if (!response.data || typeof response.data !== 'object') {
+      throw new Error('Invalid response from execution steps API')
+    }
+
+    // Ensure steps is always an array
+    if (!Array.isArray(response.data.steps)) {
+      response.data.steps = []
+    }
+
     return response.data
   }
 
@@ -318,6 +335,34 @@ class ApiClient {
     const defaultFromEmail = settings.settings.find(s => s.key === 'default_from_email')?.value || ''
     const defaultFromName = settings.settings.find(s => s.key === 'default_from_name')?.value || ''
     return { defaultFromEmail, defaultFromName }
+  }
+
+  // HTTP Loop endpoints
+  async getLoopStatus(loopId: string): Promise<LoopStatus> {
+    const response = await this.client.get<LoopStatus>(`/api/admin/v1/loops/${loopId}`)
+    return response.data
+  }
+
+  async getActiveLoops(execution_id?: string): Promise<LoopStatus[]> {
+    const params = execution_id ? { execution_id } : {}
+    const response = await this.client.get<LoopStatus[]>('/api/admin/v1/loops/active', { params })
+    return response.data
+  }
+
+  async pauseLoop(loopId: string): Promise<void> {
+    await this.client.post(`/api/admin/v1/loops/${loopId}/pause`)
+  }
+
+  async resumeLoop(loopId: string): Promise<void> {
+    await this.client.post(`/api/admin/v1/loops/${loopId}/resume`)
+  }
+
+  async stopLoop(loopId: string): Promise<void> {
+    await this.client.post(`/api/admin/v1/loops/${loopId}/stop`)
+  }
+
+  async retryLoop(loopId: string): Promise<void> {
+    await this.client.post(`/api/admin/v1/loops/${loopId}/retry`)
   }
 }
 

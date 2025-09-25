@@ -172,9 +172,9 @@ const loadSettings = async () => {
       defaultFromNameValue.value = defaultFromNameSetting.value
       originalDefaultFromName.value = defaultFromNameSetting.value
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Failed to load settings:', err)
-    error.value = err.message || 'Failed to load settings'
+    error.value = (err instanceof Error ? err.message : String(err)) || 'Failed to load settings'
   } finally {
     loading.value = false
   }
@@ -199,9 +199,9 @@ const saveApiBaseUrl = async () => {
     setTimeout(() => {
       saveMessage.value = ''
     }, 3000)
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Failed to save API Base URL:', err)
-    saveMessage.value = err.message || 'Failed to save API Base URL'
+    saveMessage.value = (err instanceof Error ? err.message : String(err)) || 'Failed to save API Base URL'
     saveSuccess.value = false
   } finally {
     saving.value = false
@@ -227,9 +227,9 @@ const saveDefaultFromEmail = async () => {
     setTimeout(() => {
       saveMessage.value = ''
     }, 3000)
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Failed to save default from email:', err)
-    saveMessage.value = err.message || 'Failed to save default from email'
+    saveMessage.value = (err instanceof Error ? err.message : String(err)) || 'Failed to save default from email'
     saveSuccess.value = false
   } finally {
     saving.value = false
@@ -255,9 +255,9 @@ const saveDefaultFromName = async () => {
     setTimeout(() => {
       saveMessage.value = ''
     }, 3000)
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Failed to save default from name:', err)
-    saveMessage.value = err.message || 'Failed to save default from name'
+    saveMessage.value = (err instanceof Error ? err.message : String(err)) || 'Failed to save default from name'
     saveSuccess.value = false
   } finally {
     saving.value = false

@@ -47,6 +47,14 @@ async fn create_test_app_state() -> AppState {
             .expect("Failed to create delay scheduler")
     );
 
+    // Create HTTP loop scheduler for testing
+    use swisspipe::async_execution::HttpLoopScheduler;
+    let http_loop_scheduler = Arc::new(
+        HttpLoopScheduler::new(db.clone(), config.http_loop.clone())
+            .await
+            .expect("Failed to create http loop scheduler")
+    );
+
     AppState {
         db,
         engine,
@@ -54,6 +62,7 @@ async fn create_test_app_state() -> AppState {
         worker_pool,
         workflow_cache,
         delay_scheduler,
+        http_loop_scheduler,
     }
 }
 
@@ -161,7 +170,7 @@ fn create_large_workflow_request(node_count: usize, _edge_density: f32) -> serde
     // Add a few additional edges for complexity without creating validation issues
     if node_count > 5 {
         // Add edge from node 2 to node 4 (skip one node)
-        let source_is_condition = 2 % 3 == 0;
+        let source_is_condition = 2 == 0;
         edges.push(json!({
             "from_node_id": node_ids[2],
             "to_node_id": node_ids[4],
@@ -350,7 +359,7 @@ async fn test_update_large_workflow() {
 
     // Get the created workflow to extract existing node IDs
     let get_response = server
-        .get(&format!("/api/admin/v1/workflows/{}", workflow_id))
+        .get(&format!("/api/admin/v1/workflows/{workflow_id}"))
         .add_header("Authorization", "Basic YWRtaW46YWRtaW4=")
         .await;
 
@@ -365,7 +374,7 @@ async fn test_update_large_workflow() {
     let update_request = create_update_workflow_request(existing_nodes, existing_edges, 5); // Add 5 more nodes
 
     let update_response = server
-        .put(&format!("/api/admin/v1/workflows/{}", workflow_id))
+        .put(&format!("/api/admin/v1/workflows/{workflow_id}"))
         .add_header("Authorization", "Basic YWRtaW46YWRtaW4=")
         .json(&update_request)
         .await;
@@ -452,7 +461,7 @@ async fn test_payload_size_limits() {
     let workflow_request = create_large_workflow_request(100, 0.5);
     let json_size = serde_json::to_string(&workflow_request).unwrap().len();
 
-    println!("Testing payload size: {} bytes with 100 nodes", json_size);
+    println!("Testing payload size: {json_size} bytes with 100 nodes");
 
     let response = server
         .post("/api/admin/v1/workflows")
@@ -462,7 +471,7 @@ async fn test_payload_size_limits() {
 
     // Should handle large payloads without issues
     if response.status_code() == 201 {
-        println!("✅ Successfully handled {} byte payload", json_size);
+        println!("✅ Successfully handled {json_size} byte payload");
     } else {
         // Log the failure for debugging but don't fail the test if it's a validation error
         println!("⚠️ Large payload test status: {}, size: {} bytes", response.status_code(), json_size);
@@ -474,7 +483,7 @@ async fn test_payload_size_limits() {
     // At minimum, it shouldn't fail with request body consumption issues (empty body error)
     let response_text = response.text();
     assert!(!response_text.contains("EOF while parsing a value at line 1 column 0"),
-        "Request body was consumed by middleware! Response: {}", response_text);
+        "Request body was consumed by middleware! Response: {response_text}");
 }
 
 #[tokio::test]
@@ -582,7 +591,7 @@ async fn test_leaf_node_deletion() {
     });
 
     let update_response_bad = server
-        .put(&format!("/api/admin/v1/workflows/{}", workflow_id))
+        .put(&format!("/api/admin/v1/workflows/{workflow_id}"))
         .add_header("Authorization", "Basic YWRtaW46YWRtaW4=")
         .json(&update_request_with_dangling_edge)
         .await;
@@ -590,10 +599,10 @@ async fn test_leaf_node_deletion() {
     // Should fail with validation error (could be request validation or structure validation)
     assert_eq!(update_response_bad.status_code(), 400);
     let error_text = update_response_bad.text();
-    println!("Error text: {}", error_text);
+    println!("Error text: {error_text}");
     // The actual error might be generic "BAD_REQUEST" or more specific
     assert!(error_text.contains("BAD_REQUEST") || error_text.contains("non-existent") || error_text.contains("not reachable"),
-        "Expected validation error but got: {}", error_text);
+        "Expected validation error but got: {error_text}");
 
     // Now test the proper way - remove both the node AND its edges
     // Note: We should NOT include the start/trigger node in the update request,
@@ -624,7 +633,7 @@ async fn test_leaf_node_deletion() {
     });
 
     let update_response_good = server
-        .put(&format!("/api/admin/v1/workflows/{}", workflow_id))
+        .put(&format!("/api/admin/v1/workflows/{workflow_id}"))
         .add_header("Authorization", "Basic YWRtaW46YWRtaW4=")
         .json(&update_request_clean)
         .await;

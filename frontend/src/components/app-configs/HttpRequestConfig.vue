@@ -62,30 +62,33 @@
         </button>
       </div>
     </div>
+
+    <!-- HTTP Loop Configuration -->
+    <HttpLoopConfig
+      :model-value="modelValue.loop_config"
+      @update:model-value="updateLoopConfig"
+      @update="$emit('update')"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-
-interface HttpRequestConfig {
-  url: string
-  method: string
-  headers?: Record<string, string>
-}
+import HttpLoopConfig from './HttpLoopConfig.vue'
+import type { HttpRequestConfig as HttpRequestConfigType, LoopConfig } from '../../types/nodes'
 
 interface Props {
-  modelValue: HttpRequestConfig
+  modelValue: HttpRequestConfigType
 }
 
 interface Emits {
-  (e: 'update:modelValue', value: HttpRequestConfig): void
+  (e: 'update:modelValue', value: HttpRequestConfigType): void
   (e: 'update'): void
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-function updateConfig(key: keyof HttpRequestConfig, value: unknown) {
+function updateConfig(key: keyof HttpRequestConfigType, value: unknown) {
   const updated = { ...props.modelValue }
   ;(updated as Record<string, unknown>)[key] = value
   emit('update:modelValue', updated)
@@ -120,5 +123,9 @@ function removeHeader(key: string) {
   const headers = { ...props.modelValue.headers }
   delete headers[key]
   updateConfig('headers', headers)
+}
+
+function updateLoopConfig(value: LoopConfig | undefined) {
+  updateConfig('loop_config', value)
 }
 </script>

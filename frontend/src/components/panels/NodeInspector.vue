@@ -183,57 +183,88 @@ async function copyToClipboard(type: 'input' | 'output') {
 
 // Monaco Editor setup
 function initializeEditors() {
-  if (inputEditor.value && !inputMonacoEditor) {
-    inputMonacoEditor = monaco.editor.create(inputEditor.value, {
-      value: JSON.stringify(inputData.value, null, 2),
-      language: 'json',
-      theme: 'vs-dark',
-      readOnly: true,
-      minimap: { enabled: false },
-      scrollBeyondLastLine: false,
-      wordWrap: 'on',
-      folding: true,
-      lineNumbers: 'on',
-      automaticLayout: true,
-      fontSize: 13,
-      tabSize: 2
-    })
+  try {
+    if (inputEditor.value && !inputMonacoEditor) {
+      const editor = monaco.editor.create(inputEditor.value, {
+        value: JSON.stringify(inputData.value, null, 2),
+        language: 'json',
+        theme: 'vs-dark',
+        readOnly: true,
+        minimap: { enabled: false },
+        scrollBeyondLastLine: false,
+        wordWrap: 'on',
+        folding: true,
+        lineNumbers: 'on',
+        automaticLayout: true,
+        fontSize: 13,
+        tabSize: 2
+      })
+
+      if (editor) {
+        inputMonacoEditor = editor
+      } else {
+        console.warn('Failed to create input Monaco editor - falling back to textarea')
+      }
+    }
+  } catch (error) {
+    console.error('Error creating input Monaco editor:', error)
   }
   
-  if (outputEditor.value && !outputMonacoEditor) {
-    outputMonacoEditor = monaco.editor.create(outputEditor.value, {
-      value: JSON.stringify(outputData.value, null, 2),
-      language: 'json',
-      theme: 'vs-dark',
-      readOnly: true,
-      minimap: { enabled: false },
-      scrollBeyondLastLine: false,
-      wordWrap: 'on',
-      folding: true,
-      lineNumbers: 'on',
-      automaticLayout: true,
-      fontSize: 13,
-      tabSize: 2
-    })
+  try {
+    if (outputEditor.value && !outputMonacoEditor) {
+      const editor = monaco.editor.create(outputEditor.value, {
+        value: JSON.stringify(outputData.value, null, 2),
+        language: 'json',
+        theme: 'vs-dark',
+        readOnly: true,
+        minimap: { enabled: false },
+        scrollBeyondLastLine: false,
+        wordWrap: 'on',
+        folding: true,
+        lineNumbers: 'on',
+        automaticLayout: true,
+        fontSize: 13,
+        tabSize: 2
+      })
+
+      if (editor) {
+        outputMonacoEditor = editor
+      } else {
+        console.warn('Failed to create output Monaco editor - falling back to textarea')
+      }
+    }
+  } catch (error) {
+    console.error('Error creating output Monaco editor:', error)
   }
 }
 
 function updateEditorContent() {
-  if (inputMonacoEditor) {
-    inputMonacoEditor.setValue(JSON.stringify(inputData.value, null, 2))
-  }
-  if (outputMonacoEditor) {
-    outputMonacoEditor.setValue(JSON.stringify(outputData.value, null, 2))
+  try {
+    if (inputMonacoEditor && typeof inputMonacoEditor.setValue === 'function') {
+      inputMonacoEditor.setValue(JSON.stringify(inputData.value, null, 2))
+    }
+    if (outputMonacoEditor && typeof outputMonacoEditor.setValue === 'function') {
+      outputMonacoEditor.setValue(JSON.stringify(outputData.value, null, 2))
+    }
+  } catch (error) {
+    console.error('Error updating Monaco editor content:', error)
   }
 }
 
 function disposeEditors() {
-  if (inputMonacoEditor) {
-    inputMonacoEditor.dispose()
+  try {
+    if (inputMonacoEditor && typeof inputMonacoEditor.dispose === 'function') {
+      inputMonacoEditor.dispose()
+      inputMonacoEditor = null
+    }
+    if (outputMonacoEditor && typeof outputMonacoEditor.dispose === 'function') {
+      outputMonacoEditor.dispose()
+      outputMonacoEditor = null
+    }
+  } catch (error) {
+    console.error('Error disposing Monaco editors:', error)
+    // Reset to null even if dispose failed
     inputMonacoEditor = null
-  }
-  if (outputMonacoEditor) {
-    outputMonacoEditor.dispose()
     outputMonacoEditor = null
   }
 }

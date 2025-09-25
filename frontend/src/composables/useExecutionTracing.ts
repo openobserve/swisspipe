@@ -61,7 +61,8 @@ export function useExecutionTracing() {
           executionError: executionData.error,
           executionInput: executionData.input,
           executionOutput: executionData.output,
-          isTracing: true
+          isTracing: true,
+          tracingExecutionId: tracingExecution.value?.id
         }
       } else {
         node.data = {
@@ -71,7 +72,8 @@ export function useExecutionTracing() {
           executionError: undefined,
           executionInput: null,
           executionOutput: null,
-          isTracing: true
+          isTracing: true,
+          tracingExecutionId: tracingExecution.value?.id
         }
       }
     })
@@ -142,7 +144,8 @@ export function useExecutionTracing() {
         executionError: undefined,
         executionInput: null,
         executionOutput: null,
-        isTracing: false
+        isTracing: false,
+        tracingExecutionId: undefined
       }
     })
     

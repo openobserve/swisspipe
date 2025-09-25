@@ -36,8 +36,8 @@ async fn test_cleanup_service_retention() {
             workflow_id: Set(workflow_id.clone()),
             status: Set("completed".to_string()),
             current_node_id: Set(None),
-            input_data: Set(Some(format!("{{\"test\": {}}}", i))),
-            output_data: Set(Some(format!("{{\"result\": {}}}", i))),
+            input_data: Set(Some(format!("{{\"test\": {i}}}"))),
+            output_data: Set(Some(format!("{{\"result\": {i}}}"))),
             error_message: Set(None),
             started_at: Set(Some(created_at)),
             completed_at: Set(Some(created_at + 1000)),
@@ -128,7 +128,7 @@ async fn test_cleanup_service_multiple_workflows() {
             workflow_id: Set(workflow_id_1.clone()),
             status: Set("completed".to_string()),
             current_node_id: Set(None),
-            input_data: Set(Some(format!("{{\"test\": {}}}", i))),
+            input_data: Set(Some(format!("{{\"test\": {i}}}"))),
             output_data: Set(None),
             error_message: Set(None),
             started_at: Set(Some(created_at)),
@@ -149,7 +149,7 @@ async fn test_cleanup_service_multiple_workflows() {
             workflow_id: Set(workflow_id_2.clone()),
             status: Set("completed".to_string()),
             current_node_id: Set(None),
-            input_data: Set(Some(format!("{{\"test\": {}}}", i))),
+            input_data: Set(Some(format!("{{\"test\": {i}}}"))),
             output_data: Set(None),
             error_message: Set(None),
             started_at: Set(Some(created_at)),
@@ -275,13 +275,13 @@ async fn test_cleanup_stats() {
         .find(|w| w.workflow_id == workflow_id_1)
         .unwrap();
     assert_eq!(wf1_stats.execution_count, 5);
-    assert_eq!(wf1_stats.exceeds_retention, true);
+    assert!(wf1_stats.exceeds_retention);
 
     let wf2_stats = stats.workflow_counts.iter()
         .find(|w| w.workflow_id == workflow_id_2)
         .unwrap();
     assert_eq!(wf2_stats.execution_count, 2);
-    assert_eq!(wf2_stats.exceeds_retention, false);
+    assert!(!wf2_stats.exceeds_retention);
 }
 
 #[tokio::test]

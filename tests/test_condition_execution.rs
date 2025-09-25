@@ -96,7 +96,7 @@ async fn test_condition_result_lookup_by_node_id() {
     let name_lookup = test_event.condition_results.get("Test Condition Node");
     assert_eq!(name_lookup, None);
 
-    println!("✅ Condition result correctly looked up by node ID: {}", condition_node_id);
+    println!("✅ Condition result correctly looked up by node ID: {condition_node_id}");
     println!("✅ Lookup by node name correctly returns None (preventing old bug)");
 }
 
@@ -204,13 +204,13 @@ async fn test_conditional_edge_evaluation_true_path() {
 
     // Debug: Print execution result
     println!("Execution result condition_results: {:?}", execution_result.condition_results);
-    println!("Looking for condition_node_id: {}", condition_node_id);
+    println!("Looking for condition_node_id: {condition_node_id}");
     println!("Execution result data: {}", serde_json::to_string_pretty(&execution_result.data).unwrap());
 
     // Verify that condition result was stored - it may be prefixed with input coordination info
     let condition_key = execution_result.condition_results.keys()
         .find(|key| key.contains(&condition_node_id))
-        .expect(&format!("No condition result found containing node_id: {}", condition_node_id));
+        .unwrap_or_else(|| panic!("No condition result found containing node_id: {condition_node_id}"));
 
     let condition_result = execution_result.condition_results.get(condition_key).unwrap();
     assert_eq!(condition_result, &true, "Expected condition to evaluate to true");
@@ -341,12 +341,12 @@ async fn test_conditional_edge_evaluation_false_path() {
 
     // Debug: Print execution result
     println!("False path - Execution result condition_results: {:?}", execution_result.condition_results);
-    println!("False path - Looking for condition_node_id: {}", condition_node_id);
+    println!("False path - Looking for condition_node_id: {condition_node_id}");
 
     // Verify that condition result was stored - it may be prefixed with input coordination info
     let condition_key = execution_result.condition_results.keys()
         .find(|key| key.contains(&condition_node_id))
-        .expect(&format!("No condition result found containing node_id: {}", condition_node_id));
+        .unwrap_or_else(|| panic!("No condition result found containing node_id: {condition_node_id}"));
 
     let condition_result = execution_result.condition_results.get(condition_key).unwrap();
     assert_eq!(condition_result, &false, "Expected condition to evaluate to false");
@@ -512,10 +512,10 @@ async fn test_multiple_conditions_in_workflow() {
     // Verify both conditions were stored - they may be prefixed
     let condition1_key = result.condition_results.keys()
         .find(|key| key.contains(&condition1_id))
-        .expect(&format!("No condition result found containing condition1_id: {}", condition1_id));
+        .unwrap_or_else(|| panic!("No condition result found containing condition1_id: {condition1_id}"));
     let condition2_key = result.condition_results.keys()
         .find(|key| key.contains(&condition2_id))
-        .expect(&format!("No condition result found containing condition2_id: {}", condition2_id));
+        .unwrap_or_else(|| panic!("No condition result found containing condition2_id: {condition2_id}"));
 
     assert_eq!(result.condition_results.get(condition1_key), Some(&true));
     assert_eq!(result.condition_results.get(condition2_key), Some(&true));
@@ -524,5 +524,5 @@ async fn test_multiple_conditions_in_workflow() {
     assert_eq!(result.data.get("processed"), Some(&serde_json::json!(true)));
 
     println!("✅ Multiple conditions workflow executed successfully");
-    println!("✅ Both conditions stored with node IDs: {} and {}", condition1_id, condition2_id);
+    println!("✅ Both conditions stored with node IDs: {condition1_id} and {condition2_id}");
 }

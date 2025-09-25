@@ -13,6 +13,16 @@ pub struct Config {
     pub google_oauth: Option<GoogleOAuthConfig>,
     pub execution_retention_count: u64,
     pub cleanup_interval_minutes: u64,
+    pub http_loop: HttpLoopConfig,
+}
+
+#[derive(Clone, Debug)]
+pub struct HttpLoopConfig {
+    pub scheduler_interval_seconds: u64,
+    pub max_history_entries: usize,
+    pub default_timeout_seconds: u64,
+    pub max_response_size_bytes: usize,
+    pub max_iteration_timeout_seconds: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -84,6 +94,41 @@ impl Config {
             job_claim_cleanup_interval_seconds,
         };
 
+        // HTTP Loop configuration
+        let http_loop_scheduler_interval_seconds = env::var("SP_HTTP_LOOP_SCHEDULER_INTERVAL_SECONDS")
+            .unwrap_or_else(|_| "5".to_string())
+            .parse()
+            .map_err(|_| SwissPipeError::Config("Invalid SP_HTTP_LOOP_SCHEDULER_INTERVAL_SECONDS value".to_string()))?;
+
+        let http_loop_max_history_entries = env::var("SP_HTTP_LOOP_MAX_HISTORY_ENTRIES")
+            .unwrap_or_else(|_| "100".to_string())
+            .parse()
+            .map_err(|_| SwissPipeError::Config("Invalid SP_HTTP_LOOP_MAX_HISTORY_ENTRIES value".to_string()))?;
+
+        let http_loop_default_timeout_seconds = env::var("SP_HTTP_LOOP_DEFAULT_TIMEOUT_SECONDS")
+            .unwrap_or_else(|_| "45".to_string())
+            .parse()
+            .map_err(|_| SwissPipeError::Config("Invalid SP_HTTP_LOOP_DEFAULT_TIMEOUT_SECONDS value".to_string()))?;
+
+
+        let http_loop_max_response_size_bytes = env::var("SP_HTTP_LOOP_MAX_RESPONSE_SIZE_BYTES")
+            .unwrap_or_else(|_| "10485760".to_string()) // 10MB default
+            .parse()
+            .map_err(|_| SwissPipeError::Config("Invalid SP_HTTP_LOOP_MAX_RESPONSE_SIZE_BYTES value".to_string()))?;
+
+        let http_loop_max_iteration_timeout_seconds = env::var("SP_HTTP_LOOP_MAX_ITERATION_TIMEOUT_SECONDS")
+            .unwrap_or_else(|_| "120".to_string()) // 2 minutes default
+            .parse()
+            .map_err(|_| SwissPipeError::Config("Invalid SP_HTTP_LOOP_MAX_ITERATION_TIMEOUT_SECONDS value".to_string()))?;
+
+        let http_loop_config = HttpLoopConfig {
+            scheduler_interval_seconds: http_loop_scheduler_interval_seconds,
+            max_history_entries: http_loop_max_history_entries,
+            default_timeout_seconds: http_loop_default_timeout_seconds,
+            max_response_size_bytes: http_loop_max_response_size_bytes,
+            max_iteration_timeout_seconds: http_loop_max_iteration_timeout_seconds,
+        };
+
         // Google OAuth configuration (optional)
         let google_oauth = if let (Ok(client_id), Ok(client_secret)) = (
             env::var("GOOGLE_OAUTH_CLIENT_ID"),
@@ -136,6 +181,7 @@ impl Config {
             google_oauth,
             execution_retention_count,
             cleanup_interval_minutes,
+            http_loop: http_loop_config,
         })
     }
 

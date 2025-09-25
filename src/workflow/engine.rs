@@ -49,13 +49,14 @@ impl WorkflowEngine {
         let input_sync_service = Arc::new(InputSyncService::new(db.clone()));
 
         // Create modular components
-        let workflow_loader = Arc::new(WorkflowLoader::new(db));
+        let workflow_loader = Arc::new(WorkflowLoader::new(db.clone()));
 
         let node_executor = Arc::new(NodeExecutor::new(
             js_executor.clone(),
             app_executor.clone(),
             email_service.clone(),
             anthropic_service.clone(),
+            db.clone(),
         ));
 
         let dag_executor = Arc::new(DagExecutor::new(
@@ -98,6 +99,13 @@ impl WorkflowEngine {
     /// Get direct access to the node executor
     pub fn node_executor(&self) -> &Arc<NodeExecutor> {
         &self.node_executor
+    }
+
+    /// Set the HTTP loop scheduler for dependency injection
+    pub fn set_http_loop_scheduler(&self, scheduler: Arc<crate::async_execution::HttpLoopScheduler>) -> Result<()> {
+        self.node_executor.set_http_loop_scheduler(scheduler)
+            .map_err(|_| SwissPipeError::Generic("HTTP loop scheduler already initialized".to_string()))?;
+        Ok(())
     }
 
     /// Get direct access to the DAG executor

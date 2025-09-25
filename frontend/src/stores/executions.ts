@@ -61,12 +61,29 @@ export const useExecutionStore = defineStore('executions', () => {
 
   async function fetchExecutionSteps(executionId: string) {
     try {
+      console.log('Fetching execution steps for:', executionId)
+
+      // Validate executionId
+      if (!executionId || typeof executionId !== 'string') {
+        throw new Error('Invalid execution ID provided')
+      }
+
       const response = await apiClient.getExecutionSteps(executionId)
+      console.log('Received execution steps:', response.steps)
+
+      // Validate response structure
+      if (!response || !Array.isArray(response.steps)) {
+        console.warn('Invalid response structure from getExecutionSteps:', response)
+        executionSteps.value = []
+        return []
+      }
+
       executionSteps.value = response.steps
       return response.steps
     } catch (err: unknown) {
+      console.error('Error fetching execution steps:', err, 'for execution:', executionId)
       error.value = (err as Error).message || 'Failed to fetch execution steps'
-      console.error('Error fetching execution steps:', err)
+      executionSteps.value = [] // Reset to empty array on error
       throw err
     }
   }
@@ -91,10 +108,28 @@ export const useExecutionStore = defineStore('executions', () => {
   }
 
   function openExecutionDetails(execution: WorkflowExecution) {
-    selectedExecution.value = execution
-    showSidePanel.value = true
-    // Load steps for the selected execution
-    fetchExecutionSteps(execution.id)
+    try {
+      console.log('Opening execution details for:', execution.id)
+
+      // Validate execution object
+      if (!execution || !execution.id) {
+        throw new Error('Invalid execution object provided')
+      }
+
+      selectedExecution.value = execution
+      showSidePanel.value = true
+
+      // Load steps for the selected execution - wrapped in setTimeout to ensure it runs after current tick
+      setTimeout(() => {
+        fetchExecutionSteps(execution.id).catch((err) => {
+          console.error('Failed to load execution steps asynchronously:', err)
+          // Don't set global error since panel is already open
+        })
+      }, 0)
+    } catch (err: unknown) {
+      console.error('Error in openExecutionDetails:', err)
+      error.value = 'Failed to open execution details: ' + (err as Error).message
+    }
   }
 
   function closeSidePanel() {

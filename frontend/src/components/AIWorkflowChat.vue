@@ -114,7 +114,7 @@ interface ChatMessage {
   workflowId?: string
 }
 
-const props = defineProps<{
+defineProps<{
   showChat: boolean
 }>()
 

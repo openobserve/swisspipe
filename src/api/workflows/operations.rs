@@ -158,6 +158,7 @@ pub fn nodes_to_response(nodes: Vec<nodes::Model>) -> Vec<NodeResponse> {
                         failure_action: FailureAction::Stop,
                         retry_config: RetryConfig::default(),
                         headers: HashMap::new(),
+                        loop_config: None,
                     }
                 });
             NodeResponse {

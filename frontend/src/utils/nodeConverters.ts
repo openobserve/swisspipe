@@ -79,7 +79,8 @@ export function convertApiNodeConfigToVueFlowConfig(nodeType: NodeType): NodeCon
       timeout_seconds: nodeType.HttpRequest.timeout_seconds || DEFAULT_HTTP_CONFIG.timeout_seconds,
       failure_action: nodeType.HttpRequest.failure_action || DEFAULT_HTTP_CONFIG.failure_action,
       headers: nodeType.HttpRequest.headers || DEFAULT_HTTP_CONFIG.headers,
-      retry_config: nodeType.HttpRequest.retry_config || DEFAULT_HTTP_CONFIG.retry_config
+      retry_config: nodeType.HttpRequest.retry_config || DEFAULT_HTTP_CONFIG.retry_config,
+      loop_config: nodeType.HttpRequest.loop_config || undefined
     }
   }
 
@@ -202,6 +203,13 @@ export function convertNodeToApiType(node: { type: string; data: { config: NodeC
       
     case 'http-request':
       const httpRequestConfig = node.data.config as unknown as Record<string, unknown>
+      debugLog.transform('http-config-to-api', {
+        nodeId: (node as Record<string, unknown>).id || 'unknown',
+        hasLoopConfig: !!httpRequestConfig.loop_config,
+        loopConfigType: typeof httpRequestConfig.loop_config,
+        loopConfig: httpRequestConfig.loop_config
+      })
+
       return {
         HttpRequest: {
           url: httpRequestConfig.url || DEFAULT_HTTP_CONFIG.url,
@@ -209,7 +217,8 @@ export function convertNodeToApiType(node: { type: string; data: { config: NodeC
           timeout_seconds: httpRequestConfig.timeout_seconds || DEFAULT_HTTP_CONFIG.timeout_seconds,
           failure_action: httpRequestConfig.failure_action || DEFAULT_HTTP_CONFIG.failure_action,
           headers: httpRequestConfig.headers || DEFAULT_HTTP_CONFIG.headers,
-          retry_config: httpRequestConfig.retry_config || DEFAULT_RETRY_CONFIG
+          retry_config: httpRequestConfig.retry_config || DEFAULT_RETRY_CONFIG,
+          loop_config: httpRequestConfig.loop_config || undefined
         }
       }
       

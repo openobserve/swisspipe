@@ -76,7 +76,7 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowLeftIcon, ClockIcon, Squares2X2Icon, SparklesIcon } from '@heroicons/vue/24/outline'
+import { ArrowLeftIcon, ClockIcon, Squares2X2Icon } from '@heroicons/vue/24/outline'
 import { useAuthStore } from '../../stores/auth'
 
 interface Props {

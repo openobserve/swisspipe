@@ -10,7 +10,7 @@ use crate::workflow::{
     errors::{Result, SwissPipeError},
     models::{NodeType, WorkflowEvent, Node, Workflow, FailureAction, DelayUnit, HttpMethod},
 };
-use crate::async_execution::DelayScheduler;
+use crate::async_execution::{DelayScheduler, HttpLoopScheduler};
 
 use super::config::DELAY_TIME_MULTIPLIERS;
 
@@ -26,6 +26,7 @@ struct HttpRequestConfig<'a> {
     retry_config: &'a crate::workflow::models::RetryConfig,
     headers: &'a HashMap<String, String>,
     node_name: &'a str,
+    loop_config: &'a Option<crate::workflow::models::LoopConfig>,
 }
 
 /// Configuration for OpenObserve node execution
@@ -55,6 +56,7 @@ struct AnthropicConfig<'a> {
 pub struct NodeExecutor {
     pub workflow_engine: Arc<WorkflowEngine>,
     pub delay_scheduler: Arc<RwLock<Option<Arc<DelayScheduler>>>>,
+    pub http_loop_scheduler: Option<Arc<HttpLoopScheduler>>,
 }
 
 impl NodeExecutor {
@@ -62,6 +64,19 @@ impl NodeExecutor {
         Self {
             workflow_engine,
             delay_scheduler,
+            http_loop_scheduler: None,
+        }
+    }
+
+    pub fn new_with_http_loop_scheduler(
+        workflow_engine: Arc<WorkflowEngine>,
+        delay_scheduler: Arc<RwLock<Option<Arc<DelayScheduler>>>>,
+        http_loop_scheduler: Arc<HttpLoopScheduler>
+    ) -> Self {
+        Self {
+            workflow_engine,
+            delay_scheduler,
+            http_loop_scheduler: Some(http_loop_scheduler),
         }
     }
 
@@ -97,7 +112,7 @@ impl NodeExecutor {
 
                 Ok(transformed_event)
             }
-            NodeType::HttpRequest { url, method, timeout_seconds, failure_action, retry_config, headers } => {
+            NodeType::HttpRequest { url, method, timeout_seconds, failure_action, retry_config, headers, loop_config } => {
                 let config = HttpRequestConfig {
                     url,
                     method,
@@ -106,8 +121,9 @@ impl NodeExecutor {
                     retry_config,
                     headers,
                     node_name: &node.name,
+                    loop_config,
                 };
-                self.execute_http_request_node(config, event).await
+                self.execute_http_request_node(config, event, execution_id, &node.id).await
             }
             NodeType::OpenObserve { url, authorization_header, timeout_seconds, failure_action, retry_config } => {
                 let config = OpenObserveConfig {
@@ -143,10 +159,30 @@ impl NodeExecutor {
         }
     }
 
-    /// Execute HTTP request node with failure action handling
+    /// Execute HTTP request node with failure action handling (supports both single requests and loops)
     async fn execute_http_request_node(
         &self,
         config: HttpRequestConfig<'_>,
+        event: WorkflowEvent,
+        execution_id: &str,
+        node_id: &str,
+    ) -> Result<WorkflowEvent> {
+        match config.loop_config {
+            None => {
+                // Standard HTTP request (existing behavior)
+                self.execute_single_http_request(&config, event).await
+            }
+            Some(loop_config) => {
+                // HTTP loop request (new functionality)
+                self.execute_http_loop(&config, event, loop_config, execution_id, node_id).await
+            }
+        }
+    }
+
+    /// Execute a single HTTP request (existing behavior)
+    async fn execute_single_http_request(
+        &self,
+        config: &HttpRequestConfig<'_>,
         event: WorkflowEvent,
     ) -> Result<WorkflowEvent> {
         match config.failure_action {
@@ -176,6 +212,63 @@ impl NodeExecutor {
                     .await
             }
         }
+    }
+
+    /// Execute HTTP request with loop functionality
+    async fn execute_http_loop(
+        &self,
+        config: &HttpRequestConfig<'_>,
+        event: WorkflowEvent,
+        loop_config: &crate::workflow::models::LoopConfig,
+        execution_id: &str,
+        node_id: &str,
+    ) -> Result<WorkflowEvent> {
+        use crate::async_execution::http_loop_scheduler::HttpLoopConfig;
+        use uuid::Uuid;
+
+        tracing::info!("Starting HTTP loop for node: {}", config.node_name);
+
+        // Create HTTP loop configuration
+        let loop_id = Uuid::new_v4().to_string();
+        // Generate execution step ID using execution_id + node_id for consistency
+        let execution_step_id = format!("{execution_id}_{node_id}");
+
+        let http_loop_config = HttpLoopConfig {
+            loop_id: loop_id.clone(),
+            execution_step_id,
+            url: config.url.to_string(),
+            method: config.method.clone(),
+            timeout_seconds: config.timeout_seconds as u64,
+            headers: config.headers.clone(),
+            loop_config: loop_config.clone(),
+            initial_event: event.clone(),
+        };
+
+        // Check if HTTP loop scheduler is available
+        let http_loop_scheduler = match &self.http_loop_scheduler {
+            Some(scheduler) => scheduler,
+            None => {
+                tracing::error!("HTTP loop functionality is not available - scheduler not initialized");
+                return Err(SwissPipeError::Generic(
+                    "HTTP loop functionality is not available in worker pool execution. \
+                     The HTTP loop scheduler is not initialized.".to_string()
+                ));
+            }
+        };
+
+        // Schedule the HTTP loop
+        let scheduled_loop_id = http_loop_scheduler.schedule_http_loop(http_loop_config).await?;
+
+        tracing::info!("HTTP loop scheduled with ID: {}, waiting for completion...", scheduled_loop_id);
+
+        // Add debug logging before waiting
+        tracing::debug!("About to call wait_for_loop_completion for loop: {}", scheduled_loop_id);
+
+        // Wait for the loop to complete and return the final result (BLOCKING)
+        let final_result = http_loop_scheduler.wait_for_loop_completion(&scheduled_loop_id).await?;
+
+        tracing::info!("HTTP loop completed successfully: {}", scheduled_loop_id);
+        Ok(final_result)
     }
 
     /// Execute OpenObserve node with failure action handling

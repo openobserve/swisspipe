@@ -135,7 +135,7 @@ export function useWorkflowData() {
         edges: apiEdges
       }
 
-      await workflowStore.updateWorkflow(workflowStore.currentWorkflow.id, workflowData as any)
+      await workflowStore.updateWorkflow(workflowStore.currentWorkflow.id, workflowData as unknown as Parameters<typeof workflowStore.updateWorkflow>[1])
       toast.success('Workflow Saved', 'Your workflow has been saved successfully.')
     } catch (error) {
       console.error('Failed to save workflow:', error)
