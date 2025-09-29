@@ -7,7 +7,7 @@ use tokio::{sync::RwLock, task::JoinHandle, time::sleep};
 use sea_orm::{DatabaseConnection, EntityTrait};
 
 use crate::async_execution::{
-    ExecutionService, HttpLoopScheduler, DelayScheduler, AsyncHilService, StepTracker,
+    ExecutionService, HttpLoopScheduler, DelayScheduler, AsyncHilService,
     mpsc_job_distributor::{MpscJobDistributor, JobMessage},
 };
 use crate::workflow::{
@@ -31,7 +31,6 @@ pub struct MpscWorkerPool {
     processed_jobs: Arc<AtomicU64>,
     delay_scheduler: Arc<RwLock<Option<Arc<DelayScheduler>>>>,
     async_hil_service: Arc<AsyncHilService>,
-    step_tracker: Arc<StepTracker>,
 }
 
 /// Configuration for MPSC worker pool (separate from config::WorkerPoolConfig)
@@ -96,9 +95,6 @@ impl MpscWorkerPool {
             Arc::new(mpsc_distributor.clone()),
         ));
 
-        // Create StepTracker for execution step tracking
-        let step_tracker = Arc::new(StepTracker::new(db.clone()));
-
         Self {
             db,
             execution_service,
@@ -111,7 +107,6 @@ impl MpscWorkerPool {
             processed_jobs: Arc::new(AtomicU64::new(0)),
             delay_scheduler,
             async_hil_service,
-            step_tracker,
         }
     }
 
@@ -134,9 +129,6 @@ impl MpscWorkerPool {
             distributor.clone(),
         ));
 
-        // Create StepTracker for execution step tracking
-        let step_tracker = Arc::new(StepTracker::new(db.clone()));
-
         Self {
             db,
             execution_service,
@@ -149,7 +141,6 @@ impl MpscWorkerPool {
             processed_jobs: Arc::new(AtomicU64::new(0)),
             delay_scheduler,
             async_hil_service,
-            step_tracker,
         }
     }
 
@@ -864,23 +855,8 @@ impl MpscWorkerPool {
 
         tracing::info!("Updated execution {} status to running", execution_id);
 
-        // Create workflow execution step to track the overall DAG execution
-        let workflow_step_id = self.step_tracker.create_step(
-            execution_id,
-            "workflow_execution",
-            "Workflow Execution",
-            None
-        ).await.map_err(|e| {
-            tracing::warn!("Failed to create workflow execution step: {}", e);
-            e
-        }).unwrap_or_else(|_| "unknown".to_string());
-
-        // Mark the workflow step as running
-        if workflow_step_id != "unknown" {
-            if let Err(e) = self.step_tracker.mark_step_running(&workflow_step_id).await {
-                tracing::warn!("Failed to mark workflow execution step as running: {}", e);
-            }
-        }
+        // Workflow execution is tracked in workflow_executions table
+        // Individual node executions are tracked as steps in NodeExecutor
 
         // Load the workflow
         let workflow = self.workflow_engine.workflow_loader().load_workflow(&execution.workflow_id).await
@@ -982,12 +958,9 @@ impl MpscWorkerPool {
                 final_execution.output_data = Set(Some(serde_json::to_string(&output_event.data).unwrap_or_else(|_| "{}".to_string())));
                 final_execution.error_message = Set(None);
 
-                // Complete the workflow execution step only if not HIL blocked
-                if !is_hil_blocked {
-                    if let Err(e) = self.step_tracker.complete_step(&workflow_step_id, Some(&output_event.data)).await {
-                        tracing::warn!("Failed to complete workflow execution step: {}", e);
-                    }
-                }
+                // Workflow completion is tracked here in workflow_executions table
+                // Individual node completions are tracked as steps in NodeExecutor
+                tracing::info!("Workflow execution completed successfully");
 
                 true
             }
@@ -995,10 +968,9 @@ impl MpscWorkerPool {
                 final_execution.status = Set(ExecutionStatus::Failed.to_string());
                 final_execution.error_message = Set(Some(e.to_string()));
 
-                // Fail the workflow execution step
-                if let Err(step_err) = self.step_tracker.fail_step(&workflow_step_id, &e.to_string(), None).await {
-                    tracing::warn!("Failed to mark workflow execution step as failed: {}", step_err);
-                }
+                // Workflow failure is tracked here in workflow_executions table
+                // Individual node failures are tracked as steps in NodeExecutor
+                tracing::error!("Workflow execution failed: {}", e);
 
                 tracing::error!("Workflow execution failed for {}: {}", execution_id, e);
                 false

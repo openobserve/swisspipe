@@ -298,7 +298,7 @@ impl HilService {
         let expired_tasks = human_in_loop_tasks::Entity::find()
             .filter(human_in_loop_tasks::Column::Status.eq("pending"))
             .filter(human_in_loop_tasks::Column::TimeoutAt.is_not_null())
-            .filter(human_in_loop_tasks::Column::TimeoutAt.lt(Utc::now()))
+            .filter(human_in_loop_tasks::Column::TimeoutAt.lt(Utc::now().timestamp_micros()))
             .all(&txn)
             .await
             .map_err(|e| SwissPipeError::Generic(format!("Failed to query expired HIL tasks: {e}")))?;
