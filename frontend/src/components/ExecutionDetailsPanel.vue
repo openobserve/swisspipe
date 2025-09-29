@@ -100,15 +100,6 @@
           </div>
         </div>
 
-
-        <!-- Output Data -->
-        <div v-if="executionStore.selectedExecution.output_data">
-          <h3 class="text-sm font-medium text-gray-200 mb-3">Output Data</h3>
-          <div class="bg-slate-800/80 border border-slate-600/70 rounded-md p-4">
-            <pre class="text-sm text-gray-100 whitespace-pre-wrap font-mono leading-relaxed">{{ formatJson(executionStore.selectedExecution.output_data) }}</pre>
-          </div>
-        </div>
-
         <!-- Steps -->
         <div>
           <h3 class="text-sm font-medium text-gray-200 mb-3">Execution Steps</h3>
