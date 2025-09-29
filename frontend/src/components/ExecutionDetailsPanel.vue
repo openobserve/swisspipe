@@ -119,62 +119,41 @@
             <div class="overflow-x-auto">
               <table class="min-w-full divide-y divide-slate-600">
                 <thead class="bg-slate-700/50">
-                  <tr>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      Node Name
-                    </th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      Created
-                    </th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      Started
-                    </th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      Completed
-                    </th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      Duration
-                    </th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                      Error
+                  <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                    <th
+                      v-for="header in headerGroup.headers"
+                      :key="header.id"
+                      class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-slate-600/50 transition-colors"
+                      @click="header.column.getToggleSortingHandler()?.($event)"
+                    >
+                      <div class="flex items-center space-x-1">
+                        <FlexRender
+                          :render="header.column.columnDef.header"
+                          :props="header.getContext()"
+                        />
+                        <span v-if="header.column.getIsSorted()" class="ml-1">
+                          {{ header.column.getIsSorted() === 'desc' ? '↓' : '↑' }}
+                        </span>
+                      </div>
                     </th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-600/50">
-                  <tr 
-                    v-for="step in executionStore.executionSteps" 
-                    :key="step.id"
+                  <tr
+                    v-for="row in table.getRowModel().rows"
+                    :key="row.id"
                     class="hover:bg-slate-700/30 transition-colors cursor-pointer"
-                    @click="openStepModal(step)"
+                    @click="openStepModal(row.original)"
                   >
-                    <td class="px-4 py-2 text-sm font-medium text-white">
-                      {{ step.node_name }}
-                    </td>
-                    <td class="px-4 py-2 text-sm">
-                      <span 
-                        class="px-2 py-1 text-xs leading-4 font-semibold rounded-full"
-                        :class="getStepStatusColorClass(step.status)"
-                      >
-                        {{ step.status }}
-                      </span>
-                    </td>
-                    <td class="px-4 py-2 text-xs text-gray-200 font-mono">
-                      {{ executionStore.formatTimestamp(step.created_at) }}
-                    </td>
-                    <td class="px-4 py-2 text-xs text-gray-200 font-mono">
-                      {{ step.started_at ? executionStore.formatTimestamp(step.started_at) : '-' }}
-                    </td>
-                    <td class="px-4 py-2 text-xs text-gray-200 font-mono">
-                      {{ step.completed_at ? executionStore.formatTimestamp(step.completed_at) : '-' }}
-                    </td>
-                    <td class="px-4 py-2 text-xs text-gray-200 font-mono">
-                      {{ step.started_at && step.completed_at ? executionStore.formatDuration(step.started_at, step.completed_at) : '-' }}
-                    </td>
-                    <td class="px-4 py-2 text-xs text-red-300 max-w-md">
-                      <div class="whitespace-pre-wrap break-words">{{ step.error_message || '-' }}</div>
+                    <td
+                      v-for="cell in row.getVisibleCells()"
+                      :key="cell.id"
+                      class="px-4 py-2 text-sm"
+                    >
+                      <FlexRender
+                        :render="cell.column.columnDef.cell"
+                        :props="cell.getContext()"
+                      />
                     </td>
                   </tr>
                 </tbody>
@@ -325,8 +304,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed, h } from 'vue'
 import { XMarkIcon } from '@heroicons/vue/24/outline'
+import {
+  useVueTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  type ColumnDef,
+  type SortingState,
+  FlexRender
+} from '@tanstack/vue-table'
 import { useExecutionStore } from '../stores/executions'
 import type { ExecutionStatus, StepStatus, ExecutionStep } from '../types/execution'
 
@@ -335,6 +322,104 @@ const executionStore = useExecutionStore()
 // Modal state
 const showStepModal = ref(false)
 const selectedStep = ref<ExecutionStep | null>(null)
+
+// Table state
+const sorting = ref<SortingState>([
+  {
+    id: 'created_at',
+    desc: false // ascending by default
+  }
+])
+
+// Table columns definition
+const columns = computed<ColumnDef<ExecutionStep>[]>(() => [
+  {
+    accessorKey: 'node_name',
+    header: 'Node Name',
+    cell: (info) => h('span', { class: 'font-medium text-white' }, info.getValue() as string)
+  },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    cell: (info) => {
+      const status = info.getValue() as StepStatus
+      return h('span', {
+        class: `px-2 py-1 text-xs leading-4 font-semibold rounded-full ${getStepStatusColorClass(status)}`
+      }, status)
+    }
+  },
+  {
+    accessorKey: 'created_at',
+    header: 'Created',
+    sortingFn: 'basic',
+    cell: (info) => h('span', {
+      class: 'text-xs text-gray-200 font-mono'
+    }, executionStore.formatTimestamp(info.getValue() as number))
+  },
+  {
+    accessorKey: 'started_at',
+    header: 'Started',
+    cell: (info) => {
+      const startedAt = info.getValue() as number | undefined
+      return h('span', {
+        class: 'text-xs text-gray-200 font-mono'
+      }, startedAt ? executionStore.formatTimestamp(startedAt) : '-')
+    }
+  },
+  {
+    accessorKey: 'completed_at',
+    header: 'Completed',
+    cell: (info) => {
+      const completedAt = info.getValue() as number | undefined
+      return h('span', {
+        class: 'text-xs text-gray-200 font-mono'
+      }, completedAt ? executionStore.formatTimestamp(completedAt) : '-')
+    }
+  },
+  {
+    id: 'duration',
+    header: 'Duration',
+    accessorFn: (row) => ({ started_at: row.started_at, completed_at: row.completed_at }),
+    cell: (info) => {
+      const { started_at, completed_at } = info.getValue() as { started_at?: number, completed_at?: number }
+      return h('span', {
+        class: 'text-xs text-gray-200 font-mono'
+      }, started_at && completed_at ? executionStore.formatDuration(started_at, completed_at) : '-')
+    }
+  },
+  {
+    accessorKey: 'error_message',
+    header: 'Error',
+    cell: (info) => {
+      const errorMessage = info.getValue() as string | undefined
+      return h('div', {
+        class: 'text-xs text-red-300 max-w-md whitespace-pre-wrap break-words'
+      }, errorMessage || '-')
+    }
+  }
+])
+
+// Create table instance
+const table = useVueTable({
+  get data() {
+    return executionStore.executionSteps
+  },
+  get columns() {
+    return columns.value
+  },
+  state: {
+    get sorting() {
+      return sorting.value
+    }
+  },
+  onSortingChange: (updaterOrValue) => {
+    sorting.value = typeof updaterOrValue === 'function'
+      ? updaterOrValue(sorting.value)
+      : updaterOrValue
+  },
+  getCoreRowModel: getCoreRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+})
 
 // Handle Escape key to close panel or modal
 function handleKeydown(event: KeyboardEvent) {

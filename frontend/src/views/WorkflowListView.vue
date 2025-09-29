@@ -73,7 +73,7 @@
       </div>
 
       <!-- Workflows Table -->
-      <div class="glass-medium rounded-lg shadow-2xl overflow-hidden">
+      <div class="glass-medium rounded-lg shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh-200px)]">
         <div v-if="workflowStore.loading" class="p-8 text-center">
           <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto"></div>
           <p class="mt-2 text-gray-400">Loading workflows...</p>
@@ -98,93 +98,70 @@
           </p>
         </div>
 
-        <div v-else class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-slate-600">
-            <thead class="glass-dark">
-              <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  Name
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  Description
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  Status
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  Created
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  Last Modified
-                </th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-600/50">
-              <tr
-                v-for="workflow in filteredWorkflows"
-                :key="workflow.id"
-                class="hover:bg-white/5 transition-all duration-200 cursor-pointer backdrop-blur-sm"
-                @click="navigateToDesigner(workflow.id)"
-              >
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="text-sm font-medium text-white">{{ workflow.name }}</div>
-                </td>
-                <td class="px-6 py-4">
-                  <div class="text-sm text-gray-300 max-w-xs truncate">
-                    {{ workflow.description || 'No description' }}
-                  </div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <span
-                    :class="workflow.enabled
-                      ? 'bg-green-900 text-green-200'
-                      : 'bg-red-900 text-red-200'
-                    "
-                    class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+        <div v-else class="flex-1 flex flex-col min-h-0">
+          <!-- Fixed Header -->
+          <div class="overflow-x-auto bg-slate-800/80 border-b border-slate-600/50">
+            <table class="min-w-full">
+              <thead class="glass-dark">
+                <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                  <th
+                    v-for="header in headerGroup.headers"
+                    :key="header.id"
+                    :class="[
+                      'px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider',
+                      header.id === 'actions' ? 'text-right' : '',
+                      header.column.getCanSort() ? 'cursor-pointer hover:bg-slate-600/30 transition-colors select-none' : ''
+                    ]"
+                    @click="header.column.getToggleSortingHandler()?.($event)"
                   >
-                    {{ workflow.enabled ? 'Enabled' : 'Disabled' }}
-                  </span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                  {{ formatDate(workflow.created_at) }}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                  {{ formatDate(workflow.updated_at) }}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <div class="flex items-center justify-end space-x-2">
-                    <button
-                      @click.stop="navigateToDesigner(workflow.id)"
-                      class="text-primary-400 hover:text-primary-300 transition-colors"
-                      title="Edit"
+                    <div class="flex items-center" :class="header.id === 'actions' ? 'justify-end' : 'justify-start'">
+                      <FlexRender
+                        :render="header.column.columnDef.header"
+                        :props="header.getContext()"
+                      />
+                      <span v-if="header.column.getIsSorted()" class="ml-1">
+                        {{ header.column.getIsSorted() === 'desc' ? '↓' : '↑' }}
+                      </span>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+            </table>
+          </div>
+
+          <!-- Scrollable Body -->
+          <div class="flex-1 overflow-auto">
+            <div class="overflow-x-auto">
+              <table class="min-w-full">
+                <tbody class="divide-y divide-slate-600/50">
+                  <tr
+                    v-for="row in table.getRowModel().rows"
+                    :key="row.id"
+                    class="hover:bg-white/5 transition-all duration-200 cursor-pointer backdrop-blur-sm"
+                    @click="navigateToDesigner(row.original.id)"
+                  >
+                    <td
+                      v-for="cell in row.getVisibleCells()"
+                      :key="cell.id"
+                      :class="[
+                        'px-6 py-4',
+                        cell.column.id === 'name' ? 'whitespace-nowrap' : '',
+                        cell.column.id === 'enabled' ? 'whitespace-nowrap' : '',
+                        cell.column.id === 'created_at' ? 'whitespace-nowrap' : '',
+                        cell.column.id === 'updated_at' ? 'whitespace-nowrap' : '',
+                        cell.column.id === 'actions' ? 'whitespace-nowrap text-right text-sm font-medium' : ''
+                      ]"
                     >
-                      <PencilIcon class="h-5 w-5" />
-                    </button>
-                    <button
-                      @click.stop="toggleWorkflowStatus(workflow)"
-                      :class="workflow.enabled
-                        ? 'text-yellow-400 hover:text-yellow-300'
-                        : 'text-green-400 hover:text-green-300'
-                      "
-                      class="transition-colors"
-                      :title="workflow.enabled ? 'Disable' : 'Enable'"
-                      :disabled="togglingStatus === workflow.id"
-                    >
-                      <svg v-if="workflow.enabled" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L5.636 5.636"></path>
-                      </svg>
-                      <svg v-else class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                      </svg>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                      <FlexRender
+                        :render="cell.column.columnDef.cell"
+                        :props="cell.getContext()"
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </main>
@@ -275,12 +252,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, h } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   MagnifyingGlassIcon,
   PencilIcon
 } from '@heroicons/vue/24/outline'
+import {
+  useVueTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  type ColumnDef,
+  type SortingState,
+  FlexRender
+} from '@tanstack/vue-table'
 import { useWorkflowStore } from '../stores/workflows'
 import HeaderComponent from '../components/HeaderComponent.vue'
 import AIWorkflowChat from '../components/AIWorkflowChat.vue'
@@ -302,7 +287,7 @@ const newWorkflow = ref({
   description: ''
 })
 
-// Local filtered workflows computed property
+// Local filtered workflows computed property (must be defined before table)
 const filteredWorkflows = computed(() => {
   let result = workflowStore.filteredWorkflows
 
@@ -314,6 +299,148 @@ const filteredWorkflows = computed(() => {
   }
 
   return result
+})
+
+// Table state for TanStack Table
+const sorting = ref<SortingState>([
+  {
+    id: 'updated_at',
+    desc: true // Default sort by last modified descending
+  }
+])
+
+// Table columns definition
+const columns = computed<ColumnDef<Workflow>[]>(() => [
+  {
+    accessorKey: 'name',
+    header: 'Name',
+    cell: (info) => h('div', {
+      class: 'text-sm font-medium text-white'
+    }, info.getValue() as string)
+  },
+  {
+    accessorKey: 'description',
+    header: 'Description',
+    cell: (info) => {
+      const description = info.getValue() as string | undefined
+      return h('div', {
+        class: 'text-sm text-gray-300 max-w-xs truncate'
+      }, description || 'No description')
+    }
+  },
+  {
+    accessorKey: 'enabled',
+    header: 'Status',
+    cell: (info) => {
+      const enabled = info.getValue() as boolean
+      return h('span', {
+        class: `px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+          enabled
+            ? 'bg-green-900 text-green-200'
+            : 'bg-red-900 text-red-200'
+        }`
+      }, enabled ? 'Enabled' : 'Disabled')
+    }
+  },
+  {
+    accessorKey: 'created_at',
+    header: 'Created',
+    cell: (info) => h('span', {
+      class: 'text-sm text-gray-300'
+    }, formatDate(info.getValue() as string))
+  },
+  {
+    accessorKey: 'updated_at',
+    header: 'Last Modified',
+    cell: (info) => h('span', {
+      class: 'text-sm text-gray-300'
+    }, formatDate(info.getValue() as string))
+  },
+  {
+    id: 'actions',
+    header: 'Actions',
+    cell: (info) => {
+      const workflow = info.row.original
+      return h('div', {
+        class: 'flex items-center justify-end space-x-2'
+      }, [
+        h('button', {
+          class: 'text-primary-400 hover:text-primary-300 transition-colors',
+          title: 'Edit',
+          onClick: (e: Event) => {
+            e.stopPropagation()
+            navigateToDesigner(workflow.id)
+          }
+        }, [
+          h(PencilIcon, { class: 'h-5 w-5' })
+        ]),
+        h('button', {
+          class: `transition-colors ${
+            workflow.enabled
+              ? 'text-yellow-400 hover:text-yellow-300'
+              : 'text-green-400 hover:text-green-300'
+          }`,
+          title: workflow.enabled ? 'Disable' : 'Enable',
+          disabled: togglingStatus.value === workflow.id,
+          onClick: (e: Event) => {
+            e.stopPropagation()
+            toggleWorkflowStatus(workflow)
+          }
+        }, [
+          workflow.enabled
+            ? h('svg', {
+                class: 'h-5 w-5',
+                fill: 'none',
+                stroke: 'currentColor',
+                viewBox: '0 0 24 24'
+              }, [
+                h('path', {
+                  'stroke-linecap': 'round',
+                  'stroke-linejoin': 'round',
+                  'stroke-width': '2',
+                  d: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L5.636 5.636'
+                })
+              ])
+            : h('svg', {
+                class: 'h-5 w-5',
+                fill: 'none',
+                stroke: 'currentColor',
+                viewBox: '0 0 24 24'
+              }, [
+                h('path', {
+                  'stroke-linecap': 'round',
+                  'stroke-linejoin': 'round',
+                  'stroke-width': '2',
+                  d: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'
+                })
+              ])
+        ])
+      ])
+    },
+    enableSorting: false,
+  }
+])
+
+// Create table instance
+const table = useVueTable({
+  get data() {
+    return filteredWorkflows.value
+  },
+  get columns() {
+    return columns.value
+  },
+  state: {
+    get sorting() {
+      return sorting.value
+    }
+  },
+  onSortingChange: (updaterOrValue) => {
+    sorting.value = typeof updaterOrValue === 'function'
+      ? updaterOrValue(sorting.value)
+      : updaterOrValue
+  },
+  getCoreRowModel: getCoreRowModel(),
+  getSortedRowModel: getSortedRowModel(),
 })
 
 onMounted(() => {
