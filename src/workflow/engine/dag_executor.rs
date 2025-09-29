@@ -22,6 +22,7 @@ struct ExecutionContext<'a> {
     execution_id: &'a str,
     executed_hil_handles: &'a HashMap<String, HashSet<String>>, // HIL node_id -> set of executed handles
     multipath_scheduled_nodes: &'a HashSet<String>, // Nodes already scheduled by MultiPath execution
+    pending_nodes: &'a mut HashSet<String>, // Nodes currently pending execution
 }
 
 struct HilExecutionParams<'a> {
@@ -34,6 +35,7 @@ struct HilExecutionParams<'a> {
     execution_id: &'a str,
     executed_hil_handles: &'a mut HashMap<String, HashSet<String>>,
     multipath_scheduled_nodes: &'a mut HashSet<String>,
+    pending_nodes: &'a mut HashSet<String>,
 }
 
 impl DagExecutor {
@@ -66,6 +68,7 @@ impl DagExecutor {
         let mut pending_executions: JoinSet<Result<(String, NodeOutput)>> = JoinSet::new();
         let mut executed_hil_handles: HashMap<String, HashSet<String>> = HashMap::new(); // Track executed HIL handles
         let mut multipath_scheduled_nodes: HashSet<String> = HashSet::new(); // Track nodes scheduled by MultiPath execution
+        let mut pending_nodes: HashSet<String> = HashSet::new(); // Track nodes currently pending execution
 
         // Start with the trigger node
         let start_node_id = workflow.start_node_id.as_ref()
@@ -104,6 +107,7 @@ impl DagExecutor {
             execution_id,
             executed_hil_handles: &executed_hil_handles,
             multipath_scheduled_nodes: &multipath_scheduled_nodes,
+            pending_nodes: &mut pending_nodes,
         };
         self.schedule_ready_nodes(workflow, &mut execution_context).await?;
 
@@ -114,6 +118,10 @@ impl DagExecutor {
                 match result {
                     Ok(Ok((node_id, output))) => {
                         tracing::info!("Node '{}' completed successfully", node_id);
+
+                        // Remove node from pending set since it's now completed
+                        pending_nodes.remove(&node_id);
+                        tracing::debug!("Removed node '{}' from pending set", node_id);
 
                         match output {
                             NodeOutput::Continue(event) => {
@@ -138,6 +146,7 @@ impl DagExecutor {
                                     execution_id,
                                     executed_hil_handles: &mut executed_hil_handles,
                                     multipath_scheduled_nodes: &mut multipath_scheduled_nodes,
+                                    pending_nodes: &mut pending_nodes,
                                 };
                                 self.handle_multipath_execution(hil_params).await?;
 
@@ -186,6 +195,7 @@ impl DagExecutor {
                             execution_id,
                             executed_hil_handles: &executed_hil_handles,
                             multipath_scheduled_nodes: &multipath_scheduled_nodes,
+                            pending_nodes: &mut pending_nodes,
                         };
                         self.schedule_ready_nodes(workflow, &mut execution_context).await?;
                     }
@@ -257,6 +267,12 @@ impl DagExecutor {
                 continue;
             }
 
+            // Skip nodes already pending execution to prevent duplicates
+            if execution_context.pending_nodes.contains(&node.id) {
+                tracing::debug!("Skipping node '{}' - already pending execution", node.name);
+                continue;
+            }
+
             // Check if all predecessors are completed and HIL handles are executed
             let node_predecessors = execution_context.predecessors.get(&node.id).cloned().unwrap_or_default();
             let all_predecessors_ready = self.check_predecessors_ready(
@@ -281,6 +297,10 @@ impl DagExecutor {
 
                 // Only spawn if node has valid inputs after condition filtering
                 if !inputs.is_empty() {
+                    // Mark node as pending to prevent duplicate scheduling
+                    execution_context.pending_nodes.insert(node.id.clone());
+                    tracing::debug!("Added node '{}' to pending set", node.name);
+
                     // Clone necessary data for the async task
                     let node_clone = node.clone();
                     let execution_id = execution_context.execution_id.to_string();
@@ -323,6 +343,10 @@ impl DagExecutor {
 
         for successor_id in notification_successors {
             if let Some(successor_node) = params.workflow.nodes.iter().find(|n| n.id == successor_id) {
+                // Mark node as pending to prevent duplicate scheduling
+                params.pending_nodes.insert(successor_id.clone());
+                tracing::debug!("Added HIL notification successor '{}' to pending set", successor_node.name);
+
                 let node_clone = successor_node.clone();
                 let event_clone = params.hil_result.notification_path.event.clone();
                 let execution_id_clone = params.execution_id.to_string();
