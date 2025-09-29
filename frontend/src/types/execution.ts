@@ -5,6 +5,7 @@ export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipp
 export interface WorkflowExecution {
   id: string
   workflow_id: string
+  workflow_name?: string
   status: ExecutionStatus
   current_node_id?: string
   input_data?: unknown

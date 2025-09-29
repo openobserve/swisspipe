@@ -2,6 +2,7 @@ use crate::database::{
     workflow_executions::{self, ExecutionStatus},
     workflow_execution_steps::{self, StepStatus},
     job_queue::{self, JobStatus},
+    entities,
 };
 use crate::utils::validation;
 use crate::workflow::{
@@ -201,27 +202,28 @@ impl ExecutionService {
         Ok(())
     }
 
-    /// Get executions by workflow with optional status filter
-    pub async fn get_executions_by_workflow_filtered(
+
+    /// Get recent executions with workflow names using join
+    pub async fn get_recent_executions_with_workflow_names_filtered(
         &self,
-        workflow_id: &str,
         status: Option<&str>,
         limit: Option<u64>,
         offset: Option<u64>,
-    ) -> Result<Vec<workflow_executions::Model>> {
+    ) -> Result<Vec<(workflow_executions::Model, Option<entities::Model>)>> {
         let mut query = workflow_executions::Entity::find()
-            .filter(workflow_executions::Column::WorkflowId.eq(workflow_id));
+            .find_also_related(entities::Entity)
+            .order_by_desc(workflow_executions::Column::CreatedAt);
 
         // Add status filter if provided
         if let Some(status_filter) = status {
             query = query.filter(workflow_executions::Column::Status.eq(status_filter));
         }
 
-        // Add ordering
-        query = query.order_by_desc(workflow_executions::Column::CreatedAt);
-
         if let Some(limit) = limit {
             query = query.limit(limit);
+        } else {
+            // Default to 50 if no limit specified
+            query = query.limit(50);
         }
 
         if let Some(offset) = offset {
@@ -232,14 +234,17 @@ impl ExecutionService {
         Ok(executions)
     }
 
-    /// Get recent executions with optional status filter
-    pub async fn get_recent_executions_filtered(
+    /// Get executions by workflow with workflow names using join
+    pub async fn get_executions_by_workflow_with_names_filtered(
         &self,
+        workflow_id: &str,
         status: Option<&str>,
         limit: Option<u64>,
         offset: Option<u64>,
-    ) -> Result<Vec<workflow_executions::Model>> {
+    ) -> Result<Vec<(workflow_executions::Model, Option<entities::Model>)>> {
         let mut query = workflow_executions::Entity::find()
+            .find_also_related(entities::Entity)
+            .filter(workflow_executions::Column::WorkflowId.eq(workflow_id))
             .order_by_desc(workflow_executions::Column::CreatedAt);
 
         // Add status filter if provided

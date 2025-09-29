@@ -20,11 +20,12 @@ export const useExecutionStore = defineStore('executions', () => {
   // Computed
   const filteredExecutions = computed(() => {
     if (!searchTerm.value) return executions.value
-    
+
     const search = searchTerm.value.toLowerCase()
-    return executions.value.filter(execution => 
+    return executions.value.filter(execution =>
       execution.id.toLowerCase().includes(search) ||
       execution.workflow_id.toLowerCase().includes(search) ||
+      execution.workflow_name?.toLowerCase().includes(search) ||
       execution.status.toLowerCase().includes(search) ||
       execution.current_node_id?.toLowerCase().includes(search)
     )

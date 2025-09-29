@@ -61,10 +61,13 @@
             <thead class="sticky top-0 z-10 bg-slate-900">
               <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  Workflow Name
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                   Execution ID
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  Workflow
+                  Workflow ID
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                   Status
@@ -91,12 +94,17 @@
                 @click="openExecutionDetailsWithErrorHandling(execution)"
               >
                 <td class="px-6 py-4">
-                  <div class="text-sm font-medium text-white font-mono">
+                  <div class="text-sm font-medium text-white">
+                    {{ execution.workflow_name || 'Unknown Workflow' }}
+                  </div>
+                </td>
+                <td class="px-6 py-4">
+                  <div class="text-sm font-medium text-gray-300 font-mono">
                     {{ execution.id }}
                   </div>
                 </td>
                 <td class="px-6 py-4">
-                  <div class="text-sm text-gray-300 font-mono">{{ execution.workflow_id }}</div>
+                  <div class="text-sm text-gray-400 font-mono">{{ execution.workflow_id }}</div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <span 

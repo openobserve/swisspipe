@@ -201,41 +201,41 @@ pub async fn get_all_executions(
     Query(params): Query<GetExecutionsQuery>,
 ) -> std::result::Result<Json<Value>, StatusCode> {
     let execution_service = ExecutionService::new(state.db.clone());
-    
+
     let workflow_id_clone = params.workflow_id.clone();
     let status_clone = params.status.clone();
     let executions = if let Some(ref workflow_id) = params.workflow_id {
-        // Filter by specific workflow ID
+        // Filter by specific workflow ID with workflow names
         execution_service
-            .get_executions_by_workflow_filtered(
-                workflow_id, 
-                params.status.as_deref(), 
-                params.limit, 
+            .get_executions_by_workflow_with_names_filtered(
+                workflow_id,
+                params.status.as_deref(),
+                params.limit,
                 params.offset
             )
             .await
             .map_err(|e| {
-                tracing::error!("Failed to get executions by workflow: {}", e);
+                tracing::error!("Failed to get executions by workflow with names: {}", e);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?
     } else {
-        // Get all recent executions
+        // Get all recent executions with workflow names
         execution_service
-            .get_recent_executions_filtered(
-                params.status.as_deref(), 
-                params.limit, 
+            .get_recent_executions_with_workflow_names_filtered(
+                params.status.as_deref(),
+                params.limit,
                 params.offset
             )
             .await
             .map_err(|e| {
-                tracing::error!("Failed to get all executions: {}", e);
+                tracing::error!("Failed to get all executions with names: {}", e);
                 StatusCode::INTERNAL_SERVER_ERROR
             })?
     };
 
     let executions_json: Vec<Value> = executions
         .into_iter()
-        .map(|exec| {
+        .map(|(exec, workflow)| {
             let duration_ms = if let (Some(started), Some(completed)) = (exec.started_at, exec.completed_at) {
                 Some((completed - started) / 1000) // Convert microseconds to milliseconds
             } else {
@@ -245,6 +245,7 @@ pub async fn get_all_executions(
             serde_json::json!({
                 "id": exec.id,
                 "workflow_id": exec.workflow_id,
+                "workflow_name": workflow.map(|w| w.name).unwrap_or_else(|| "Unknown Workflow".to_string()),
                 "status": exec.status,
                 "current_node_id": exec.current_node_id,
                 "input_data": exec.input_data.and_then(|d| serde_json::from_str::<Value>(&d).ok()),
