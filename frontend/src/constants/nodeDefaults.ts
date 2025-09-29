@@ -54,8 +54,8 @@ export const DEFAULT_DELAY_CONFIG = {
 }
 
 export const DEFAULT_ANTHROPIC_CONFIG = {
-  model: 'claude-3-5-sonnet-20241022',
-  max_tokens: 4000,
+  model: 'claude-opus-4-1-20250805',
+  max_tokens: 8192,
   temperature: 0.7,
   system_prompt: '',
   user_prompt: 'Analyze this data: {{ event.data }}',

@@ -323,7 +323,11 @@ const AI_PROVIDERS = {
   anthropic: {
     name: 'Anthropic Claude',
     models: [
+      { id: 'claude-opus-4-1-20250805', name: 'Claude 4.1 Opus' },
+      { id: 'claude-sonnet-4-20250514', name: 'Claude 4 Sonnet' },
       { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
+      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku' },
+      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
       { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
       { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' }
     ]
@@ -332,8 +336,8 @@ const AI_PROVIDERS = {
 
 const DEFAULT_AI_CONFIG = {
   provider: 'anthropic' as keyof typeof AI_PROVIDERS,
-  model: 'claude-3-5-sonnet-20241022',
-  maxTokens: 4000,
+  model: 'claude-opus-4-1-20250805',
+  maxTokens: 8192,
   temperature: 0.1
 } as const
 

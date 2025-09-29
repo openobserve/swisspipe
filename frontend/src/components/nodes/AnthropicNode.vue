@@ -55,7 +55,9 @@ function getAnthropicSummary(): string {
   }
 
   // Extract model display name
-  const modelName = config.model.includes('claude-3-5-sonnet') ? 'Claude 3.5 Sonnet' :
+  const modelName = config.model.includes('claude-opus-4-1') ? 'Claude 4.1 Opus' :
+                   config.model.includes('claude-sonnet-4') ? 'Claude 4 Sonnet' :
+                   config.model.includes('claude-3-5-sonnet') ? 'Claude 3.5 Sonnet' :
                    config.model.includes('claude-3-5-haiku') ? 'Claude 3.5 Haiku' :
                    config.model.includes('claude-3-opus') ? 'Claude 3 Opus' :
                    config.model.includes('claude-3-sonnet') ? 'Claude 3 Sonnet' :

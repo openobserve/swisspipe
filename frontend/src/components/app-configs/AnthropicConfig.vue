@@ -8,6 +8,8 @@
         @blur="$emit('update')"
         class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
       >
+        <option value="claude-opus-4-1-20250805">Claude 4.1 Opus</option>
+        <option value="claude-sonnet-4-20250514">Claude 4 Sonnet</option>
         <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
         <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
         <option value="claude-3-opus-20240229">Claude 3 Opus</option>
@@ -110,6 +112,7 @@ function updateMaxTokens(event: Event) {
 }
 
 function getMaxTokensForModel(model: string): number {
+  if (model.includes('claude-opus-4-1') || model.includes('claude-sonnet-4')) return 8192
   if (model.includes('claude-3-5')) return 8192
   if (model.includes('claude-3-opus')) return 4096
   if (model.includes('claude-3-sonnet')) return 4096
@@ -118,6 +121,8 @@ function getMaxTokensForModel(model: string): number {
 }
 
 function getModelDisplayName(model: string): string {
+  if (model.includes('claude-opus-4-1')) return 'Claude 4.1 Opus'
+  if (model.includes('claude-sonnet-4')) return 'Claude 4 Sonnet'
   if (model.includes('claude-3-5-sonnet')) return 'Claude 3.5 Sonnet'
   if (model.includes('claude-3-5-haiku')) return 'Claude 3.5 Haiku'
   if (model.includes('claude-3-opus')) return 'Claude 3 Opus'
