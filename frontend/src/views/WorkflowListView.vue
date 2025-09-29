@@ -98,70 +98,59 @@
           </p>
         </div>
 
-        <div v-else class="flex-1 flex flex-col min-h-0">
-          <!-- Fixed Header -->
-          <div class="overflow-x-auto bg-slate-800/80 border-b border-slate-600/50">
-            <table class="min-w-full">
-              <thead class="glass-dark">
-                <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-                  <th
-                    v-for="header in headerGroup.headers"
-                    :key="header.id"
-                    :class="[
-                      'px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider',
-                      header.id === 'actions' ? 'text-right' : '',
-                      header.column.getCanSort() ? 'cursor-pointer hover:bg-slate-600/30 transition-colors select-none' : ''
-                    ]"
-                    @click="header.column.getToggleSortingHandler()?.($event)"
-                  >
-                    <div class="flex items-center" :class="header.id === 'actions' ? 'justify-end' : 'justify-start'">
-                      <FlexRender
-                        :render="header.column.columnDef.header"
-                        :props="header.getContext()"
-                      />
-                      <span v-if="header.column.getIsSorted()" class="ml-1">
-                        {{ header.column.getIsSorted() === 'desc' ? '↓' : '↑' }}
-                      </span>
-                    </div>
-                  </th>
-                </tr>
-              </thead>
-            </table>
-          </div>
-
-          <!-- Scrollable Body -->
-          <div class="flex-1 overflow-auto">
-            <div class="overflow-x-auto">
-              <table class="min-w-full">
-                <tbody class="divide-y divide-slate-600/50">
-                  <tr
-                    v-for="row in table.getRowModel().rows"
-                    :key="row.id"
-                    class="hover:bg-white/5 transition-all duration-200 cursor-pointer backdrop-blur-sm"
-                    @click="navigateToDesigner(row.original.id)"
-                  >
-                    <td
-                      v-for="cell in row.getVisibleCells()"
-                      :key="cell.id"
-                      :class="[
-                        'px-6 py-4',
-                        cell.column.id === 'name' ? 'whitespace-nowrap' : '',
-                        cell.column.id === 'enabled' ? 'whitespace-nowrap' : '',
-                        cell.column.id === 'created_at' ? 'whitespace-nowrap' : '',
-                        cell.column.id === 'updated_at' ? 'whitespace-nowrap' : '',
-                        cell.column.id === 'actions' ? 'whitespace-nowrap text-right text-sm font-medium' : ''
-                      ]"
-                    >
-                      <FlexRender
-                        :render="cell.column.columnDef.cell"
-                        :props="cell.getContext()"
-                      />
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+        <div v-else class="flex-1 overflow-auto">
+          <table class="min-w-full">
+            <thead class="sticky top-0 z-10 bg-slate-800/90 backdrop-blur-sm border-b border-slate-600/50">
+              <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                <th
+                  v-for="header in headerGroup.headers"
+                  :key="header.id"
+                  :class="[
+                    'px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider',
+                    header.id === 'actions' ? 'text-right' : '',
+                    header.column.getCanSort() ? 'cursor-pointer hover:bg-slate-600/30 transition-colors select-none' : ''
+                  ]"
+                  @click="header.column.getToggleSortingHandler()?.($event)"
+                >
+                  <div class="flex items-center" :class="header.id === 'actions' ? 'justify-end' : 'justify-start'">
+                    <FlexRender
+                      :render="header.column.columnDef.header"
+                      :props="header.getContext()"
+                    />
+                    <span v-if="header.column.getIsSorted()" class="ml-1">
+                      {{ header.column.getIsSorted() === 'desc' ? '↓' : '↑' }}
+                    </span>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-600/50">
+              <tr
+                v-for="row in table.getRowModel().rows"
+                :key="row.id"
+                class="hover:bg-white/5 transition-all duration-200 cursor-pointer backdrop-blur-sm"
+                @click="navigateToDesigner(row.original.id)"
+              >
+                <td
+                  v-for="cell in row.getVisibleCells()"
+                  :key="cell.id"
+                  :class="[
+                    'px-6 py-4',
+                    cell.column.id === 'name' ? 'whitespace-nowrap' : '',
+                    cell.column.id === 'enabled' ? 'whitespace-nowrap' : '',
+                    cell.column.id === 'created_at' ? 'whitespace-nowrap' : '',
+                    cell.column.id === 'updated_at' ? 'whitespace-nowrap' : '',
+                    cell.column.id === 'actions' ? 'whitespace-nowrap text-right text-sm font-medium' : ''
+                  ]"
+                >
+                  <FlexRender
+                    :render="cell.column.columnDef.cell"
+                    :props="cell.getContext()"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </main>
