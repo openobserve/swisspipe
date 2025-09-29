@@ -1,49 +1,11 @@
 <template>
   <div class="email-config p-4 space-y-6">
-    <!-- SMTP Configuration -->
-    <div class="config-section">
-      <h3 class="text-lg font-semibold text-white mb-4">SMTP Configuration</h3>
-      
-      <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">
-            SMTP Config
-          </label>
-          <select
-            v-model="localConfig.smtp_config"
-            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="default">Default</option>
-            <option value="marketing">Marketing</option>
-            <option value="alerts">Alerts</option>
-            <option value="custom">Custom</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
     <!-- Email Recipients -->
     <div class="config-section">
       <h3 class="text-lg font-semibold text-white mb-4">Recipients</h3>
-      
-      <!-- From Address -->
+
+      <!-- Recipients List -->
       <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">From</label>
-          <div class="grid grid-cols-2 gap-2">
-            <input
-              v-model="localConfig.from.email"
-              placeholder="email@example.com"
-              type="email"
-              class="px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <input
-              v-model="localConfig.from.name"
-              placeholder="Display Name (optional)"
-              class="px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
 
         <!-- To Recipients -->
         <div>
@@ -135,68 +97,6 @@
       </div>
     </div>
 
-    <!-- Email Options -->
-    <div class="config-section">
-      <h3 class="text-lg font-semibold text-white mb-4">Options</h3>
-      
-      <div class="grid grid-cols-2 gap-4">
-        <!-- Priority -->
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">Priority</label>
-          <select
-            v-model="localConfig.priority"
-            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="low">Low</option>
-            <option value="normal">Normal</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
-          </select>
-        </div>
-
-        <!-- Max Queue Wait -->
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">Max Queue Wait (minutes)</label>
-          <input
-            v-model.number="localConfig.max_queue_wait_minutes"
-            type="number"
-            min="1"
-            max="1440"
-            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-      </div>
-
-      <!-- Checkboxes -->
-      <div class="space-y-2 mt-4">
-        <label class="flex items-center">
-          <input
-            v-model="localConfig.queue_if_rate_limited"
-            type="checkbox"
-            class="mr-2 text-blue-600"
-          />
-          <span class="text-white">Queue if rate limited</span>
-        </label>
-        
-        <label class="flex items-center">
-          <input
-            v-model="localConfig.delivery_receipt"
-            type="checkbox"
-            class="mr-2 text-blue-600"
-          />
-          <span class="text-white">Request delivery receipt</span>
-        </label>
-        
-        <label class="flex items-center">
-          <input
-            v-model="localConfig.read_receipt"
-            type="checkbox"
-            class="mr-2 text-blue-600"
-          />
-          <span class="text-white">Request read receipt</span>
-        </label>
-      </div>
-    </div>
 
     <!-- Template Variables Helper -->
     <div class="config-section">

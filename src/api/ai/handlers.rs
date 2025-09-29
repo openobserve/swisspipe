@@ -53,7 +53,7 @@ pub async fn generate_code(
     };
 
     // Default configuration for code generation
-    let model = request.model.unwrap_or_else(|| "claude-3-5-sonnet-20241022".to_string());
+    let model = request.model.unwrap_or_else(|| "claude-opus-4-1-20250805".to_string());
     let max_tokens = request.max_tokens.unwrap_or(4000);
     let temperature = request.temperature.unwrap_or(0.1);
 
@@ -202,7 +202,7 @@ async fn generate_workflow_with_ai(
     // Call Anthropic AI service
     let ai_result = state.engine.anthropic_service
         .call_anthropic(&AnthropicCallConfig {
-            model: "claude-3-5-sonnet-20241022",
+            model: "claude-opus-4-1-20250805",
             max_tokens: 4000,
             temperature: 0.2,
             system_prompt: Some(&system_prompt),
@@ -324,6 +324,17 @@ Your task is to generate a complete workflow specification based on user require
       "initial_delay_ms": 100,
       "max_delay_ms": 5000,
       "backoff_multiplier": 2
+    },
+    "loop_config": { // Optional: For repeating HTTP requests
+      "max_iterations": 10,
+      "interval_seconds": 60,
+      "backoff_strategy": {"Fixed": 60}, // or {"Exponential": {"base": 30, "multiplier": 1.5, "max": 300}}
+      "termination_condition": {
+        "condition_type": "ResponseField",
+        "field_path": "data.status",
+        "expected_value": "completed",
+        "operator": "Equals" // "Equals", "NotEquals", "Contains", "GreaterThan", "LessThan"
+      }
     }
   }
 }
@@ -334,11 +345,14 @@ Your task is to generate a complete workflow specification based on user require
 {
   "Email": {
     "config": {
-      "to": ["user@example.com"],
-      "cc": [],
-      "bcc": [],
+      "to": [{"email": "user@example.com", "name": "User Name"}],
+      "cc": [{"email": "manager@example.com", "name": "Manager"}],
+      "bcc": [{"email": "archive@example.com", "name": "Archive"}],
       "subject": "Alert: {{data.title}}",
-      "body": "Message: {{data.message}}"
+      "template_type": "html",
+      "body_template": "<!DOCTYPE html><html><body><h1>Alert</h1><p>{{data.message}}</p></body></html>",
+      "text_body_template": null,
+      "attachments": []
     }
   }
 }
@@ -354,11 +368,25 @@ Your task is to generate a complete workflow specification based on user require
 }
 ```
 
-### 7. Anthropic AI (AI Processing)
+### 7. Human-in-Loop (User Interaction)
+```json
+{
+  "HumanInLoop": {
+    "title": "Approval Required",
+    "description": "Please review and approve this action",
+    "timeout_seconds": 3600,
+    "timeout_action": "denied", // "approved" or "denied"
+    "required_fields": ["decision", "comments"],
+    "metadata": {"priority": "high"}
+  }
+}
+```
+
+### 8. Anthropic AI (AI Processing)
 ```json
 {
   "Anthropic": {
-    "model": "claude-3-5-sonnet-20241022",
+    "model": "claude-opus-4-1-20250805",
     "max_tokens": 1000,
     "temperature": 0.7,
     "system_prompt": "You are a data analyst",
@@ -375,7 +403,7 @@ Your task is to generate a complete workflow specification based on user require
 }
 ```
 
-### 8. OpenObserve (Log Ingestion)
+### 9. OpenObserve (Log Ingestion)
 ```json
 {
   "OpenObserve": {
@@ -404,13 +432,23 @@ Your task is to generate a complete workflow specification based on user require
 8. Use template variables like {{data.field}} in prompts and messages
 9. Generate realistic UUIDs for all IDs
 10. Keep workflows focused and logical
-11. Position nodes vertically (Not horizaontally) to represent data flow direction
+11. Position nodes vertically (Not horizontally) to represent data flow direction
+12. Use Human-in-Loop nodes for approval workflows and user interaction
+13. Use HTTP loop_config for polling APIs or retrying until conditions are met
+14. Use Anthropic nodes for AI-powered data processing and analysis
+15. Use Delay nodes for scheduling and timing control
+16. Set appropriate timeouts for HIL nodes (default: 1 hour)
+17. CRITICAL: Email addresses must always use object format: {"email": "address@domain.com", "name": "Display Name"}
 
 Examples of good workflows:
-- API data → Transform → Send email notification
+- API data → Transform → Send email notification to [{"email": "user@domain.com", "name": "User"}]
 - Webhook trigger → Condition check → Branch to different actions
 - Data ingestion → AI processing → Log results
 - Form submission → Validation → Multiple notification channels
+- API trigger → Human approval → Process on approval
+- Webhook → Poll external API until ready → Continue processing
+- Data intake → Anthropic analysis → Email results with insights
+- Scheduled trigger → HTTP loop to check status → Act when complete
 
 IMPORTANT: Respond ONLY with the JSON workflow specification. No explanations or markdown formatting."#.to_string()
 }

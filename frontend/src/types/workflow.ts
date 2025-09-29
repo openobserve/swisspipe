@@ -118,8 +118,6 @@ export interface AppNode {
 export interface EmailNode {
   Email: {
     config: {
-      smtp_config: string
-      from: { email: string; name?: string }
       to: { email: string; name?: string }[]
       cc?: { email: string; name?: string }[]
       bcc?: { email: string; name?: string }[]

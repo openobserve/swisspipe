@@ -18,13 +18,6 @@
         :style="{ background: '#ddd' }"
       />
       
-      <!-- Priority indicator -->
-      <div 
-        v-if="data.config?.priority && data.config.priority !== 'normal'"
-        class="absolute top-2 right-8 w-2 h-2 rounded-full"
-        :class="getPriorityColor()"
-        :title="`Priority: ${data.config.priority}`"
-      ></div>
     </template>
   </BaseNode>
 </template>
@@ -69,15 +62,6 @@ function getEmailSummary() {
   return parts.join(' • ') || 'Email'
 }
 
-function getPriorityColor() {
-  const priority = props.data.config?.priority
-  switch (priority) {
-    case 'critical': return 'bg-red-500'
-    case 'high': return 'bg-orange-500'
-    case 'low': return 'bg-gray-500'
-    default: return 'bg-blue-500'
-  }
-}
 
 </script>
 

@@ -125,8 +125,6 @@ export interface OpenObserveConfig {
 
 export interface EmailConfig {
   type: 'email'
-  smtp_config: string
-  from: EmailAddress
   to: EmailAddress[]
   cc?: EmailAddress[]
   bcc?: EmailAddress[]
@@ -135,12 +133,6 @@ export interface EmailConfig {
   body_template: string
   text_body_template?: string
   attachments?: EmailAttachment[]
-  priority: 'critical' | 'high' | 'normal' | 'low'
-  delivery_receipt: boolean
-  read_receipt: boolean
-  queue_if_rate_limited: boolean
-  max_queue_wait_minutes: number
-  bypass_rate_limit: boolean
 }
 
 export interface DelayConfig {

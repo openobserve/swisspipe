@@ -22,29 +22,8 @@ export interface ValidationResult {
 export function validateEmailConfig(config: Partial<EmailConfig>): ValidationResult {
   const errors: ValidationError[] = []
 
-  // Validate SMTP config
-  if (!config.smtp_config) {
-    errors.push({
-      field: 'smtp_config',
-      message: 'SMTP configuration is required',
-      code: 'REQUIRED'
-    })
-  }
-
-  // Validate from email
-  if (!config.from?.email) {
-    errors.push({
-      field: 'from.email',
-      message: 'From email address is required',
-      code: 'REQUIRED'
-    })
-  } else if (!isValidEmail(config.from.email) && !isTemplateVariable(config.from.email)) {
-    errors.push({
-      field: 'from.email',
-      message: 'From email must be a valid email address or template variable',
-      code: 'INVALID_FORMAT'
-    })
-  }
+  // SMTP config and from email are now handled by environment variables
+  // No validation needed for these fields
 
   // Validate to recipients
   if (!config.to || config.to.length === 0) {
@@ -115,26 +94,6 @@ export function validateEmailConfig(config: Partial<EmailConfig>): ValidationRes
     })
   }
 
-  // Validate priority
-  const validPriorities = ['low', 'normal', 'high', 'critical']
-  if (config.priority && !validPriorities.includes(config.priority)) {
-    errors.push({
-      field: 'priority',
-      message: 'Priority must be one of: low, normal, high, critical',
-      code: 'INVALID_VALUE'
-    })
-  }
-
-  // Validate max queue wait minutes
-  if (config.max_queue_wait_minutes !== undefined) {
-    if (config.max_queue_wait_minutes < 1 || config.max_queue_wait_minutes > 1440) {
-      errors.push({
-        field: 'max_queue_wait_minutes',
-        message: 'Max queue wait must be between 1 and 1440 minutes',
-        code: 'INVALID_RANGE'
-      })
-    }
-  }
 
   return {
     isValid: errors.length === 0,

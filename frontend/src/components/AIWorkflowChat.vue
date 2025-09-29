@@ -4,7 +4,7 @@
     class="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50"
     @click.self="closeChat"
   >
-    <div class="glass-strong rounded-lg w-full max-w-2xl max-h-[80vh] shadow-2xl flex flex-col">
+    <div class="bg-slate-900 border border-slate-700 rounded-lg w-full max-w-2xl max-h-[80vh] shadow-2xl flex flex-col">
       <!-- Header -->
       <div class="flex items-center justify-between p-4 border-b border-slate-600/50">
         <div class="flex items-center space-x-3">

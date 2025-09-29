@@ -6,11 +6,6 @@ export const DEFAULT_RETRY_CONFIG = {
 }
 
 export const DEFAULT_EMAIL_CONFIG = {
-  smtp_config: 'default',
-  from: {
-    email: 'noreply@company.com',
-    name: 'SwissPipe Workflow'
-  },
   to: [{
     email: '{{ event.data.user_email }}',
     name: '{{ event.data.user_name }}'
@@ -21,13 +16,7 @@ export const DEFAULT_EMAIL_CONFIG = {
   template_type: 'html' as const,
   body_template: '<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Status: {{ event.status }}</p><p>Data: {{ event.data  }}</p></body></html>',
   text_body_template: undefined,
-  attachments: [],
-  priority: 'normal' as const,
-  delivery_receipt: false,
-  read_receipt: false,
-  queue_if_rate_limited: true,
-  max_queue_wait_minutes: 60,
-  bypass_rate_limit: false
+  attachments: []
 }
 
 export const DEFAULT_HTTP_CONFIG = {

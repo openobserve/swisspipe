@@ -104,8 +104,6 @@ export function convertApiNodeConfigToVueFlowConfig(nodeType: NodeType): NodeCon
     return {
       type: 'email' as const,
       ...DEFAULT_EMAIL_CONFIG,
-      smtp_config: emailConfig.smtp_config || DEFAULT_EMAIL_CONFIG.smtp_config,
-      from: emailConfig.from || DEFAULT_EMAIL_CONFIG.from,
       to: emailConfig.to || DEFAULT_EMAIL_CONFIG.to,
       cc: emailConfig.cc || DEFAULT_EMAIL_CONFIG.cc,
       bcc: emailConfig.bcc || DEFAULT_EMAIL_CONFIG.bcc,
@@ -113,13 +111,7 @@ export function convertApiNodeConfigToVueFlowConfig(nodeType: NodeType): NodeCon
       template_type: emailConfig.template_type || DEFAULT_EMAIL_CONFIG.template_type,
       body_template: emailConfig.body_template || DEFAULT_EMAIL_CONFIG.body_template,
       text_body_template: emailConfig.text_body_template,
-      attachments: emailConfig.attachments || DEFAULT_EMAIL_CONFIG.attachments,
-      priority: (emailConfig.priority && typeof emailConfig.priority === 'string' ? emailConfig.priority.toLowerCase() : DEFAULT_EMAIL_CONFIG.priority) as 'critical' | 'high' | 'normal' | 'low',
-      delivery_receipt: emailConfig.delivery_receipt || DEFAULT_EMAIL_CONFIG.delivery_receipt,
-      read_receipt: emailConfig.read_receipt || DEFAULT_EMAIL_CONFIG.read_receipt,
-      queue_if_rate_limited: emailConfig.queue_if_rate_limited !== undefined ? emailConfig.queue_if_rate_limited : DEFAULT_EMAIL_CONFIG.queue_if_rate_limited,
-      max_queue_wait_minutes: emailConfig.max_queue_wait_minutes || DEFAULT_EMAIL_CONFIG.max_queue_wait_minutes,
-      bypass_rate_limit: emailConfig.bypass_rate_limit || DEFAULT_EMAIL_CONFIG.bypass_rate_limit
+      attachments: emailConfig.attachments || DEFAULT_EMAIL_CONFIG.attachments
     }
   }
 
@@ -253,7 +245,6 @@ export function convertNodeToApiType(node: { type: string; data: { config: NodeC
       const emailConfig = node.data.config as unknown as Record<string, unknown>
       debugLog.transform('email-config-to-api', {
         nodeId: (node as Record<string, unknown>).id || 'unknown',
-        hasFrom: !!emailConfig.from,
         hasTo: !!emailConfig.to,
         toCount: Array.isArray(emailConfig.to) ? emailConfig.to.length : 0,
         hasCC: !!emailConfig.cc,
@@ -265,8 +256,6 @@ export function convertNodeToApiType(node: { type: string; data: { config: NodeC
       const result = {
         Email: {
           config: {
-            smtp_config: emailConfig.smtp_config || DEFAULT_EMAIL_CONFIG.smtp_config,
-            from: emailConfig.from || DEFAULT_EMAIL_CONFIG.from,
             to: emailConfig.to || DEFAULT_EMAIL_CONFIG.to,
             cc: emailConfig.cc || DEFAULT_EMAIL_CONFIG.cc,
             bcc: emailConfig.bcc || DEFAULT_EMAIL_CONFIG.bcc,
@@ -274,13 +263,7 @@ export function convertNodeToApiType(node: { type: string; data: { config: NodeC
             template_type: emailConfig.template_type || DEFAULT_EMAIL_CONFIG.template_type,
             body_template: emailConfig.body_template || DEFAULT_EMAIL_CONFIG.body_template,
             text_body_template: emailConfig.text_body_template,
-            attachments: emailConfig.attachments || DEFAULT_EMAIL_CONFIG.attachments,
-            priority: typeof emailConfig.priority === 'string' ? emailConfig.priority.charAt(0).toUpperCase() + emailConfig.priority.slice(1).toLowerCase() : 'Normal',
-            delivery_receipt: emailConfig.delivery_receipt || DEFAULT_EMAIL_CONFIG.delivery_receipt,
-            read_receipt: emailConfig.read_receipt || DEFAULT_EMAIL_CONFIG.read_receipt,
-            queue_if_rate_limited: emailConfig.queue_if_rate_limited !== undefined ? emailConfig.queue_if_rate_limited : DEFAULT_EMAIL_CONFIG.queue_if_rate_limited,
-            max_queue_wait_minutes: emailConfig.max_queue_wait_minutes || DEFAULT_EMAIL_CONFIG.max_queue_wait_minutes,
-            bypass_rate_limit: emailConfig.bypass_rate_limit || DEFAULT_EMAIL_CONFIG.bypass_rate_limit
+            attachments: emailConfig.attachments || DEFAULT_EMAIL_CONFIG.attachments
           }
         }
       }
@@ -288,8 +271,7 @@ export function convertNodeToApiType(node: { type: string; data: { config: NodeC
       debugLog.transform('email-api-result', {
         hasResult: !!result,
         hasEmailConfig: !!result.Email?.config,
-        finalToCount: Array.isArray(result.Email?.config?.to) ? result.Email.config.to.length : 0,
-        finalFromExists: !!result.Email?.config?.from
+        finalToCount: Array.isArray(result.Email?.config?.to) ? result.Email.config.to.length : 0
       })
 
       return result

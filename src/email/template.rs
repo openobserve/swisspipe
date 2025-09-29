@@ -30,6 +30,7 @@ impl TemplateEngine {
         workflow_event: &WorkflowEvent,
         execution_id: &str,
         node_id: &str,
+        smtp_config: &crate::email::models::SmtpConfig,
     ) -> Result<EmailMessage, EmailError> {
         // Create template context
         let context = self.create_template_context(workflow_event, execution_id, node_id)?;
@@ -60,8 +61,11 @@ impl TemplateEngine {
             None
         };
         
-        // Render recipients
-        let from = self.render_email_address(&email_config.from, &context)?;
+        // Use from address from SMTP configuration
+        let from = crate::email::models::EmailAddress {
+            email: smtp_config.from_email.clone(),
+            name: smtp_config.from_name.clone(),
+        };
         let to = self.render_email_addresses(&email_config.to, &context)?;
         let cc = if let Some(ref cc_addrs) = email_config.cc {
             self.render_email_addresses(cc_addrs, &context)?
@@ -90,9 +94,6 @@ impl TemplateEngine {
             html_body,
             text_body,
             attachments,
-            priority: email_config.priority.clone(),
-            delivery_receipt: email_config.delivery_receipt,
-            read_receipt: email_config.read_receipt,
         })
     }
     

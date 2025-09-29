@@ -124,13 +124,7 @@ export function useEmailConfig(props: EmailConfigProps, emit: EmailConfigEmits) 
 
   // Watch for non-input changes (dropdowns, checkboxes) using efficient comparison
   const nonInputFields = computed(() => [
-    localConfig.value.smtp_config,
-    localConfig.value.template_type,
-    localConfig.value.priority,
-    localConfig.value.max_queue_wait_minutes,
-    localConfig.value.queue_if_rate_limited,
-    localConfig.value.delivery_receipt,
-    localConfig.value.read_receipt
+    localConfig.value.template_type
   ])
 
   watch(
@@ -153,10 +147,9 @@ export function useEmailConfig(props: EmailConfigProps, emit: EmailConfigEmits) 
     { deep: true }
   )
 
-  // Watch for input field changes (from, subject, body templates)
+  // Watch for input field changes (subject, body templates)
   watch(
     () => [
-      localConfig.value.from,
       localConfig.value.subject,
       localConfig.value.body_template,
       localConfig.value.text_body_template
@@ -175,45 +168,17 @@ export function useEmailConfig(props: EmailConfigProps, emit: EmailConfigEmits) 
 
   // Function to apply default settings from database
   async function applyDefaultSettings() {
-    try {
-      const { defaultFromEmail, defaultFromName } = await apiClient.getDefaultEmailSettings()
-
-      // Only apply defaults if current values are empty or match the hardcoded defaults
-      const shouldApplyEmailDefault = !localConfig.value.from.email ||
-        localConfig.value.from.email === 'noreply@company.com' ||
-        localConfig.value.from.email === ''
-
-      const shouldApplyNameDefault = !localConfig.value.from.name ||
-        localConfig.value.from.name === 'SwissPipe Workflow' ||
-        localConfig.value.from.name === ''
-
-      if (shouldApplyEmailDefault && defaultFromEmail) {
-        debugLog.component('EmailConfig', 'Applying default from email', { defaultFromEmail })
-        localConfig.value.from.email = defaultFromEmail
-      }
-
-      if (shouldApplyNameDefault && defaultFromName) {
-        debugLog.component('EmailConfig', 'Applying default from name', { defaultFromName })
-        localConfig.value.from.name = defaultFromName
-      }
-
-      // Emit update if any defaults were applied
-      if ((shouldApplyEmailDefault && defaultFromEmail) || (shouldApplyNameDefault && defaultFromName)) {
-        emitUpdate()
-      }
-    } catch (error) {
-      debugLog.component('EmailConfig', 'Failed to fetch default settings', { error })
-      // Continue without defaults if fetching fails
-    }
+    // Default settings are now applied via environment variables on the backend
+    // No need to fetch or apply defaults in the frontend
   }
 
   // Initialize validation
   validateConfig()
 
-  // Apply default settings on mount
-  onMounted(() => {
-    applyDefaultSettings()
-  })
+  // Default settings applied via environment variables on backend
+  // onMounted(() => {
+  //   applyDefaultSettings()
+  // })
 
   return {
     // State

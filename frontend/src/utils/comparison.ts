@@ -87,22 +87,15 @@ export function emailConfigEqual(config1: unknown, config2: unknown): boolean {
   
   // Compare primitive fields
   const primitiveFields = [
-    'smtp_config', 'subject', 'template_type', 'body_template', 
+    'subject', 'template_type', 'body_template',
     'text_body_template', 'priority', 'max_queue_wait_minutes',
     'queue_if_rate_limited', 'delivery_receipt', 'read_receipt'
   ]
-  
+
   for (const field of primitiveFields) {
     if (obj1[field] !== obj2[field]) {
       return false
     }
-  }
-  
-  // Compare from object
-  const from1 = (typeof obj1.from === 'object' && obj1.from) ? obj1.from as Record<string, unknown> : {}
-  const from2 = (typeof obj2.from === 'object' && obj2.from) ? obj2.from as Record<string, unknown> : {}
-  if (!shallowEqual(from1, from2)) {
-    return false
   }
   
   // Compare recipient arrays

@@ -54,46 +54,9 @@ pub struct EmailAttachment {
     pub data: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum EmailPriority {
-    Critical,
-    High,
-    Normal,
-    Low,
-}
-
-impl Default for EmailPriority {
-    fn default() -> Self {
-        Self::Normal
-    }
-}
-
-impl EmailPriority {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Critical => "critical",
-            Self::High => "high",
-            Self::Normal => "normal",
-            Self::Low => "low",
-        }
-    }
-
-    pub fn from_priority_str(s: &str) -> Option<Self> {
-        match s.to_lowercase().as_str() {
-            "critical" => Some(Self::Critical),
-            "high" => Some(Self::High),
-            "normal" => Some(Self::Normal),
-            "low" => Some(Self::Low),
-            _ => None,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct EmailConfig {
-    pub smtp_config: String,
-    #[validate]
-    pub from: EmailAddress,
     #[validate]
     pub to: Vec<EmailAddress>,
     #[validate]
@@ -105,22 +68,11 @@ pub struct EmailConfig {
     pub body_template: String,
     pub text_body_template: Option<String>,
     pub attachments: Option<Vec<EmailAttachment>>,
-    pub priority: EmailPriority,
-    pub delivery_receipt: bool,
-    pub read_receipt: bool,
-    pub queue_if_rate_limited: bool,
-    pub max_queue_wait_minutes: u32,
-    pub bypass_rate_limit: bool,
 }
 
 impl Default for EmailConfig {
     fn default() -> Self {
         Self {
-            smtp_config: "default".to_string(),
-            from: EmailAddress {
-                email: "noreply@localhost".to_string(),
-                name: Some("SwissPipe".to_string()),
-            },
             to: vec![],
             cc: None,
             bcc: None,
@@ -129,12 +81,6 @@ impl Default for EmailConfig {
             body_template: "<p>Workflow completed successfully.</p>".to_string(),
             text_body_template: None,
             attachments: None,
-            priority: EmailPriority::Normal,
-            delivery_receipt: false,
-            read_receipt: false,
-            queue_if_rate_limited: true,
-            max_queue_wait_minutes: 60,
-            bypass_rate_limit: false,
         }
     }
 }
@@ -149,9 +95,6 @@ pub struct EmailMessage {
     pub html_body: Option<String>,
     pub text_body: Option<String>,
     pub attachments: Vec<EmailAttachment>,
-    pub priority: EmailPriority,
-    pub delivery_receipt: bool,
-    pub read_receipt: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -161,7 +104,8 @@ pub struct QueuedEmail {
     pub execution_id: Option<String>,
     pub node_id: Option<String>,
     pub smtp_config: String,
-    pub priority: EmailPriority,
+    #[allow(dead_code)]
+    pub priority: String, // Database field - not used for application logic
     pub email_config: EmailConfig,
     pub template_context: serde_json::Value,
     pub status: String,

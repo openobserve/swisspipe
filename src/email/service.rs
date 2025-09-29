@@ -8,7 +8,6 @@ use lettre::{
     transport::smtp::{authentication::Credentials, client::{Tls, TlsParameters}},
 };
 use sea_orm::{DatabaseConnection, EntityTrait, ActiveModelTrait, Set, QueryFilter, ColumnTrait, QueryOrder, PaginatorTrait};
-use crate::database::settings;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use governor::{Quota, RateLimiter, state::NotKeyed, state::InMemoryState, clock::DefaultClock};
 use uuid::Uuid;
@@ -104,41 +103,9 @@ impl EmailService {
         Ok(configs)
     }
 
-    async fn apply_default_settings(&self, mut config: EmailConfig) -> Result<EmailConfig, EmailError> {
-        // Only apply defaults if the email/name fields are empty
-        if config.from.email.is_empty() || config.from.name.is_none() || config.from.name.as_ref().is_none_or(|s| s.is_empty()) {
-            // Fetch default settings from database
-            let default_email_setting = settings::Entity::find()
-                .filter(settings::Column::Key.eq("default_from_email"))
-                .one(&*self.db)
-                .await?;
-
-            let default_name_setting = settings::Entity::find()
-                .filter(settings::Column::Key.eq("default_from_name"))
-                .one(&*self.db)
-                .await?;
-
-            // Apply default email if current one is empty and default exists
-            if config.from.email.is_empty() {
-                if let Some(setting) = default_email_setting {
-                    if !setting.value.is_empty() {
-                        tracing::debug!("Applying default from email: {}", setting.value);
-                        config.from.email = setting.value;
-                    }
-                }
-            }
-
-            // Apply default name if current one is empty/None and default exists
-            if config.from.name.is_none() || config.from.name.as_ref().is_none_or(|s| s.is_empty()) {
-                if let Some(setting) = default_name_setting {
-                    if !setting.value.is_empty() {
-                        tracing::debug!("Applying default from name: {}", setting.value);
-                        config.from.name = Some(setting.value);
-                    }
-                }
-            }
-        }
-
+    async fn apply_default_settings(&self, config: EmailConfig) -> Result<EmailConfig, EmailError> {
+        // SMTP config and from address are now handled via environment variables
+        // No need to apply defaults to the config - they're handled at the SMTP level
         Ok(config)
     }
 
@@ -149,8 +116,8 @@ impl EmailService {
         execution_id: &str,
         node_id: &str,
     ) -> Result<EmailSendResult, EmailError> {
-        tracing::debug!("Starting email send for execution_id: {}, node_id: {}, smtp_config: {}",
-            execution_id, node_id, email_config.smtp_config);
+        tracing::debug!("Starting email send for execution_id: {}, node_id: {}, smtp_config: default",
+            execution_id, node_id);
         tracing::info!("EMAIL SERVICE: WorkflowEvent received - hil_task present: {:?}", workflow_event.hil_task.is_some());
         if let Some(ref hil_task) = workflow_event.hil_task {
             tracing::info!("EMAIL SERVICE: HIL task data: {:?}", hil_task);
@@ -167,33 +134,32 @@ impl EmailService {
         }
         
         if self.rate_limiter.check().is_err() {
-            if config_with_defaults.queue_if_rate_limited {
-                // Queue the email
-                let queue_id = self.enqueue_email(
-                    &config_with_defaults,
-                    workflow_event,
-                    Some(execution_id.to_string()),
-                    Some(node_id.to_string()),
-                ).await?;
-                
-                return Ok(EmailSendResult {
-                    success: true,
-                    message_id: Some(format!("queued:{queue_id}")),
-                    error: None,
-                    partial_success: None,
-                });
-            } else {
-                return Err(EmailError::RateLimitExceeded);
-            }
+            // Queue the email when rate limited
+            let queue_id = self.enqueue_email(
+                &config_with_defaults,
+                workflow_event,
+                Some(execution_id.to_string()),
+                Some(node_id.to_string()),
+            ).await?;
+
+            return Ok(EmailSendResult {
+                success: true,
+                message_id: Some(format!("queued:{queue_id}")),
+                error: None,
+                partial_success: None,
+            });
         }
         
         // Render email template
         tracing::debug!("Rendering email template for execution_id: {}", execution_id);
+        let default_smtp_config = self.smtp_configs.get("default")
+            .ok_or_else(|| EmailError::config("Default SMTP configuration not found".to_string()))?;
         let email_message = self.template_engine.render_email(
             &config_with_defaults,
             workflow_event,
             execution_id,
             node_id,
+            default_smtp_config,
         )?;
         
         tracing::debug!("Email template rendered successfully. To: {:?}, Subject: {}", 
@@ -201,14 +167,14 @@ impl EmailService {
             email_message.subject);
         
         // Send email immediately
-        tracing::debug!("Sending email via SMTP config: {}", config_with_defaults.smtp_config);
-        let result = self.send_email_message(&config_with_defaults.smtp_config, &email_message).await?;
+        tracing::debug!("Sending email via default SMTP config");
+        let result = self.send_email_message("default", &email_message).await?;
 
         // Log to audit table
         self.log_email_audit(
             execution_id,
             node_id,
-            &config_with_defaults.smtp_config,
+            "default",
             &email_message,
             &result,
         ).await?;
@@ -395,8 +361,8 @@ impl EmailService {
             id: Set(queue_id.clone()),
             execution_id: Set(execution_id.clone()),
             node_id: Set(node_id.clone()),
-            smtp_config: Set(email_config.smtp_config.clone()),
-            priority: Set(email_config.priority.as_str().to_string()),
+            smtp_config: Set("default".to_string()),
+            priority: Set("normal".to_string()), // Database field - not used for logic
             email_config: Set(serde_json::to_string(email_config)?),
             template_context: Set(serde_json::to_string(&template_context)?),
             status: Set("queued".to_string()),
@@ -404,7 +370,7 @@ impl EmailService {
             scheduled_at: Set(None),
             processed_at: Set(None),
             sent_at: Set(None),
-            max_wait_minutes: Set(email_config.max_queue_wait_minutes as i32),
+            max_wait_minutes: Set(60), // Default 60 minutes
             retry_count: Set(0),
             max_retries: Set(3),
             retry_delay_seconds: Set(30),
@@ -499,7 +465,7 @@ impl EmailService {
         // Use transaction for atomic queue operations
         let txn = self.db.begin().await?;
         
-        // Get next email from queue (ordered by priority and queue time)
+        // Get next email from queue (ordered by queue time)
         // Only process emails that are ready (not scheduled for future or scheduled time has passed)
         let now = chrono::Utc::now().timestamp_micros();
         let queued_email = EmailQueue::find()
@@ -545,11 +511,14 @@ impl EmailService {
             // Render email message
             let execution_id = email.execution_id.as_deref().unwrap_or_default();
             let node_id = email.node_id.as_deref().unwrap_or_default();
+            let default_smtp_config = self.smtp_configs.get("default")
+                .ok_or_else(|| EmailError::config("Default SMTP configuration not found".to_string()))?;
             let email_message = self.template_engine.render_email(
                 &email_config,
                 &workflow_event,
                 execution_id,
                 node_id,
+                default_smtp_config,
             )?;
             
             // Send the email
@@ -760,7 +729,7 @@ impl EmailService {
             rate_limit_per_minute: 60, // From environment
             tokens_available: 10, // From rate limiter state
             next_refill_seconds: 30, // Calculated from rate limiter
-            priority_breakdown: HashMap::new(), // Would need complex query
+            priority_breakdown: HashMap::new(), // Legacy field - not used
             average_wait_minutes: 0.0, // Would need complex query
             emails_sent_last_minute: 0, // Would need complex query
             emails_queued_last_minute: 0, // Would need complex query
