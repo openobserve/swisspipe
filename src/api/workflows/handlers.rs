@@ -1,9 +1,10 @@
 use axum::{
-    extract::{Path, State, Request, FromRequest},
+    extract::{Path, Query, State, Request, FromRequest},
     http::StatusCode,
     response::{Json, IntoResponse},
 };
-use sea_orm::{ActiveModelTrait, EntityTrait, Set, ColumnTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, EntityTrait, Set, ColumnTrait, QueryFilter, QuerySelect, Condition};
+use serde::Deserialize;
 use std::collections::HashMap;
 use uuid::Uuid;
 use tracing::{info, warn, error, debug};
@@ -123,13 +124,33 @@ fn map_status_to_error_response(status: StatusCode) -> ErrorResponse {
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct WorkflowSearchParams {
+    pub search: Option<String>,
+}
 
 pub async fn list_workflows(
     State(state): State<AppState>,
+    Query(params): Query<WorkflowSearchParams>,
 ) -> std::result::Result<Json<WorkflowListResponse>, (StatusCode, Json<ErrorResponse>)> {
-    debug!("Listing all workflows");
+    debug!("Listing workflows with search params: {:?}", params);
 
-    let workflows = entities::Entity::find()
+    let mut query = entities::Entity::find();
+
+    // Add search filter if provided
+    if let Some(search_term) = &params.search {
+        if !search_term.trim().is_empty() {
+            let search_pattern = format!("%{}%", search_term.trim());
+            query = query.filter(
+                Condition::any()
+                    .add(entities::Column::Name.like(&search_pattern))
+                    .add(entities::Column::Description.like(&search_pattern))
+            );
+            debug!("Applied search filter for: '{}'", search_term);
+        }
+    }
+
+    let workflows = query
         .all(&*state.db)
         .await
         .map_err(|e| {
@@ -168,6 +189,53 @@ pub async fn list_workflows(
     Ok(Json(WorkflowListResponse {
         workflows: workflow_responses,
     }))
+}
+
+pub async fn search_workflows(
+    State(state): State<AppState>,
+    Query(params): Query<WorkflowSearchParams>,
+) -> std::result::Result<Json<Vec<WorkflowSearchResult>>, (StatusCode, Json<ErrorResponse>)> {
+    debug!("Searching workflows with params: {:?}", params);
+
+    let mut query = entities::Entity::find();
+
+    // Add search filter if provided
+    if let Some(search_term) = &params.search {
+        if !search_term.trim().is_empty() {
+            let search_pattern = format!("%{}%", search_term.trim());
+            query = query.filter(
+                Condition::any()
+                    .add(entities::Column::Name.like(&search_pattern))
+                    .add(entities::Column::Description.like(&search_pattern))
+            );
+            debug!("Applied search filter for: '{}'", search_term);
+        }
+    }
+
+    let workflows = query
+        .limit(10) // Limit results for type-ahead performance
+        .all(&*state.db)
+        .await
+        .map_err(|e| {
+            error!("Database error in search_workflows: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "DATABASE_ERROR".to_string(),
+                message: "Failed to search workflows in database".to_string(),
+                details: Some(format!("Database error: {e}")),
+            }))
+        })?;
+
+    let search_results: Vec<WorkflowSearchResult> = workflows
+        .into_iter()
+        .map(|w| WorkflowSearchResult {
+            id: w.id,
+            name: w.name,
+            description: w.description,
+        })
+        .collect();
+
+    debug!("Found {} workflow results", search_results.len());
+    Ok(Json(search_results))
 }
 
 pub async fn create_workflow(

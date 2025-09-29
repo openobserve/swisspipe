@@ -207,6 +207,7 @@ impl ExecutionService {
     pub async fn get_recent_executions_with_workflow_names_filtered(
         &self,
         status: Option<&str>,
+        workflow_name: Option<&str>,
         limit: Option<u64>,
         offset: Option<u64>,
     ) -> Result<Vec<(workflow_executions::Model, Option<entities::Model>)>> {
@@ -217,6 +218,11 @@ impl ExecutionService {
         // Add status filter if provided
         if let Some(status_filter) = status {
             query = query.filter(workflow_executions::Column::Status.eq(status_filter));
+        }
+
+        // Add workflow name filter if provided
+        if let Some(name_filter) = workflow_name {
+            query = query.filter(entities::Column::Name.contains(name_filter));
         }
 
         if let Some(limit) = limit {
@@ -239,6 +245,7 @@ impl ExecutionService {
         &self,
         workflow_id: &str,
         status: Option<&str>,
+        workflow_name: Option<&str>,
         limit: Option<u64>,
         offset: Option<u64>,
     ) -> Result<Vec<(workflow_executions::Model, Option<entities::Model>)>> {
@@ -250,6 +257,11 @@ impl ExecutionService {
         // Add status filter if provided
         if let Some(status_filter) = status {
             query = query.filter(workflow_executions::Column::Status.eq(status_filter));
+        }
+
+        // Add workflow name filter if provided
+        if let Some(name_filter) = workflow_name {
+            query = query.filter(entities::Column::Name.contains(name_filter));
         }
 
         if let Some(limit) = limit {

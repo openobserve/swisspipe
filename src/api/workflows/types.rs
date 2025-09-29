@@ -71,6 +71,13 @@ pub struct WorkflowListResponse {
     pub workflows: Vec<WorkflowResponse>,
 }
 
+#[derive(Serialize)]
+pub struct WorkflowSearchResult {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+}
+
 
 #[derive(Debug)]
 pub struct NodeOperations<'a> {

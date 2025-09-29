@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import apiClient from '../services/api'
-import type { 
-  WorkflowExecution, 
+import type {
+  WorkflowExecution,
   ExecutionStep,
-  ExecutionStatus 
+  ExecutionStatus
 } from '../types/execution'
 
 export const useExecutionStore = defineStore('executions', () => {
@@ -13,32 +13,37 @@ export const useExecutionStore = defineStore('executions', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const searchTerm = ref('')
+  const workflowNameFilter = ref('')
   const selectedExecution = ref<WorkflowExecution | null>(null)
   const executionSteps = ref<ExecutionStep[]>([])
   const showSidePanel = ref(false)
 
-  // Computed
+  // Computed - now just returns executions since filtering is done server-side
   const filteredExecutions = computed(() => {
-    if (!searchTerm.value) return executions.value
+    let filtered = executions.value
 
-    const search = searchTerm.value.toLowerCase()
-    return executions.value.filter(execution =>
-      execution.id.toLowerCase().includes(search) ||
-      execution.workflow_id.toLowerCase().includes(search) ||
-      execution.workflow_name?.toLowerCase().includes(search) ||
-      execution.status.toLowerCase().includes(search) ||
-      execution.current_node_id?.toLowerCase().includes(search)
-    )
+    // Apply general search term filter (client-side for non-workflow name fields)
+    if (searchTerm.value) {
+      const search = searchTerm.value.toLowerCase()
+      filtered = filtered.filter(execution =>
+        execution.id.toLowerCase().includes(search) ||
+        execution.workflow_id.toLowerCase().includes(search) ||
+        execution.status.toLowerCase().includes(search) ||
+        execution.current_node_id?.toLowerCase().includes(search)
+      )
+    }
+
+    return filtered
   })
 
-  const executionCount = computed(() => executions.value.length)
+  const executionCount = computed(() => filteredExecutions.value.length)
 
   // Actions
   async function fetchExecutions() {
     loading.value = true
     error.value = null
     try {
-      const response = await apiClient.getExecutions(50) // Get last 50 executions
+      const response = await apiClient.getExecutions(50, workflowNameFilter.value || undefined) // Get last 50 executions with workflow name filter
       executions.value = response.executions
     } catch (err: unknown) {
       error.value = (err as Error).message || 'Failed to fetch executions'
@@ -164,12 +169,30 @@ export const useExecutionStore = defineStore('executions', () => {
   function formatDuration(startedAt?: number, completedAt?: number): string {
     if (!startedAt) return 'N/A'
     if (!completedAt) return 'Running...'
-    
+
     const durationMs = (completedAt - startedAt) / 1000
     if (durationMs < 1000) return `${Math.round(durationMs)}ms`
     if (durationMs < 60000) return `${Math.round(durationMs / 1000)}s`
     return `${Math.round(durationMs / 60000)}m`
   }
+
+  // Debounced function for workflow name filtering
+  let workflowFilterTimeout: number | null = null
+  function debouncedFetchExecutions() {
+    if (workflowFilterTimeout) {
+      clearTimeout(workflowFilterTimeout)
+    }
+    workflowFilterTimeout = setTimeout(() => {
+      fetchExecutions()
+    }, 300) // 300ms debounce
+  }
+
+  // Watch for workflow name filter changes and trigger server-side filtering
+  watch(workflowNameFilter, (newValue, oldValue) => {
+    if (newValue !== oldValue) {
+      debouncedFetchExecutions()
+    }
+  })
 
   return {
     // State
@@ -177,6 +200,7 @@ export const useExecutionStore = defineStore('executions', () => {
     loading,
     error,
     searchTerm,
+    workflowNameFilter,
     selectedExecution,
     executionSteps,
     showSidePanel,

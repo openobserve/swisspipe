@@ -8,6 +8,7 @@
       <!-- Search and Filters -->
       <div class="mb-6 flex items-center justify-between flex-shrink-0">
         <div class="flex items-center space-x-4">
+          <!-- General Search -->
           <div class="relative">
             <input
               v-model="executionStore.searchTerm"
@@ -17,10 +18,24 @@
             />
             <MagnifyingGlassIcon class="h-5 w-5 text-gray-400 absolute left-3 top-2.5" />
           </div>
+
+          <!-- Workflow Name Filter -->
+          <div class="relative">
+            <input
+              v-model="executionStore.workflowNameFilter"
+              type="text"
+              placeholder="Filter by workflow name..."
+              class="glass border border-slate-600/50 text-gray-100 px-4 py-2 pl-10 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500/50 w-64"
+            />
+            <MagnifyingGlassIcon class="h-5 w-5 text-gray-400 absolute left-3 top-2.5" />
+          </div>
         </div>
         <div class="flex items-center space-x-4">
           <div class="text-sm text-gray-400">
             {{ executionStore.executionCount }} executions
+            <span v-if="executionStore.workflowNameFilter" class="text-blue-400 ml-2">
+              (filtered by workflow name)
+            </span>
           </div>
           
           <button
@@ -220,4 +235,5 @@ function openExecutionDetailsWithErrorHandling(execution: WorkflowExecution) {
     }
   }
 }
+
 </script>

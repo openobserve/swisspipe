@@ -48,6 +48,13 @@ interface UpdateWorkflowResponse {
   error?: string
 }
 
+// Workflow Search types
+interface WorkflowSearchResult {
+  id: string
+  name: string
+  description?: string
+}
+
 // Google OAuth types
 interface LoginResponse {
   success: boolean
@@ -191,6 +198,14 @@ class ApiClient {
     await this.client.put(`/api/admin/v1/workflows/${id}/enable`)
   }
 
+  async searchWorkflows(searchTerm: string): Promise<WorkflowSearchResult[]> {
+    const params = new URLSearchParams()
+    if (searchTerm) params.append('search', searchTerm)
+
+    const response = await this.client.get<WorkflowSearchResult[]>(`/api/admin/v1/workflows/search?${params}`)
+    return response.data
+  }
+
   // Workflow execution endpoints
   async executeWorkflow(workflowId: string, data: unknown): Promise<unknown> {
     const response = await this.client.post(`/api/v1/${workflowId}/trigger`, data)
@@ -203,13 +218,14 @@ class ApiClient {
   }
 
   // Execution management endpoints
-  async getExecutions(limit?: number, offset?: number, workflowId?: string, status?: string): Promise<ExecutionListResponse> {
+  async getExecutions(limit?: number, workflowName?: string, offset?: number, workflowId?: string, status?: string): Promise<ExecutionListResponse> {
     const params = new URLSearchParams()
     if (limit) params.append('limit', limit.toString())
     if (offset) params.append('offset', offset.toString())
     if (workflowId) params.append('workflow_id', workflowId)
     if (status) params.append('status', status)
-    
+    if (workflowName) params.append('workflow_name', workflowName)
+
     const response = await this.client.get<ExecutionListResponse>(`/api/admin/v1/executions?${params}`)
     return response.data
   }
@@ -368,3 +384,6 @@ class ApiClient {
 
 export const apiClient = new ApiClient()
 export default apiClient
+
+// Export types for use in components
+export type { WorkflowSearchResult }

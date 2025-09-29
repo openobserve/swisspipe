@@ -19,6 +19,7 @@ pub struct GetExecutionsQuery {
     pub offset: Option<u64>,
     pub workflow_id: Option<String>,
     pub status: Option<String>,
+    pub workflow_name: Option<String>,
 }
 
 pub fn routes() -> Router<AppState> {
@@ -210,6 +211,7 @@ pub async fn get_all_executions(
             .get_executions_by_workflow_with_names_filtered(
                 workflow_id,
                 params.status.as_deref(),
+                params.workflow_name.as_deref(),
                 params.limit,
                 params.offset
             )
@@ -223,6 +225,7 @@ pub async fn get_all_executions(
         execution_service
             .get_recent_executions_with_workflow_names_filtered(
                 params.status.as_deref(),
+                params.workflow_name.as_deref(),
                 params.limit,
                 params.offset
             )
