@@ -97,12 +97,6 @@
       </div>
     </div>
 
-
-    <!-- Template Variables Helper -->
-    <div class="config-section">
-      <h3 class="text-lg font-semibold text-white mb-4">Template Variables</h3>
-      <EmailTemplateVariables />
-    </div>
   </div>
 </template>
 
@@ -111,7 +105,6 @@ import type { EmailConfig } from '../../types/nodes'
 import { useEmailConfig } from '../../composables/useEmailConfig'
 import EmailRecipientList from './EmailRecipientList.vue'
 import EmailContentEditor from './EmailContentEditor.vue'
-import EmailTemplateVariables from './EmailTemplateVariables.vue'
 
 interface Props {
   modelValue: EmailConfig
