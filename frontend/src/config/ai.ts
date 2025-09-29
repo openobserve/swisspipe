@@ -16,6 +16,7 @@ export const AI_PROVIDERS: AIProviders = {
   anthropic: {
     name: 'Anthropic Claude',
     models: [
+      { id: 'claude-sonnet-4-5-20250929', name: 'Claude 4.5 Sonnet' },
       { id: 'claude-opus-4-1-20250805', name: 'Claude 4.1 Opus' },
       { id: 'claude-sonnet-4-20250514', name: 'Claude 4 Sonnet' },
       { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },

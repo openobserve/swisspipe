@@ -53,7 +53,7 @@ pub async fn generate_code(
     };
 
     // Default configuration for code generation
-    let model = request.model.unwrap_or_else(|| "claude-opus-4-1-20250805".to_string());
+    let model = request.model.unwrap_or_else(|| "claude-sonnet-4-5-20250929".to_string());
     let max_tokens = request.max_tokens.unwrap_or(4000);
     let temperature = request.temperature.unwrap_or(0.1);
 
@@ -202,7 +202,7 @@ async fn generate_workflow_with_ai(
     // Call Anthropic AI service
     let ai_result = state.engine.anthropic_service
         .call_anthropic(&AnthropicCallConfig {
-            model: "claude-opus-4-1-20250805",
+            model: "claude-sonnet-4-5-20250929",
             max_tokens: 4000,
             temperature: 0.2,
             system_prompt: Some(&system_prompt),
@@ -386,7 +386,7 @@ Your task is to generate a complete workflow specification based on user require
 ```json
 {
   "Anthropic": {
-    "model": "claude-opus-4-1-20250805",
+    "model": "claude-sonnet-4-5-20250929",
     "max_tokens": 1000,
     "temperature": 0.7,
     "system_prompt": "You are a data analyst",
