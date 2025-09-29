@@ -64,6 +64,16 @@
             <span>AI Assistant</span>
           </button>
           <button
+            @click="showImportModal = true"
+            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center space-x-2"
+            title="Import Workflow from JSON"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
+            </svg>
+            <span>Import Workflow</span>
+          </button>
+          <button
               @click="showCreateModal = true"
               class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
             >
@@ -201,6 +211,96 @@
       </div>
     </div>
 
+    <!-- Import Workflow Modal -->
+    <div
+      v-if="showImportModal"
+      class="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50"
+      @click.self="showImportModal = false"
+    >
+      <div class="glass-strong rounded-lg p-6 w-full max-w-lg shadow-2xl">
+        <h2 class="text-lg font-medium text-white mb-4">Import Workflow from JSON</h2>
+
+        <!-- File Upload Area -->
+        <div class="mb-6">
+          <div
+            @click="triggerFileInput"
+            @dragover.prevent
+            @drop.prevent="handleFileDrop"
+            class="border-2 border-dashed border-slate-600/50 rounded-lg p-6 text-center cursor-pointer hover:border-primary-500/50 transition-colors"
+          >
+            <div v-if="!importFile" class="text-gray-400">
+              <svg class="mx-auto h-12 w-12 text-gray-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
+              </svg>
+              <p class="text-sm">
+                <span class="font-medium text-primary-400">Click to upload</span> or drag and drop
+              </p>
+              <p class="text-xs text-gray-500">JSON files only</p>
+            </div>
+            <div v-else class="text-green-400">
+              <svg class="mx-auto h-8 w-8 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <p class="text-sm font-medium">{{ importFile.name }}</p>
+              <p class="text-xs text-gray-400">{{ (importFile.size / 1024).toFixed(1) }} KB</p>
+            </div>
+          </div>
+          <input
+            ref="fileInput"
+            type="file"
+            accept=".json"
+            @change="handleFileSelect"
+            class="hidden"
+          />
+        </div>
+
+        <!-- Workflow Name Override -->
+        <div v-if="importFile" class="mb-4">
+          <label class="block text-sm font-medium text-gray-300 mb-2">
+            Workflow Name
+            <span class="text-xs text-gray-500">(optional - will use name from JSON if not specified)</span>
+          </label>
+          <input
+            v-model="importWorkflowName"
+            type="text"
+            placeholder="Leave empty to use name from JSON file"
+            class="w-full glass border border-slate-600/50 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+          />
+        </div>
+
+        <!-- Error Display -->
+        <div v-if="importError" class="mb-4 p-3 bg-red-900/30 border border-red-600/50 rounded-md">
+          <p class="text-red-400 text-sm">{{ importError }}</p>
+        </div>
+
+        <!-- Preview Info -->
+        <div v-if="workflowPreview" class="mb-4 p-3 bg-slate-800/50 border border-slate-600/50 rounded-md">
+          <h4 class="text-sm font-medium text-white mb-2">Workflow Preview:</h4>
+          <p class="text-sm text-gray-300"><span class="font-medium">Name:</span> {{ workflowPreview.name }}</p>
+          <p class="text-sm text-gray-300"><span class="font-medium">Description:</span> {{ workflowPreview.description || 'No description' }}</p>
+          <p class="text-sm text-gray-300"><span class="font-medium">Nodes:</span> {{ workflowPreview.nodes?.length || 0 }}</p>
+          <p class="text-sm text-gray-300"><span class="font-medium">Edges:</span> {{ workflowPreview.edges?.length || 0 }}</p>
+        </div>
+
+        <div class="flex justify-end space-x-3">
+          <button
+            type="button"
+            @click="cancelImport"
+            class="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            @click="importWorkflow"
+            :disabled="!importFile || importing"
+            class="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-md font-medium transition-colors"
+          >
+            {{ importing ? 'Importing...' : 'Import Workflow' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Disable Confirmation Modal -->
     <div
       v-if="showDisableModal"
@@ -265,9 +365,11 @@ const router = useRouter()
 const workflowStore = useWorkflowStore()
 
 const showCreateModal = ref(false)
+const showImportModal = ref(false)
 const showDisableModal = ref(false)
 const showAIChat = ref(false)
 const creating = ref(false)
+const importing = ref(false)
 const togglingStatus = ref<string | null>(null)
 const workflowToDisable = ref<Workflow | null>(null)
 const statusFilter = ref<'all' | 'enabled' | 'disabled'>('enabled')
@@ -275,6 +377,13 @@ const newWorkflow = ref({
   name: '',
   description: ''
 })
+
+// Import workflow state
+const importFile = ref<File | null>(null)
+const importWorkflowName = ref('')
+const importError = ref('')
+const workflowPreview = ref<any>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
 
 // Local filtered workflows computed property (must be defined before table)
 const filteredWorkflows = computed(() => {
@@ -502,5 +611,264 @@ async function confirmDisable() {
 function cancelDisable() {
   showDisableModal.value = false
   workflowToDisable.value = null
+}
+
+// Import workflow functions
+function triggerFileInput() {
+  fileInput.value?.click()
+}
+
+function handleFileSelect(event: Event) {
+  const target = event.target as HTMLInputElement
+  if (target.files && target.files.length > 0) {
+    processFile(target.files[0])
+  }
+}
+
+function handleFileDrop(event: DragEvent) {
+  event.preventDefault()
+  if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
+    processFile(event.dataTransfer.files[0])
+  }
+}
+
+async function processFile(file: File) {
+  // Reset state
+  importError.value = ''
+  workflowPreview.value = null
+
+  // Validate file type
+  if (!file.name.toLowerCase().endsWith('.json')) {
+    importError.value = 'Please select a JSON file'
+    return
+  }
+
+  // Validate file size (limit to 10MB)
+  if (file.size > 10 * 1024 * 1024) {
+    importError.value = 'File size must be less than 10MB'
+    return
+  }
+
+  try {
+    const text = await file.text()
+    const workflowData = JSON.parse(text)
+
+    // Basic validation of workflow structure
+    if (!workflowData || typeof workflowData !== 'object') {
+      throw new Error('Invalid JSON structure')
+    }
+
+    // Check for required fields
+    if (!workflowData.name || typeof workflowData.name !== 'string') {
+      throw new Error('Workflow must have a name field')
+    }
+
+    if (!Array.isArray(workflowData.nodes)) {
+      throw new Error('Workflow must have a nodes array')
+    }
+
+    if (!Array.isArray(workflowData.edges)) {
+      throw new Error('Workflow must have an edges array')
+    }
+
+    // Set the file and preview
+    importFile.value = file
+    workflowPreview.value = workflowData
+    importWorkflowName.value = '' // Reset name override
+
+  } catch (error) {
+    importError.value = `Failed to parse JSON: ${(error as Error).message}`
+  }
+}
+
+async function importWorkflow() {
+  if (!importFile.value || !workflowPreview.value) return
+
+  importing.value = true
+  try {
+    const workflowData = { ...workflowPreview.value }
+
+    // Use name override if provided
+    if (importWorkflowName.value.trim()) {
+      workflowData.name = importWorkflowName.value.trim()
+    }
+
+    // Function to transform frontend node configuration to backend NodeType enum
+    const transformNodeType = (node: any) => {
+      const config = node.data?.config || {}
+
+      switch (node.type) {
+        case 'trigger':
+          return {
+            Trigger: {
+              methods: config.methods || ['Get', 'Post', 'Put']
+            }
+          }
+
+        case 'condition':
+          return {
+            Condition: {
+              script: config.script || 'function condition(event) { return true; }'
+            }
+          }
+
+        case 'transformer':
+          return {
+            Transformer: {
+              script: config.script || 'function transformer(event) { return event; }'
+            }
+          }
+
+        case 'http-request':
+          return {
+            HttpRequest: {
+              url: config.url || 'https://example.com',
+              method: config.method || 'Post',
+              timeout_seconds: config.timeout_seconds || 30,
+              failure_action: config.failure_action || 'Stop',
+              headers: config.headers || {},
+              retry_config: config.retry_config || {
+                max_attempts: 3,
+                initial_delay_ms: 100,
+                max_delay_ms: 5000,
+                backoff_multiplier: 2
+              },
+              loop_config: config.loop_config || null
+            }
+          }
+
+        case 'email':
+          return {
+            Email: {
+              config: {
+                to: config.to || [],
+                cc: config.cc || null,
+                bcc: config.bcc || null,
+                subject: config.subject || 'SwissPipe Workflow Notification',
+                template_type: config.template_type || 'html',
+                body_template: config.body_template || '<p>Workflow completed successfully.</p>',
+                text_body_template: config.text_body_template || null,
+                attachments: config.attachments || null
+              }
+            }
+          }
+
+        case 'delay':
+          return {
+            Delay: {
+              duration: config.duration || 1,
+              unit: config.unit || 'Seconds'
+            }
+          }
+
+        case 'openobserve':
+          return {
+            OpenObserve: {
+              url: config.url || config.endpoint || 'https://api.openobserve.ai',
+              authorization_header: config.authorization_header || '',
+              timeout_seconds: config.timeout_seconds || 30,
+              failure_action: config.failure_action || 'Stop',
+              retry_config: config.retry_config || {
+                max_attempts: 3,
+                initial_delay_ms: 100,
+                max_delay_ms: 5000,
+                backoff_multiplier: 2
+              }
+            }
+          }
+
+        case 'human-in-loop':
+          return {
+            HumanInLoop: {
+              title: config.title || 'Human Action Required',
+              description: config.description || 'Please review and take action',
+              timeout_seconds: config.timeout_seconds || config.timeout_minutes ? (config.timeout_minutes * 60) : null,
+              timeout_action: config.timeout_action || null,
+              required_fields: config.required_fields || null,
+              metadata: config.metadata || null
+            }
+          }
+
+        case 'anthropic':
+          return {
+            Anthropic: {
+              model: config.model || 'claude-3-sonnet-20240229',
+              max_tokens: config.max_tokens || 1000,
+              temperature: config.temperature || 0.7,
+              system_prompt: config.system_prompt || null,
+              user_prompt: config.user_prompt || 'Process this data',
+              timeout_seconds: config.timeout_seconds || 60,
+              failure_action: config.failure_action || 'Stop',
+              retry_config: config.retry_config || {
+                max_attempts: 3,
+                initial_delay_ms: 100,
+                max_delay_ms: 5000,
+                backoff_multiplier: 2
+              }
+            }
+          }
+
+        default:
+          // Fallback - return a simple trigger
+          return {
+            Trigger: {
+              methods: ['Get', 'Post', 'Put']
+            }
+          }
+      }
+    }
+
+    // Transform nodes to match backend NodeRequest structure
+    const transformedNodes = (workflowData.nodes || []).map((node: any) => ({
+      id: node.id,
+      name: node.data?.label || `Node ${node.id}`,
+      node_type: transformNodeType(node),
+      position_x: node.position?.x || 0,
+      position_y: node.position?.y || 0
+    }))
+
+    // Transform edges to match backend EdgeRequest structure
+    const transformedEdges = (workflowData.edges || []).map((edge: any) => ({
+      from_node_id: edge.source,
+      to_node_id: edge.target,
+      condition_result: edge.sourceHandle === 'true' ? true : edge.sourceHandle === 'false' ? false : undefined,
+      source_handle_id: edge.sourceHandle || undefined
+    }))
+
+    // Ensure the workflow has required fields
+    const workflowPayload = {
+      name: workflowData.name,
+      description: workflowData.description || undefined,
+      nodes: transformedNodes,
+      edges: transformedEdges
+    }
+
+    const workflow = await workflowStore.createWorkflow(workflowPayload)
+
+    // Close modal and navigate to designer
+    showImportModal.value = false
+    resetImportState()
+    navigateToDesigner(workflow.id)
+
+  } catch (error) {
+    importError.value = `Failed to import workflow: ${(error as Error).message}`
+  } finally {
+    importing.value = false
+  }
+}
+
+function cancelImport() {
+  showImportModal.value = false
+  resetImportState()
+}
+
+function resetImportState() {
+  importFile.value = null
+  importWorkflowName.value = ''
+  importError.value = ''
+  workflowPreview.value = null
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
 }
 </script>
