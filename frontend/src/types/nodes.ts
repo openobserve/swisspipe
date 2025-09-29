@@ -37,11 +37,11 @@ export interface WorkflowEdge extends Omit<Edge, 'data'> {
   }
 }
 
-export type NodeTypeString = 'trigger' | 'condition' | 'transformer' | 'http-request' | 'openobserve' | 'app' | 'email' | 'delay' | 'anthropic'
+export type NodeTypeString = 'trigger' | 'condition' | 'transformer' | 'http-request' | 'openobserve' | 'app' | 'email' | 'delay' | 'anthropic' | 'human-in-loop'
 
 export type NodeStatus = 'ready' | 'running' | 'completed' | 'error'
 
-export type NodeConfig = TriggerConfig | ConditionConfig | TransformerConfig | HttpRequestConfig | OpenObserveConfig | AppConfig | EmailConfig | DelayConfig | AnthropicConfig
+export type NodeConfig = TriggerConfig | ConditionConfig | TransformerConfig | HttpRequestConfig | OpenObserveConfig | AppConfig | EmailConfig | DelayConfig | AnthropicConfig | HumanInLoopConfig
 
 export interface TriggerConfig {
   type: 'trigger'
@@ -164,6 +164,16 @@ export interface AnthropicConfig {
     max_delay_ms: number
     backoff_multiplier: number
   }
+}
+
+export interface HumanInLoopConfig {
+  type: 'human-in-loop'
+  title: string
+  description?: string
+  timeout_seconds?: number
+  timeout_action?: string
+  required_fields?: string[]
+  metadata?: Record<string, any>
 }
 
 // Legacy support for old App nodes

@@ -8,6 +8,7 @@ pub mod cache;
 pub mod config;
 pub mod database;
 pub mod email;
+pub mod hil;
 pub mod utils;
 pub mod workflow;
 
@@ -18,7 +19,9 @@ pub struct AppState {
     pub db: Arc<sea_orm::DatabaseConnection>,
     pub engine: Arc<workflow::engine::WorkflowEngine>,
     pub config: Arc<config::Config>,
-    pub worker_pool: Arc<async_execution::worker_pool::WorkerPool>,
+    pub hil_service: Arc<hil::HilService>,
+    pub worker_pool: Arc<async_execution::MpscWorkerPool>,
+    pub mpsc_distributor: Arc<async_execution::MpscJobDistributor>,
     pub workflow_cache: Arc<cache::WorkflowCache>,
     pub delay_scheduler: Arc<async_execution::DelayScheduler>,
     pub http_loop_scheduler: Arc<async_execution::HttpLoopScheduler>,

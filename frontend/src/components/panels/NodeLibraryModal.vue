@@ -132,6 +132,35 @@
           </div>
         </div>
 
+        <!-- Human Interaction Section -->
+        <div class="space-y-4">
+          <h3 class="text-sm font-medium text-gray-300 mb-3 sticky top-0 bg-slate-800 py-2">Human Interaction</h3>
+          <div class="space-y-3">
+            <div
+              v-for="nodeType in humanInteractionNodes"
+              :key="nodeType.type"
+              class="flex items-start space-x-3 p-4 glass hover:glass-medium rounded-lg transition-all duration-300 border-l-4 group"
+              :style="{ borderLeftColor: nodeType.color }"
+            >
+              <div
+                class="w-3 h-3 rounded-full flex-shrink-0 mt-1"
+                :style="{ backgroundColor: nodeType.color }"
+              ></div>
+              <div class="flex-1 min-w-0">
+                <h4 class="text-sm font-medium text-white">{{ nodeType.label }}</h4>
+                <p class="text-xs text-gray-400 mt-1">{{ nodeType.description }}</p>
+              </div>
+              <button
+                @click="addNode(nodeType)"
+                class="opacity-0 group-hover:opacity-100 transition-opacity bg-green-600 hover:bg-green-700 text-white rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold"
+                title="Add node"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -161,8 +190,11 @@ const nodeStore = useNodeStore()
 const transformerNodes = computed(() => 
   nodeStore.nodeTypes.filter(type => type.type === 'transformer')
 )
-const logicNodes = computed(() => 
+const logicNodes = computed(() =>
   nodeStore.nodeTypes.filter(type => type.type === 'condition' || type.type === 'delay')
+)
+const humanInteractionNodes = computed(() =>
+  nodeStore.nodeTypes.filter(type => type.type === 'human-in-loop')
 )
 const appNodes = computed(() =>
   nodeStore.nodeTypes.filter(type =>

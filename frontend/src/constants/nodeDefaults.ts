@@ -64,6 +64,16 @@ export const DEFAULT_ANTHROPIC_CONFIG = {
   retry_config: DEFAULT_RETRY_CONFIG
 }
 
+export const DEFAULT_HUMAN_IN_LOOP_CONFIG = {
+  type: 'human-in-loop' as const,
+  title: 'Human Review Required',
+  description: 'Please review this workflow event and make a decision',
+  timeout_seconds: undefined,
+  timeout_action: 'denied',
+  required_fields: [],
+  metadata: {}
+}
+
 export const NODE_TYPE_DESCRIPTIONS = {
   Trigger: 'HTTP endpoint trigger',
   Condition: 'Conditional logic node',
@@ -73,6 +83,7 @@ export const NODE_TYPE_DESCRIPTIONS = {
   Email: 'Email notification node',
   Delay: 'Workflow execution delay',
   Anthropic: 'Anthropic LLM integration',
+  HumanInLoop: 'Human intervention point',
   App: 'External application node'
 }
 
@@ -85,6 +96,7 @@ export const NODE_TYPE_MAPPINGS = {
   email: 'Email',
   delay: 'Delay',
   anthropic: 'Anthropic',
+  'human-in-loop': 'HumanInLoop',
   app: 'App'
 }
 
@@ -137,5 +149,11 @@ export const NODE_LIBRARY_DEFINITIONS = {
     description: 'Generate content using Anthropic LLM models',
     color: '#d97706',
     icon: 'sparkles'
+  },
+  'human-in-loop': {
+    label: 'Human in Loop',
+    description: 'Pause workflow for human review and decision',
+    color: '#dc2626',
+    icon: 'user'
   }
 }

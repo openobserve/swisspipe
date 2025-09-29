@@ -439,6 +439,7 @@ impl HttpLoopScheduler {
                             metadata: std::collections::HashMap::new(),
                             headers: std::collections::HashMap::new(),
                             condition_results: std::collections::HashMap::new(),
+        hil_task: None,
                         });
                     } else {
                         // Return success event without specific data
@@ -447,6 +448,7 @@ impl HttpLoopScheduler {
                             metadata: std::collections::HashMap::new(),
                             headers: std::collections::HashMap::new(),
                             condition_results: std::collections::HashMap::new(),
+        hil_task: None,
                         });
                     }
                 }
@@ -1035,6 +1037,7 @@ impl HttpLoopScheduler {
                     metadata: enhanced_metadata,
                     headers: workflow_event.headers.clone(),
                     condition_results: workflow_event.condition_results.clone(),
+        hil_task: None,
                 })
             }
             Err(_) => {
@@ -1064,6 +1067,7 @@ impl HttpLoopScheduler {
                     metadata,
                     headers: HashMap::new(),
                     condition_results: HashMap::new(),
+        hil_task: None,
                 })
             }
         }
@@ -1459,6 +1463,46 @@ impl HttpLoopScheduler {
                 Err(e)
             }
         }
+    }
+
+    /// Clear all loop tasks from the scheduler state (useful for testing)
+    /// This method cancels any running tasks and clears both the internal HashMap and database records
+    pub async fn clear_all_loop_tasks(&self) -> Result<()> {
+        tracing::info!("Clearing all loop tasks from scheduler state...");
+
+        // Clear in-memory tasks first
+        let mut tasks = self.loop_tasks.write().await;
+        let task_count = tasks.len();
+
+        // Abort all running tasks
+        for (loop_id, task_handle) in tasks.drain() {
+            if !task_handle.is_finished() {
+                tracing::debug!("Aborting running loop task: {}", loop_id);
+                task_handle.abort();
+            }
+        }
+
+        drop(tasks); // Release the lock
+
+        // Clear database records
+        use sea_orm::{EntityTrait, DeleteResult};
+        let delete_result: DeleteResult = http_loop_states::Entity::delete_many()
+            .exec(self.db.as_ref())
+            .await
+            .map_err(SwissPipeError::Database)?;
+
+        tracing::info!(
+            "Cleared {} loop tasks from memory and {} records from database",
+            task_count,
+            delete_result.rows_affected
+        );
+        Ok(())
+    }
+
+    /// Get the count of currently tracked loop tasks (useful for testing/debugging)
+    pub async fn get_active_task_count(&self) -> usize {
+        let tasks = self.loop_tasks.read().await;
+        tasks.len()
     }
 
 }

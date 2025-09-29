@@ -265,6 +265,7 @@ impl InputSyncService {
             metadata: merged_metadata,
             headers: merged_headers,
             condition_results: merged_condition_results,
+        hil_task: None,
         })
     }
 }
@@ -300,6 +301,7 @@ mod tests {
             },
             headers: HashMap::new(),
             condition_results: HashMap::new(),
+        hil_task: None,
         };
         
         let event2 = WorkflowEvent {
@@ -311,6 +313,7 @@ mod tests {
             },
             headers: HashMap::new(),
             condition_results: HashMap::new(),
+        hil_task: None,
         };
         
         let inputs = vec![event1.clone(), event2];

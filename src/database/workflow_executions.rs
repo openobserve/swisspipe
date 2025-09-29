@@ -9,7 +9,7 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
     pub workflow_id: String,
-    pub status: String, // 'pending', 'running', 'completed', 'failed', 'cancelled'
+    pub status: String, // 'pending', 'running', 'completed', 'failed', 'cancelled', 'pending_human_input'
     pub current_node_id: Option<String>,
     pub input_data: Option<String>, // JSON
     pub output_data: Option<String>, // JSON
@@ -77,6 +77,7 @@ pub enum ExecutionStatus {
     Completed,
     Failed,
     Cancelled,
+    PendingHumanInput,
 }
 
 impl std::fmt::Display for ExecutionStatus {
@@ -87,6 +88,7 @@ impl std::fmt::Display for ExecutionStatus {
             ExecutionStatus::Completed => write!(f, "completed"),
             ExecutionStatus::Failed => write!(f, "failed"),
             ExecutionStatus::Cancelled => write!(f, "cancelled"),
+            ExecutionStatus::PendingHumanInput => write!(f, "pending_human_input"),
         }
     }
 }
@@ -99,6 +101,7 @@ impl From<String> for ExecutionStatus {
             "completed" => ExecutionStatus::Completed,
             "failed" => ExecutionStatus::Failed,
             "cancelled" => ExecutionStatus::Cancelled,
+            "pending_human_input" => ExecutionStatus::PendingHumanInput,
             _ => ExecutionStatus::Pending,
         }
     }

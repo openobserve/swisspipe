@@ -147,7 +147,7 @@ fn emit_admin_api_log(data: &serde_json::Value, level: tracing::Level) {
     match serde_json::to_string(data) {
         Ok(json_str) => {
             match level {
-                tracing::Level::DEBUG => tracing::debug!(target: "admin_api", "{}", json_str),
+                tracing::Level::DEBUG => tracing::trace!(target: "admin_api", "{}", json_str),
                 tracing::Level::INFO => tracing::info!(target: "admin_api", "{}", json_str),
                 tracing::Level::WARN => tracing::warn!(target: "admin_api", "{}", json_str),
                 _ => tracing::info!(target: "admin_api", "{}", json_str),

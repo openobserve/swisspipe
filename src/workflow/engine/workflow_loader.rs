@@ -90,6 +90,7 @@ impl WorkflowLoader {
                 from_node_id: edge_model.from_node_id,
                 to_node_id: edge_model.to_node_id,
                 condition_result: edge_model.condition_result,
+                source_handle_id: edge_model.source_handle_id,
             })
             .collect();
 

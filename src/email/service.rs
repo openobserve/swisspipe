@@ -151,6 +151,10 @@ impl EmailService {
     ) -> Result<EmailSendResult, EmailError> {
         tracing::debug!("Starting email send for execution_id: {}, node_id: {}, smtp_config: {}",
             execution_id, node_id, email_config.smtp_config);
+        tracing::info!("EMAIL SERVICE: WorkflowEvent received - hil_task present: {:?}", workflow_event.hil_task.is_some());
+        if let Some(ref hil_task) = workflow_event.hil_task {
+            tracing::info!("EMAIL SERVICE: HIL task data: {:?}", hil_task);
+        }
 
         // Apply default settings to email config
         let config_with_defaults = self.apply_default_settings(email_config.clone()).await?;
@@ -412,12 +416,23 @@ impl EmailService {
         tracing::debug!("About to insert email queue record with values - execution_id: {:?}, node_id: {:?}", 
             execution_id, node_id);
             
-        match active_model.insert(&*self.db).await {
+        // Use explicit transaction with immediate isolation to prevent concurrency issues
+        use sea_orm::{TransactionTrait, IsolationLevel};
+
+        let txn = self.db.begin_with_config(
+            Some(IsolationLevel::Serializable),
+            Some(sea_orm::AccessMode::ReadWrite)
+        ).await
+        .map_err(EmailError::DatabaseError)?;
+
+        match active_model.insert(&txn).await {
             Ok(_) => {
                 tracing::debug!("Successfully inserted email queue record");
+                txn.commit().await.map_err(EmailError::DatabaseError)?;
             }
             Err(e) => {
                 tracing::error!("Failed to insert email queue record: {:?}", e);
+                let _ = txn.rollback().await; // Ignore rollback errors
                 return Err(e.into());
             }
         }
@@ -524,6 +539,7 @@ impl EmailService {
                 metadata: HashMap::new(),
                 headers: HashMap::new(),
                 condition_results: HashMap::new(),
+        hil_task: None,
             };
             
             // Render email message

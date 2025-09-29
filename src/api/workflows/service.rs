@@ -139,6 +139,7 @@ impl<'a> UpdateWorkflowService<'a> {
             from_node_id: e.from_node_id.clone(),
             to_node_id: e.to_node_id.clone(),
             condition_result: e.condition_result,
+            source_handle_id: e.source_handle_id.clone(),
         }).collect();
 
         Ok(UpdateContext {
@@ -384,6 +385,7 @@ impl<'a> UpdateWorkflowService<'a> {
                 from_node_id: Set(edge_data.from_node_id.clone()),
                 to_node_id: Set(edge_data.to_node_id.clone()),
                 condition_result: Set(edge_data.condition_result),
+                source_handle_id: Set(edge_data.source_handle_id.clone()),
                 ..Default::default()
             };
 

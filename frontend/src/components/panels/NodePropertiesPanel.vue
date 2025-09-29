@@ -148,6 +148,14 @@
               <AnthropicConfig v-model="anthropicConfig" @update="updateNodeData" />
             </div>
           </div>
+
+          <!-- Human in Loop Node Configuration -->
+          <div v-if="selectedNodeData.type === 'human-in-loop'" class="h-full flex flex-col">
+            <h3 class="text-sm font-semibold text-gray-300 mb-3">Human in Loop Configuration</h3>
+            <div class="flex-1 min-h-0 overflow-y-auto">
+              <HumanInLoopConfig :config="humanInLoopConfig" @update:config="updateNodeData" />
+            </div>
+          </div>
         </div>
 
 
@@ -166,6 +174,7 @@ import ConditionConfig from '../app-configs/ConditionConfig.vue'
 import TransformerConfig from '../app-configs/TransformerConfig.vue'
 import DelayConfig from '../app-configs/DelayConfig.vue'
 import AnthropicConfig from '../app-configs/AnthropicConfig.vue'
+import HumanInLoopConfig from '../app-configs/HumanInLoopConfig.vue'
 import HttpRequestConfig from '../app-configs/HttpRequestConfig.vue'
 import OpenObserveConfig from '../app-configs/OpenObserveConfig.vue'
 import EmailConfig from '../email-configs/EmailConfig.vue'
@@ -180,7 +189,8 @@ import type {
   OpenObserveConfig as OpenObserveConfigType,
   EmailConfig as EmailConfigType,
   DelayConfig as DelayConfigType,
-  AnthropicConfig as AnthropicConfigType
+  AnthropicConfig as AnthropicConfigType,
+  HumanInLoopConfig as HumanInLoopConfigType
 } from '../../types/nodes'
 
 const nodeStore = useNodeStore()
@@ -230,6 +240,11 @@ const delayConfig = computed({
 
 const anthropicConfig = computed({
   get: () => localNodeData.value.config as AnthropicConfigType,
+  set: (value) => { localNodeData.value.config = value }
+})
+
+const humanInLoopConfig = computed({
+  get: () => localNodeData.value.config as HumanInLoopConfigType,
   set: (value) => { localNodeData.value.config = value }
 })
 

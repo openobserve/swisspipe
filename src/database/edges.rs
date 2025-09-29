@@ -12,6 +12,7 @@ pub struct Model {
     pub from_node_id: String,
     pub to_node_id: String,
     pub condition_result: Option<bool>,
+    pub source_handle_id: Option<String>, // Added for 3-handle routing support
     pub created_at: i64, // Unix epoch microseconds
 }
 

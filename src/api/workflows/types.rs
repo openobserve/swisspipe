@@ -31,6 +31,7 @@ pub struct EdgeRequest {
     pub from_node_id: String, // Source node ID
     pub to_node_id: String,   // Target node ID
     pub condition_result: Option<bool>,
+    pub source_handle_id: Option<String>, // Added for 3-handle routing support
 }
 
 #[derive(Serialize)]
@@ -48,6 +49,7 @@ pub struct EdgeResponse {
     pub from_node_id: String,   // Source node ID
     pub to_node_id: String,     // Target node ID
     pub condition_result: Option<bool>,
+    pub source_handle_id: Option<String>, // Added for 3-handle routing support
 }
 
 #[derive(Serialize)]

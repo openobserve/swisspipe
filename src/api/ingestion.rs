@@ -85,48 +85,39 @@ async fn execute_workflow_async(
 ) -> std::result::Result<(StatusCode, Json<Value>), StatusCode> {
     tracing::info!("Executing workflow: {}", workflow_id);
 
-    // Try to get workflow from cache first
-    let cached_workflow = state.workflow_cache.get(workflow_id).await;
+    // Load workflow from database to check for HIL nodes and get metadata
+    tracing::debug!("Loading workflow {} from database for HIL detection", workflow_id);
+    let workflow = state
+        .engine
+        .load_workflow(workflow_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to load workflow {}: {}", workflow_id, e);
+            match e {
+                crate::workflow::errors::SwissPipeError::WorkflowNotFound(_) => StatusCode::NOT_FOUND,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
 
-    let start_node_id = if let Some(cached) = cached_workflow {
-        // Use cached workflow metadata
-        tracing::debug!("Using cached workflow metadata for {}", workflow_id);
-        cached.start_node_id
-    } else {
-        // Cache miss - load from database and cache the result
-        tracing::debug!("Cache miss - loading workflow {} from database", workflow_id);
-        let workflow = state
-            .engine
-            .load_workflow(workflow_id)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to load workflow {}: {}", workflow_id, e);
-                match e {
-                    crate::workflow::errors::SwissPipeError::WorkflowNotFound(_) => StatusCode::NOT_FOUND,
-                    _ => StatusCode::INTERNAL_SERVER_ERROR,
-                }
-            })?;
+    // Check if workflow is enabled
+    if !workflow.enabled {
+        tracing::warn!("Workflow {} is disabled, rejecting ingestion request", workflow_id);
+        return Err(StatusCode::FORBIDDEN);
+    }
 
-        // Check if workflow is enabled
-        if !workflow.enabled {
-            tracing::warn!("Workflow {} is disabled, rejecting ingestion request", workflow_id);
-            return Err(StatusCode::FORBIDDEN);
-        }
-
-        let start_node = workflow.start_node_id.clone();
-
-        // Cache the workflow metadata for future requests
-        state.workflow_cache.put(workflow_id.to_string(), start_node.clone().unwrap()).await;
-        tracing::debug!("Cached workflow metadata for {}", workflow_id);
-
-        start_node.unwrap()
-    };
-
+    let start_node_id = workflow.start_node_id.clone().unwrap();
     tracing::info!("Workflow {} validated successfully (start_node: {})", workflow_id, start_node_id);
+
+    // ALL workflows now execute in background workers - no special HIL routing
+    tracing::info!("Workflow {} queued for background worker execution (unified model)", workflow_id);
+
+    // Cache the workflow metadata for future requests
+    state.workflow_cache.put(workflow_id.to_string(), start_node_id.clone()).await;
+    tracing::debug!("Cached workflow metadata for {}", workflow_id);
 
     // Create execution service
     let execution_service = ExecutionService::new(state.db.clone());
-    
+
     // Create execution and queue job
     let execution_id = execution_service
         .create_execution(
@@ -150,3 +141,4 @@ async fn execute_workflow_async(
 
     Ok((StatusCode::ACCEPTED, Json(response)))
 }
+

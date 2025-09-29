@@ -17,6 +17,8 @@ mod m20250115_000001_create_settings_table;
 mod m20250120_000001_add_default_email_settings;
 mod m20250121_000001_create_http_loop_states_table;
 mod m20250121_000002_add_http_loop_config_fields;
+mod m20250125_000001_create_human_in_loop_tasks_table;
+mod m20250125_000002_add_source_handle_id_to_edges;
 
 pub struct Migrator;
 
@@ -41,6 +43,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20250120_000001_add_default_email_settings::Migration),
             Box::new(m20250121_000001_create_http_loop_states_table::Migration),
             Box::new(m20250121_000002_add_http_loop_config_fields::Migration),
+            Box::new(m20250125_000001_create_human_in_loop_tasks_table::Migration),
+            Box::new(m20250125_000002_add_source_handle_id_to_edges::Migration),
         ]
     }
 }

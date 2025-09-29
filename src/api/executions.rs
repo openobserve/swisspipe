@@ -139,16 +139,20 @@ pub async fn get_worker_pool_stats(
 ) -> std::result::Result<Json<Value>, StatusCode> {
     // Get worker pool statistics
     let worker_stats = state.worker_pool.get_stats().await;
-    
+
+    // Get MPSC distributor metrics
+    let mpsc_metrics = state.mpsc_distributor.get_metrics().await;
+
     // Get additional metrics
     let system_info = serde_json::json!({
         "timestamp": chrono::Utc::now().timestamp_micros(),
         "version": env!("CARGO_PKG_VERSION"),
         "build_profile": if cfg!(debug_assertions) { "debug" } else { "release" }
     });
-    
+
     let response = serde_json::json!({
         "worker_pool": worker_stats,
+        "mpsc_distributor": mpsc_metrics,
         "system": system_info,
         "health": "healthy"
     });

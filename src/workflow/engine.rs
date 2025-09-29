@@ -8,6 +8,7 @@ mod dag_executor;
 
 use crate::{
     anthropic::AnthropicService,
+    async_execution::StepTracker,
     email::service::EmailService,
     utils::{http_client::AppExecutor, javascript::JavaScriptExecutor},
     workflow::{
@@ -51,12 +52,14 @@ impl WorkflowEngine {
         // Create modular components
         let workflow_loader = Arc::new(WorkflowLoader::new(db.clone()));
 
+        let step_tracker = Arc::new(StepTracker::new(db.clone()));
         let node_executor = Arc::new(NodeExecutor::new(
             js_executor.clone(),
             app_executor.clone(),
             email_service.clone(),
             anthropic_service.clone(),
             db.clone(),
+            step_tracker,
         ));
 
         let dag_executor = Arc::new(DagExecutor::new(
@@ -87,8 +90,8 @@ impl WorkflowEngine {
     }
 
     /// Execute a workflow using DAG traversal
-    pub async fn execute_workflow(&self, workflow: &Workflow, event: WorkflowEvent) -> Result<WorkflowEvent> {
-        self.dag_executor.execute_workflow(workflow, event).await
+    pub async fn execute_workflow(&self, workflow: &Workflow, event: WorkflowEvent, execution_id: &str) -> Result<WorkflowEvent> {
+        self.dag_executor.execute_workflow(workflow, event, execution_id).await
     }
 
     /// Get direct access to the workflow loader
@@ -105,6 +108,13 @@ impl WorkflowEngine {
     pub fn set_http_loop_scheduler(&self, scheduler: Arc<crate::async_execution::HttpLoopScheduler>) -> Result<()> {
         self.node_executor.set_http_loop_scheduler(scheduler)
             .map_err(|_| SwissPipeError::Generic("HTTP loop scheduler already initialized".to_string()))?;
+        Ok(())
+    }
+
+    /// Set the HIL service for dependency injection
+    pub fn set_hil_service(&self, service: Arc<crate::hil::HilService>) -> Result<()> {
+        self.node_executor.set_hil_service(service)
+            .map_err(|_| SwissPipeError::Generic("HIL service already initialized".to_string()))?;
         Ok(())
     }
 

@@ -1,6 +1,7 @@
 pub mod ai;
 pub mod executions;
 pub mod health;
+pub mod hil;
 pub mod ingestion;
 pub mod loops;
 pub mod middleware;
@@ -19,6 +20,7 @@ pub fn create_router() -> Router<AppState> {
         .merge(health::routes())
         // API routes (higher priority)
         .nest("/api/v1", ingestion::routes())
+        .nest("/api/v1/hil", hil::routes())
         .nest("/api", segment::create_segment_routes())
         // Admin routes with logging middleware
         .nest("/api/admin/v1/workflows", workflows::routes())
@@ -27,6 +29,7 @@ pub fn create_router() -> Router<AppState> {
         .nest("/api/admin/v1/script", script::routes())
         .nest("/api/admin/v1/ai", ai::create_ai_routes())
         .nest("/api/admin/v1/settings", settings::routes())
+        .nest("/api/admin/v1/hil", hil::routes())
         .nest("/auth", auth_handlers::routes())
         // Static file routes (lower priority, fallback for SPA)
         .merge(static_files::routes())

@@ -59,6 +59,9 @@
       <template #node-anthropic="{ data }">
         <AnthropicNode :data="data" />
       </template>
+      <template #node-human-in-loop="{ data }">
+        <HumanInLoopNode :data="data" />
+      </template>
     </VueFlow>
   </div>
 </template>
@@ -77,6 +80,7 @@ import AppNode from '../nodes/AppNode.vue'
 import EmailNode from '../nodes/EmailNode.vue'
 import DelayNode from '../nodes/DelayNode.vue'
 import AnthropicNode from '../nodes/AnthropicNode.vue'
+import HumanInLoopNode from '../nodes/HumanInLoopNode.vue'
 
 interface Props {
   nodes: Node[]

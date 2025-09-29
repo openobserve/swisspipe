@@ -13,6 +13,7 @@ pub mod sessions;
 pub mod csrf_tokens;
 pub mod settings;
 pub mod http_loop_states;
+pub mod human_in_loop_tasks;
 
 use sea_orm::{Database, DatabaseConnection, DbErr, ConnectionTrait, DatabaseBackend};
 use sea_orm_migration::MigratorTrait;

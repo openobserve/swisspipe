@@ -8,6 +8,7 @@ import {
   DEFAULT_OPENOBSERVE_CONFIG,
   DEFAULT_DELAY_CONFIG,
   DEFAULT_ANTHROPIC_CONFIG,
+  DEFAULT_HUMAN_IN_LOOP_CONFIG,
   NODE_LIBRARY_DEFINITIONS
 } from '../constants/nodeDefaults'
 
@@ -108,6 +109,14 @@ export const useNodeStore = defineStore('nodes', () => {
             ...DEFAULT_ANTHROPIC_CONFIG
           }
         }
+      case 'human-in-loop':
+        return {
+          type: 'human-in-loop',
+          ...libraryDef,
+          defaultConfig: {
+            ...DEFAULT_HUMAN_IN_LOOP_CONFIG
+          }
+        }
       default:
         // This should never happen, but TypeScript requires it
         throw new Error(`Unknown node type: ${type}`)
@@ -123,7 +132,8 @@ export const useNodeStore = defineStore('nodes', () => {
     createNodeTypeDefinition('openobserve'),
     createNodeTypeDefinition('email'),
     createNodeTypeDefinition('delay'),
-    createNodeTypeDefinition('anthropic')
+    createNodeTypeDefinition('anthropic'),
+    createNodeTypeDefinition('human-in-loop')
   ])
 
   // Getters

@@ -4,6 +4,7 @@ mod auth;
 mod cache;
 mod config;
 mod database;
+mod hil;
 mod utils;
 mod workflow;
 mod async_execution;
@@ -18,7 +19,7 @@ use cache::WorkflowCache;
 use config::Config;
 use database::establish_connection;
 use workflow::engine::WorkflowEngine;
-use async_execution::{WorkerPool, ResumptionService, DelayScheduler, CleanupService, HttpLoopScheduler};
+use async_execution::{ResumptionService, DelayScheduler, CleanupService, HttpLoopScheduler, MpscWorkerPool, MpscJobDistributor};
 use sea_orm::{EntityTrait, ColumnTrait, QueryFilter};
 
 #[derive(Clone)]
@@ -26,10 +27,12 @@ pub struct AppState {
     pub db: Arc<sea_orm::DatabaseConnection>,
     pub engine: Arc<WorkflowEngine>,
     pub config: Arc<Config>,
-    pub worker_pool: Arc<WorkerPool>,
+    pub worker_pool: Arc<MpscWorkerPool>,
+    pub mpsc_distributor: Arc<MpscJobDistributor>,
     pub workflow_cache: Arc<WorkflowCache>,
     pub delay_scheduler: Arc<DelayScheduler>,
     pub http_loop_scheduler: Arc<HttpLoopScheduler>,
+    pub hil_service: Arc<hil::HilService>,
 }
 
 #[tokio::main]
@@ -57,21 +60,54 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize workflow cache (5 minute default TTL)
     let workflow_cache = Arc::new(WorkflowCache::new(Some(300)));
 
-    // Initialize worker pool
-    let worker_pool = Arc::new(WorkerPool::new(
+    // Initialize MPSC job distributor and worker pool
+    tracing::info!("Initializing MPSC job distributor...");
+    let (mpsc_distributor, job_receiver) = MpscJobDistributor::new(
+        db.clone(),
+        1000, // Channel capacity (unused for unbounded channels)
+    );
+    let mpsc_distributor = Arc::new(mpsc_distributor);
+
+    // Initialize MPSC worker pool
+    tracing::info!("Initializing MPSC worker pool...");
+
+    // Convert WorkerPoolConfig to MpscWorkerPool's WorkerPoolConfig
+    use crate::async_execution::mpsc_worker_pool::MpscWorkerPoolConfig;
+    let mpsc_config = MpscWorkerPoolConfig {
+        worker_count: config.worker_pool.worker_count,
+        job_claim_timeout_seconds: config.worker_pool.job_claim_timeout_seconds as u64,
+        job_claim_cleanup_interval_seconds: config.worker_pool.job_claim_cleanup_interval_seconds,
+        mpsc_polling_interval_ms: 100, // 100ms default for MPSC
+    };
+
+    let worker_pool = Arc::new(MpscWorkerPool::with_distributor(
         db.clone(),
         engine.clone(),
-        Some(config.worker_pool.clone()), // Use configuration
+        mpsc_distributor.clone(),
+        job_receiver,
+        Some(mpsc_config),
     ));
 
-    // Start worker pool
-    tracing::info!("Initializing worker pool...");
+    // Start MPSC worker pool
+    tracing::info!("Starting MPSC worker pool...");
     match worker_pool.start().await {
         Ok(()) => {
-            tracing::info!("Worker pool started successfully");
+            tracing::info!("MPSC worker pool started successfully");
         }
         Err(e) => {
-            tracing::error!("Failed to start worker pool: {}", e);
+            tracing::error!("Failed to start MPSC worker pool: {}", e);
+            return Err(e.into());
+        }
+    }
+
+    // Start MPSC consumer (after worker pool is ready)
+    tracing::info!("Starting MPSC job consumer...");
+    match mpsc_distributor.start_consumer(100).await { // 100ms polling interval
+        Ok(()) => {
+            tracing::info!("MPSC job consumer started successfully");
+        }
+        Err(e) => {
+            tracing::error!("Failed to start MPSC job consumer: {}", e);
             return Err(e.into());
         }
     }
@@ -198,6 +234,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     engine.set_http_loop_scheduler(http_loop_scheduler.clone())?;
     tracing::info!("HTTP loop scheduler injected into workflow engine");
 
+
     // Inject HTTP loop scheduler into worker pool
     worker_pool.set_http_loop_scheduler(http_loop_scheduler.clone()).await?;
     tracing::info!("HTTP loop scheduler injected into worker pool");
@@ -309,12 +346,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize DelayScheduler with tokio timer implementation
     tracing::info!("Initializing DelayScheduler...");
-    let delay_scheduler = Arc::new(DelayScheduler::new(worker_pool.get_job_manager(), db.clone()).await
+    let delay_scheduler = Arc::new(DelayScheduler::new(db.clone()).await
         .map_err(|e| {
             tracing::error!("Failed to initialize DelayScheduler: {}", e);
             e
         })?);
-    
+
     // Restore scheduled delays from database
     match delay_scheduler.restore_from_database().await {
         Ok(count) => {
@@ -334,18 +371,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Linking DelayScheduler with WorkerPool...");
     worker_pool.set_delay_scheduler(delay_scheduler.clone()).await;
 
+    // Initialize HIL service
+    let hil_service = Arc::new(hil::HilService::new(db.clone()));
+    tracing::info!("HIL service initialized");
+
+    // Inject HIL service into workflow engine
+    engine.set_hil_service(hil_service.clone())?;
+    tracing::info!("HIL service injected into workflow engine");
+
+    // Start HIL timeout processor
+    match hil_service.start_timeout_processor(60).await {
+        Ok(()) => {
+            tracing::info!("HIL timeout processor started (checking every 60 seconds)");
+        }
+        Err(e) => {
+            tracing::error!("Failed to start HIL timeout processor: {}", e);
+            // Don't fail startup, just log the error
+        }
+    }
+
     // Store port before moving config into Arc
     let port = config.port;
-    
-    // Create app state
+
     let state = AppState {
         db,
         engine,
         config: Arc::new(config),
         worker_pool: worker_pool.clone(),
+        mpsc_distributor: mpsc_distributor.clone(),
         workflow_cache: workflow_cache.clone(),
         delay_scheduler: delay_scheduler.clone(),
         http_loop_scheduler: http_loop_scheduler.clone(),
+        hil_service,
     };
 
     // Build application

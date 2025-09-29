@@ -96,33 +96,33 @@ pub fn categorize_node_changes<'a>(
 
 /// Categorize edge changes for differential updates
 pub fn categorize_edge_changes(
-    existing_edges: &[edges::Model], 
+    existing_edges: &[edges::Model],
     new_edges: &[EdgeRequest]
 ) -> EdgeOperations {
-    let existing_set: HashSet<(String, String, Option<bool>)> = existing_edges
+    let existing_set: HashSet<(String, String, Option<bool>, Option<String>)> = existing_edges
         .iter()
-        .map(|e| (e.from_node_id.clone(), e.to_node_id.clone(), e.condition_result))
+        .map(|e| (e.from_node_id.clone(), e.to_node_id.clone(), e.condition_result, e.source_handle_id.clone()))
         .collect();
-    
-    let new_set: HashSet<(String, String, Option<bool>)> = new_edges
+
+    let new_set: HashSet<(String, String, Option<bool>, Option<String>)> = new_edges
         .iter()
-        .map(|e| (e.from_node_id.clone(), e.to_node_id.clone(), e.condition_result))
+        .map(|e| (e.from_node_id.clone(), e.to_node_id.clone(), e.condition_result, e.source_handle_id.clone()))
         .collect();
-    
+
     // Find edges to create (in new but not in existing)
     let to_create: Vec<EdgeRequest> = new_edges
         .iter()
-        .filter(|e| !existing_set.contains(&(e.from_node_id.clone(), e.to_node_id.clone(), e.condition_result)))
+        .filter(|e| !existing_set.contains(&(e.from_node_id.clone(), e.to_node_id.clone(), e.condition_result, e.source_handle_id.clone())))
         .cloned()
         .collect();
-    
+
     // Find edges to delete (in existing but not in new)
     let to_delete: Vec<String> = existing_edges
         .iter()
-        .filter(|e| !new_set.contains(&(e.from_node_id.clone(), e.to_node_id.clone(), e.condition_result)))
+        .filter(|e| !new_set.contains(&(e.from_node_id.clone(), e.to_node_id.clone(), e.condition_result, e.source_handle_id.clone())))
         .map(|e| e.id.clone())
         .collect();
-    
+
     EdgeOperations {
         to_create,
         to_delete,
@@ -140,6 +140,7 @@ pub fn node_type_to_string(node_type: &NodeType) -> String {
         NodeType::Email { .. } => "email".to_string(),
         NodeType::Delay { .. } => "delay".to_string(),
         NodeType::Anthropic { .. } => "anthropic".to_string(),
+        NodeType::HumanInLoop { .. } => "human_in_loop".to_string(),
     }
 }
 
@@ -181,6 +182,7 @@ pub fn edges_to_response(edges: Vec<edges::Model>) -> Vec<EdgeResponse> {
             from_node_id: edge.from_node_id,
             to_node_id: edge.to_node_id,
             condition_result: edge.condition_result,
+            source_handle_id: edge.source_handle_id,
         })
         .collect()
 }

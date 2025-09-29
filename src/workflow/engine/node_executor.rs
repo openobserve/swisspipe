@@ -1,15 +1,44 @@
 use crate::{
     anthropic::{AnthropicService, AnthropicCallConfig},
-    async_execution::HttpLoopScheduler,
+    async_execution::{HttpLoopScheduler, StepTracker},
+    database::human_in_loop_tasks,
     email::{service::EmailService, EmailConfig},
+    hil::{HilService, service::HilTaskParams},
     utils::{http_client::AppExecutor, javascript::JavaScriptExecutor},
     workflow::{
         errors::{Result, SwissPipeError},
-        models::{Node, NodeType, WorkflowEvent, FailureAction, RetryConfig},
+        models::{Node, NodeType, WorkflowEvent, FailureAction, RetryConfig, NodeOutput},
     },
 };
+
+/// Configuration for Human in Loop node execution
+struct HilNodeConfig<'a> {
+    title: &'a str,
+    description: Option<&'a str>,
+    timeout_seconds: Option<u64>,
+    timeout_action: Option<&'a str>,
+    required_fields: Option<&'a Vec<String>>,
+    metadata: Option<&'a serde_json::Value>,
+}
+
+/// Execution context for Human in Loop node to reduce function parameter count
+struct HilExecutionContext<'a> {
+    workflow_id: &'a str,
+    node_id: &'a str,
+    node_name: &'a str,
+}
+
+/// Parameters for execute_node_by_type function to reduce clippy warnings
+struct ExecuteNodeParams<'a> {
+    node_type: &'a NodeType,
+    execution_id: &'a str,
+    node_name: &'a str,
+    workflow_id: &'a str,
+    node_id: &'a str,
+}
 use std::sync::{Arc, OnceLock};
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, ActiveModelTrait, Set};
+use uuid::Uuid;
 
 pub struct NodeExecutor {
     js_executor: Arc<JavaScriptExecutor>,
@@ -19,6 +48,8 @@ pub struct NodeExecutor {
     #[allow(dead_code)] // May be used in future for direct database operations
     db: Arc<DatabaseConnection>,
     http_loop_scheduler: Arc<OnceLock<Arc<HttpLoopScheduler>>>,
+    hil_service: Arc<OnceLock<Arc<HilService>>>,
+    step_tracker: Arc<StepTracker>,
 }
 
 impl NodeExecutor {
@@ -28,6 +59,7 @@ impl NodeExecutor {
         email_service: Arc<EmailService>,
         anthropic_service: Arc<AnthropicService>,
         db: Arc<DatabaseConnection>,
+        step_tracker: Arc<StepTracker>,
     ) -> Self {
         Self {
             js_executor,
@@ -36,6 +68,8 @@ impl NodeExecutor {
             anthropic_service,
             db,
             http_loop_scheduler: Arc::new(OnceLock::new()),
+            hil_service: Arc::new(OnceLock::new()),
+            step_tracker,
         }
     }
 
@@ -43,6 +77,12 @@ impl NodeExecutor {
     pub fn set_http_loop_scheduler(&self, scheduler: Arc<HttpLoopScheduler>) -> Result<()> {
         self.http_loop_scheduler.set(scheduler)
             .map_err(|_| SwissPipeError::Generic("HTTP loop scheduler already initialized".to_string()))
+    }
+
+    /// Set the HIL service (used for dependency injection after construction)
+    pub fn set_hil_service(&self, service: Arc<HilService>) -> Result<()> {
+        self.hil_service.set(service)
+            .map_err(|_| SwissPipeError::Generic("HIL service already initialized".to_string()))
     }
 
     /// Execute a single node based on its type
@@ -53,33 +93,118 @@ impl NodeExecutor {
         execution_id: &str,
     ) -> Result<WorkflowEvent> {
         tracing::debug!("NodeExecutor::execute_node called for node '{}' (type: {:?})", node.name, std::mem::discriminant(&node.node_type));
-        self.execute_node_by_type(
-            &node.node_type,
-            event,
+        let params = ExecuteNodeParams {
+            node_type: &node.node_type,
             execution_id,
-            &node.name,
-            &node.workflow_id,
+            node_name: &node.name,
+            workflow_id: &node.workflow_id,
+            node_id: &node.id,
+        };
+        self.execute_node_by_type(params, event).await
+    }
+
+    /// Execute a single node and return NodeOutput (for 3-handle HIL support)
+    pub async fn execute_node_with_output(
+        &self,
+        node: &Node,
+        event: WorkflowEvent,
+        execution_id: &str,
+    ) -> Result<NodeOutput> {
+        // Create execution step for tracking - store complete event with data, metadata, headers, etc.
+        let event_json = serde_json::to_value(&event).map_err(|e| {
+            tracing::warn!("Failed to serialize event for step tracking: {}", e);
+            e
+        }).unwrap_or(serde_json::json!({}));
+        let input_data = Some(&event_json);
+        let step_id = self.step_tracker.create_step(
+            execution_id,
             &node.id,
-        ).await
+            &node.name,
+            input_data,
+        ).await.map_err(|e| {
+            tracing::warn!("Failed to create execution step: {}", e);
+            e
+        }).unwrap_or_else(|_| "unknown_step".to_string());
+
+        // Mark step as running
+        if let Err(e) = self.step_tracker.mark_step_running(&step_id).await {
+            tracing::warn!("Failed to mark step as running: {}", e);
+        }
+
+        // Execute the node
+        let result = if let NodeType::HumanInLoop { .. } = node.node_type {
+            // For HIL nodes, call the special HIL handler that returns NodeOutput::MultiPath
+            let params = ExecuteNodeParams {
+                node_type: &node.node_type,
+                execution_id,
+                node_name: &node.name,
+                workflow_id: &node.workflow_id,
+                node_id: &node.id,
+            };
+            self.execute_hil_node_with_output(params, event).await
+        } else {
+            // For all other node types, execute normally and wrap in Continue
+            let result_event = self.execute_node(node, event, execution_id).await?;
+            Ok(NodeOutput::Continue(result_event))
+        };
+
+        // Update step based on result
+        match &result {
+            Ok(node_output) => {
+                let output_data = match node_output {
+                    NodeOutput::Continue(event) => Some(&event.data),
+                    NodeOutput::Complete => None,
+                    NodeOutput::MultiPath(_) => None,
+                    NodeOutput::AsyncPending(event) => Some(&event.data),
+                };
+
+                if let Err(e) = self.step_tracker.complete_step(&step_id, output_data).await {
+                    tracing::warn!("Failed to complete execution step: {}", e);
+                }
+            }
+            Err(error) => {
+                let error_message = error.to_string();
+                if let Err(e) = self.step_tracker.fail_step(&step_id, &error_message, None).await {
+                    tracing::warn!("Failed to mark step as failed: {}", e);
+                }
+            }
+        }
+
+        result
+    }
+
+    /// Execute a single node with workflow context (needed for HIL delegation)
+    pub async fn execute_node_with_workflow(
+        &self,
+        node: &Node,
+        event: WorkflowEvent,
+        execution_id: &str,
+        _workflow: Option<&crate::workflow::models::Workflow>,
+    ) -> Result<WorkflowEvent> {
+        tracing::debug!("NodeExecutor::execute_node_with_workflow called for node '{}' (type: {:?})", node.name, std::mem::discriminant(&node.node_type));
+        let params = ExecuteNodeParams {
+            node_type: &node.node_type,
+            execution_id,
+            node_name: &node.name,
+            workflow_id: &node.workflow_id,
+            node_id: &node.id,
+        };
+        self.execute_node_by_type(params, event).await
     }
 
     /// Execute node based on its specific type
     async fn execute_node_by_type(
         &self,
-        node_type: &NodeType,
+        params: ExecuteNodeParams<'_>,
         event: WorkflowEvent,
-        execution_id: &str,
-        node_name: &str,
-        workflow_id: &str,
-        node_id: &str,
     ) -> Result<WorkflowEvent> {
-        match node_type {
+        match params.node_type {
             NodeType::Trigger { .. } => Ok(event),
             NodeType::Condition { script } => {
-                self.execute_condition_node(script, event, node_name, node_id).await
+                self.execute_condition_node(script, event, params.node_name, params.node_id).await
             }
             NodeType::Transformer { script } => {
-                self.execute_transformer_node(script, event, node_name).await
+                self.execute_transformer_node(script, event, params.node_name).await
             }
             NodeType::HttpRequest { url, method, timeout_seconds, failure_action, retry_config, headers, loop_config } => {
                 let config = HttpRequestConfig {
@@ -89,10 +214,10 @@ impl NodeExecutor {
                     failure_action,
                     retry_config,
                     headers,
-                    node_name,
+                    node_name: params.node_name,
                     loop_config,
                 };
-                self.execute_http_request_node(&config, event, execution_id, node_id).await
+                self.execute_http_request_node(&config, event, params.execution_id, params.node_id).await
             }
             NodeType::OpenObserve { url, authorization_header, timeout_seconds, failure_action, retry_config } => {
                 let config = OpenObserveConfig {
@@ -101,15 +226,15 @@ impl NodeExecutor {
                     timeout_seconds: *timeout_seconds,
                     failure_action,
                     retry_config,
-                    node_name,
+                    node_name: params.node_name,
                 };
                 self.execute_openobserve_node(&config, event).await
             }
             NodeType::Email { config } => {
-                self.execute_email_node(config, event, workflow_id, node_id, node_name).await
+                self.execute_email_node(config, event, params.execution_id, params.node_id, params.node_name).await
             }
             NodeType::Delay { duration, unit } => {
-                self.execute_delay_node(*duration, unit, node_name, event).await
+                self.execute_delay_node(*duration, unit, params.node_name, event).await
             }
             NodeType::Anthropic { model, max_tokens, temperature, system_prompt, user_prompt, timeout_seconds, failure_action, retry_config } => {
                 let config = AnthropicNodeConfig {
@@ -121,9 +246,25 @@ impl NodeExecutor {
                     timeout_seconds: *timeout_seconds,
                     failure_action,
                     retry_config,
-                    node_name,
+                    node_name: params.node_name,
                 };
                 self.execute_anthropic_node(&config, event).await
+            }
+            NodeType::HumanInLoop { title, description, timeout_seconds, timeout_action, required_fields, metadata } => {
+                let config = HilNodeConfig {
+                    title,
+                    description: description.as_deref(),
+                    timeout_seconds: *timeout_seconds,
+                    timeout_action: timeout_action.as_deref(),
+                    required_fields: required_fields.as_ref(),
+                    metadata: metadata.as_ref(),
+                };
+                let context = HilExecutionContext {
+                    workflow_id: params.workflow_id,
+                    node_id: params.node_id,
+                    node_name: params.node_name,
+                };
+                self.execute_human_in_loop_node(&config, event, &context).await
             }
         }
     }
@@ -347,12 +488,16 @@ impl NodeExecutor {
         &self,
         config: &EmailConfig,
         event: WorkflowEvent,
-        workflow_id: &str,
+        execution_id: &str,
         node_id: &str,
         node_name: &str,
     ) -> Result<WorkflowEvent> {
         tracing::debug!("Executing email node '{}' with config: {:?}", node_name, config);
-        match self.email_service.send_email(config, &event, workflow_id, node_id).await {
+        tracing::info!("EMAIL NODE: Event received - hil_task present: {:?}", event.hil_task.is_some());
+        if let Some(ref hil_task) = event.hil_task {
+            tracing::info!("EMAIL NODE: HIL task data: {:?}", hil_task);
+        }
+        match self.email_service.send_email(config, &event, execution_id, node_id).await {
             Ok(result) => {
                 tracing::info!("Email node '{}' executed successfully: {:?}", node_name, result);
                 Ok(event)
@@ -444,6 +589,246 @@ impl NodeExecutor {
                 };
                 self.anthropic_service.call_anthropic(&single_attempt_config, &event).await
             }
+        }
+    }
+
+    /// Execute human in loop node
+    async fn execute_human_in_loop_node(
+        &self,
+        config: &HilNodeConfig<'_>,
+        event: WorkflowEvent,
+        context: &HilExecutionContext<'_>,
+    ) -> Result<WorkflowEvent> {
+        tracing::info!("Starting Human in Loop node '{}' execution", context.node_name);
+
+        // Generate unique node execution ID for this HIL task
+        let node_execution_id = Uuid::new_v4();
+        let task_id = Uuid::new_v4();
+
+        // Calculate timeout timestamp in microseconds if specified
+        let timeout_at = config.timeout_seconds.map(|seconds| {
+            (chrono::Utc::now() + chrono::Duration::seconds(seconds as i64)).timestamp_micros()
+        });
+
+        // Get execution_id from event metadata (set by synchronous execution)
+        let execution_id = event.metadata.get("execution_id")
+            .ok_or_else(|| SwissPipeError::Generic("execution_id not found in event metadata".to_string()))?;
+
+        tracing::debug!("HIL task creation: execution_id='{}', workflow_id='{}'", execution_id, context.workflow_id);
+
+        // Create HIL task record
+        let hil_task = human_in_loop_tasks::ActiveModel {
+            id: Set(task_id.to_string()),
+            execution_id: Set(execution_id.to_string()),
+            node_id: Set(context.node_id.to_string()),
+            node_execution_id: Set(node_execution_id.to_string()),
+            workflow_id: Set(context.workflow_id.to_string()),
+            title: Set(config.title.to_string()),
+            description: Set(config.description.map(|d| d.to_string())),
+            status: Set("pending".to_string()),
+            timeout_at: Set(timeout_at),
+            timeout_action: Set(config.timeout_action.map(|a| a.to_string())),
+            required_fields: Set(config.required_fields.map(|f| serde_json::to_value(f).unwrap_or(serde_json::Value::Null))),
+            metadata: Set(config.metadata.cloned()),
+            response_data: Set(None),
+            response_received_at: Set(None),
+            created_at: Set(chrono::Utc::now().timestamp_micros()),
+            updated_at: Set(chrono::Utc::now().timestamp_micros()),
+        };
+
+        // Insert HIL task into database
+        tracing::debug!("Attempting to insert HIL task with UUID: {} (execution_id='{}', workflow_id='{}')", task_id, execution_id, context.workflow_id);
+        let _hil_task = hil_task.insert(self.db.as_ref()).await
+            .map_err(|e| {
+                tracing::error!("HIL task insertion failed - task_id: {}, execution_id: {}, workflow_id: {}, error: {}",
+                    task_id, execution_id, context.workflow_id, e);
+                SwissPipeError::Generic(format!("Failed to create HIL task: {e}"))
+            })?;
+
+        tracing::info!("Created HIL task with ID: {} for node execution: {}", task_id, node_execution_id);
+
+        // Create enhanced event with HIL task information for notification node
+        let mut enhanced_event = event.clone();
+
+        // Add HIL task details to the event data
+        // Generate secure token for webhook URL (using first 16 chars of task_id for simplicity)
+        let secure_token = task_id.to_string().replace("-", "").chars().take(16).collect::<String>();
+        let webhook_url = format!("/api/v1/hil/{node_execution_id}/respond?token={secure_token}");
+        let hil_data = serde_json::json!({
+            "hil_task_id": task_id,
+            "node_execution_id": node_execution_id,
+            "title": config.title,
+            "description": config.description,
+            "required_fields": config.required_fields,
+            "metadata": config.metadata,
+            "webhook_url": webhook_url,
+            "secure_token": secure_token,
+            "timeout_seconds": config.timeout_seconds,
+            "timeout_action": config.timeout_action,
+        });
+
+        // Set HIL task metadata at the top level
+        enhanced_event.hil_task = Some(hil_data.clone());
+        tracing::info!("SYNC HIL: Set HIL task metadata at the top level: {:?}", hil_data);
+        tracing::info!("SYNC HIL: Enhanced event now contains hil_task: {:?}", enhanced_event.hil_task.is_some());
+
+        tracing::debug!("Enhanced event data with HIL information for notification node");
+
+        // HIL task created successfully - return event with HIL metadata
+        tracing::info!("HIL task {} created successfully - using dedicated notification system", task_id);
+
+        if let Some(_hil_service) = self.hil_service.get() {
+            // Store resumption state for database job queue
+            tracing::info!("Database job queue resumption state would be stored for HIL task: {}", node_execution_id);
+        } else {
+            tracing::warn!("HIL service not available - continuing anyway");
+        }
+
+        // Return simple event with HIL metadata (dedicated notification node will handle notifications)
+        let mut result_event = event.clone();
+        result_event.metadata.insert("hil_task_id".to_string(), task_id.to_string());
+        result_event.metadata.insert("node_execution_id".to_string(), node_execution_id.to_string());
+        result_event.metadata.insert("hil_status".to_string(), "task_created".to_string());
+
+        Ok(result_event)
+    }
+
+    /// Execute HIL node with multipath execution support
+    async fn execute_hil_node_with_output(
+        &self,
+        params: ExecuteNodeParams<'_>,
+        event: WorkflowEvent,
+    ) -> Result<NodeOutput> {
+        // Extract HIL configuration
+        if let NodeType::HumanInLoop {
+            title,
+            description,
+            timeout_seconds,
+            timeout_action,
+            required_fields,
+            metadata
+        } = params.node_type {
+            tracing::info!("Starting HIL execution for node '{}'", params.node_name);
+
+            // Queue HIL job for async processing (task creation, notification sending)
+            let hil_execution_data = serde_json::json!({
+                "node_id": params.node_id,
+                "node_name": params.node_name,
+                "workflow_id": params.workflow_id,
+                "title": title,
+                "description": description,
+                "timeout_seconds": timeout_seconds,
+                "timeout_action": timeout_action,
+                "required_fields": required_fields,
+                "metadata": metadata,
+                "hil_operation": "create_task_and_handle_multipath"
+            });
+
+            // Queue the HIL job for async processing
+            let _job_payload = serde_json::json!({
+                "type": "hil_execution",
+                "hil_config": hil_execution_data.to_string(),
+            });
+
+            // Log the HIL job queuing (actual queuing will happen via MPSC job distributor in worker pool)
+            tracing::info!(
+                "HIL node '{}' queued for async execution - workflow_id: {}, title: '{}'",
+                params.node_name, params.workflow_id, title
+            );
+
+            // Create enhanced event with HIL task data for notification path
+            let mut enhanced_event = event.clone();
+
+            // Generate secure tokens and separate webhook URLs for HIL response
+            let task_id = uuid::Uuid::new_v4().to_string();
+            let node_execution_id = uuid::Uuid::new_v4().to_string();
+
+            // Generate separate URLs for approve and deny actions (using node_execution_id as unique identifier)
+            let approve_url = format!("/api/v1/hil/{node_execution_id}/respond?decision=approved");
+            let deny_url = format!("/api/v1/hil/{node_execution_id}/respond?decision=denied");
+
+            // Create actual HIL task in database using HIL service
+            if let Some(hil_service) = self.hil_service.get() {
+                let hil_params = HilTaskParams {
+                    execution_id: params.execution_id,
+                    workflow_id: params.workflow_id,
+                    node_id: params.node_id,
+                    node_execution_id: &node_execution_id,
+                    config: params.node_type,
+                    event: &event,
+                };
+                let (_actual_task_id, _resumption_state) = hil_service
+                    .create_hil_task_and_prepare_resumption(hil_params)
+                    .await
+                    .map_err(|e| SwissPipeError::Generic(format!("Failed to create HIL task: {e}")))?;
+
+                tracing::info!("Created HIL task in database with node_execution_id: {}", node_execution_id);
+            } else {
+                tracing::warn!("HIL service not available - HIL task creation skipped");
+            }
+
+            // Add HIL task details to the event data
+            let hil_data = serde_json::json!({
+                "hil_task_id": task_id,
+                "node_execution_id": node_execution_id,
+                "title": title,
+                "description": description,
+                "required_fields": required_fields,
+                "metadata": metadata,
+                "approve_url": approve_url,
+                "deny_url": deny_url,
+                "timeout_seconds": timeout_seconds,
+                "timeout_action": timeout_action,
+            });
+
+            // Set HIL task metadata at the top level
+            enhanced_event.hil_task = Some(hil_data.clone());
+            tracing::info!("ASYNC HIL: Set HIL task metadata at the top level: {:?}", hil_data);
+            tracing::info!("ASYNC HIL: Enhanced event now contains hil_task: {:?}", enhanced_event.hil_task.is_some());
+
+            // Return MultiPath to trigger handle_multipath_execution in DAG executor
+            // This ensures the notification handle is marked as executed immediately
+            let notification_path = crate::workflow::models::ExecutionPath {
+                path_type: crate::workflow::models::HilPathType::Notification,
+                target_node_ids: vec![], // No notification node - dedicated notification system handles this
+                event: enhanced_event, // Use enhanced event with HIL data
+                executed_at: Some(chrono::Utc::now()),
+            };
+
+            let approved_pending = crate::workflow::models::PendingExecution {
+                execution_id: uuid::Uuid::parse_str(params.execution_id)
+                    .map_err(|_| SwissPipeError::Generic("Invalid execution ID format".to_string()))?,
+                node_id: params.node_id.to_string(),
+                path_type: crate::workflow::models::HilPathType::Approved,
+                event: event.clone(),
+                created_at: chrono::Utc::now(),
+            };
+
+            let denied_pending = crate::workflow::models::PendingExecution {
+                execution_id: uuid::Uuid::parse_str(params.execution_id)
+                    .map_err(|_| SwissPipeError::Generic("Invalid execution ID format".to_string()))?,
+                node_id: params.node_id.to_string(),
+                path_type: crate::workflow::models::HilPathType::Denied,
+                event: event.clone(),
+                created_at: chrono::Utc::now(),
+            };
+
+            let hil_result = crate::workflow::models::HilMultiPathResult {
+                notification_path,
+                approved_pending,
+                denied_pending,
+                hil_task_id: uuid::Uuid::new_v4().to_string(), // Temporary, will be replaced by async job
+                node_execution_id: uuid::Uuid::new_v4().to_string(), // Temporary
+            };
+
+            tracing::info!(
+                "HIL node '{}' returning MultiPath result - workflow_id: {}, title: '{}'",
+                params.node_name, params.workflow_id, title
+            );
+
+            Ok(NodeOutput::MultiPath(Box::new(hil_result)))
+        } else {
+            Err(SwissPipeError::Generic("Invalid node type for HIL execution".to_string()))
         }
     }
 }

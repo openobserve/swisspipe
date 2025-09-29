@@ -6,13 +6,14 @@ import {
   DEFAULT_OPENOBSERVE_CONFIG,
   DEFAULT_DELAY_CONFIG,
   DEFAULT_ANTHROPIC_CONFIG,
+  DEFAULT_HUMAN_IN_LOOP_CONFIG,
   NODE_TYPE_DESCRIPTIONS
 } from '../constants/nodeDefaults'
 import type { NodeConfig, TriggerConfig, ConditionConfig, TransformerConfig } from '../types/nodes'
 import type { NodeType } from '../types/workflow'
 import { debugLog } from './debug'
 
-export type ApiNodeType = 'trigger' | 'condition' | 'transformer' | 'http-request' | 'openobserve' | 'email' | 'delay' | 'anthropic'
+export type ApiNodeType = 'trigger' | 'condition' | 'transformer' | 'http-request' | 'openobserve' | 'email' | 'delay' | 'anthropic' | 'human-in-loop'
 
 export function convertApiNodeTypeToVueFlowType(nodeType: NodeType): ApiNodeType {
   if ('Trigger' in nodeType) return 'trigger'
@@ -23,6 +24,7 @@ export function convertApiNodeTypeToVueFlowType(nodeType: NodeType): ApiNodeType
   if ('Email' in nodeType) return 'email'
   if ('Delay' in nodeType) return 'delay'
   if ('Anthropic' in nodeType) return 'anthropic'
+  if ('HumanInLoop' in nodeType) return 'human-in-loop'
 
   // Legacy support for old App nodes
   if ('App' in nodeType) {
@@ -44,6 +46,7 @@ export function getNodeDescription(nodeType: NodeType): string {
   if ('Email' in nodeType) return NODE_TYPE_DESCRIPTIONS.Email
   if ('Delay' in nodeType) return NODE_TYPE_DESCRIPTIONS.Delay
   if ('Anthropic' in nodeType) return NODE_TYPE_DESCRIPTIONS.Anthropic
+  if ('HumanInLoop' in nodeType) return NODE_TYPE_DESCRIPTIONS.HumanInLoop
   if ('App' in nodeType) return NODE_TYPE_DESCRIPTIONS.App
   return 'Unknown node type'
 }
@@ -139,6 +142,18 @@ export function convertApiNodeConfigToVueFlowConfig(nodeType: NodeType): NodeCon
       timeout_seconds: nodeType.Anthropic.timeout_seconds || DEFAULT_ANTHROPIC_CONFIG.timeout_seconds,
       failure_action: nodeType.Anthropic.failure_action || DEFAULT_ANTHROPIC_CONFIG.failure_action,
       retry_config: nodeType.Anthropic.retry_config || DEFAULT_ANTHROPIC_CONFIG.retry_config
+    }
+  }
+
+  if ('HumanInLoop' in nodeType) {
+    return {
+      type: 'human-in-loop' as const,
+      title: nodeType.HumanInLoop.title || DEFAULT_HUMAN_IN_LOOP_CONFIG.title,
+      description: nodeType.HumanInLoop.description || DEFAULT_HUMAN_IN_LOOP_CONFIG.description,
+      timeout_seconds: nodeType.HumanInLoop.timeout_seconds || DEFAULT_HUMAN_IN_LOOP_CONFIG.timeout_seconds,
+      timeout_action: nodeType.HumanInLoop.timeout_action || DEFAULT_HUMAN_IN_LOOP_CONFIG.timeout_action,
+      required_fields: nodeType.HumanInLoop.required_fields || DEFAULT_HUMAN_IN_LOOP_CONFIG.required_fields,
+      metadata: nodeType.HumanInLoop.metadata || DEFAULT_HUMAN_IN_LOOP_CONFIG.metadata
     }
   }
 
@@ -300,6 +315,19 @@ export function convertNodeToApiType(node: { type: string; data: { config: NodeC
           timeout_seconds: anthropicConfig.timeout_seconds || DEFAULT_ANTHROPIC_CONFIG.timeout_seconds,
           failure_action: anthropicConfig.failure_action || DEFAULT_ANTHROPIC_CONFIG.failure_action,
           retry_config: anthropicConfig.retry_config || DEFAULT_ANTHROPIC_CONFIG.retry_config
+        }
+      }
+
+    case 'human-in-loop':
+      const hilConfig = node.data.config as unknown as Record<string, unknown>
+      return {
+        HumanInLoop: {
+          title: hilConfig.title || DEFAULT_HUMAN_IN_LOOP_CONFIG.title,
+          description: hilConfig.description || DEFAULT_HUMAN_IN_LOOP_CONFIG.description,
+          timeout_seconds: hilConfig.timeout_seconds || DEFAULT_HUMAN_IN_LOOP_CONFIG.timeout_seconds,
+          timeout_action: hilConfig.timeout_action || DEFAULT_HUMAN_IN_LOOP_CONFIG.timeout_action,
+          required_fields: hilConfig.required_fields || DEFAULT_HUMAN_IN_LOOP_CONFIG.required_fields,
+          metadata: hilConfig.metadata || DEFAULT_HUMAN_IN_LOOP_CONFIG.metadata
         }
       }
 

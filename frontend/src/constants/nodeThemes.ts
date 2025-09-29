@@ -89,6 +89,15 @@ export const NODE_THEMES = {
     boxShadow: '0 8px 32px rgba(16, 185, 129, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
     boxShadowHover: '0 12px 40px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
     borderDefault: 'border-green-400/30'
+  },
+  'human-in-loop': {
+    color: 'red',
+    background: 'rgba(220, 38, 38, 0.12)',
+    backgroundHover: 'rgba(220, 38, 38, 0.18)',
+    border: 'rgba(220, 38, 38, 0.25)',
+    boxShadow: '0 8px 32px rgba(220, 38, 38, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+    boxShadowHover: '0 12px 40px rgba(220, 38, 38, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+    borderDefault: 'border-red-400/30'
   }
 } as const
 

@@ -125,134 +125,8 @@ impl ExecutionService {
         Ok(steps)
     }
 
-    /// Update execution status
-    pub async fn update_execution_status(
-        &self,
-        execution_id: &str,
-        status: ExecutionStatus,
-        current_node_id: Option<String>,
-        error_message: Option<String>,
-    ) -> Result<()> {
-        self.update_execution_status_with_txn(self.db.as_ref(), execution_id, status, current_node_id, error_message).await
-    }
 
-    /// Update execution status with transaction support
-    async fn update_execution_status_with_txn<C>(
-        &self,
-        conn: &C,
-        execution_id: &str,
-        status: ExecutionStatus,
-        current_node_id: Option<String>,
-        error_message: Option<String>,
-    ) -> Result<()>
-    where
-        C: sea_orm::ConnectionTrait,
-    {
-        let current_execution = workflow_executions::Entity::find_by_id(execution_id)
-            .one(conn)
-            .await?
-            .ok_or_else(|| SwissPipeError::WorkflowNotFound(execution_id.to_string()))?;
 
-        let mut execution: workflow_executions::ActiveModel = current_execution.clone().into();
-        execution.status = Set(status.to_string());
-        execution.current_node_id = Set(current_node_id);
-        execution.error_message = Set(error_message);
-
-        let now = chrono::Utc::now().timestamp_micros();
-        match status {
-            ExecutionStatus::Running => {
-                // Set started_at when changing to Running status if it's currently None
-                if current_execution.started_at.is_none() {
-                    execution.started_at = Set(Some(now));
-                    tracing::info!("Setting started_at for execution {} at {}", execution_id, now);
-                }
-            }
-            ExecutionStatus::Completed | ExecutionStatus::Failed | ExecutionStatus::Cancelled => {
-                execution.completed_at = Set(Some(now));
-            }
-            _ => {}
-        }
-
-        execution.update(conn).await?;
-        tracing::info!("Updated execution {} status to {}", execution_id, status);
-
-        Ok(())
-    }
-
-    /// Create an execution step record
-    pub async fn create_execution_step(
-        &self,
-        execution_id: String,
-        node_id: String,
-        node_name: String,
-        input_data: Option<Value>,
-    ) -> Result<String> {
-        let step_id = Uuid::now_v7().to_string();
-        let now = chrono::Utc::now().timestamp_micros();
-
-        let step = workflow_execution_steps::ActiveModel {
-            id: Set(step_id.clone()),
-            execution_id: Set(execution_id),
-            node_id: Set(node_id),
-            node_name: Set(node_name),
-            status: Set(StepStatus::Pending.to_string()),
-            input_data: Set(input_data.map(|v| serde_json::to_string(&v).unwrap_or_default())),
-            output_data: Set(None),
-            error_message: Set(None),
-            started_at: Set(None),
-            completed_at: Set(None),
-            created_at: Set(now),
-        };
-
-        step.insert(self.db.as_ref()).await?;
-        tracing::debug!("Created execution step {}", step_id);
-
-        Ok(step_id)
-    }
-
-    /// Update execution step
-    pub async fn update_execution_step(
-        &self,
-        step_id: &str,
-        status: StepStatus,
-        output_data: Option<Value>,
-        error_message: Option<String>,
-    ) -> Result<()> {
-        let mut step: workflow_execution_steps::ActiveModel = workflow_execution_steps::Entity::find_by_id(step_id)
-            .one(self.db.as_ref())
-            .await?
-            .ok_or_else(|| SwissPipeError::WorkflowNotFound(step_id.to_string()))?
-            .into();
-
-        step.status = Set(status.to_string());
-        step.output_data = Set(output_data.map(|v| serde_json::to_string(&v).unwrap_or_default()));
-        step.error_message = Set(error_message);
-
-        let now = chrono::Utc::now().timestamp_micros();
-        match status {
-            StepStatus::Running => {
-                // Always set started_at when changing to Running status if it's currently None
-                let current_step = workflow_execution_steps::Entity::find_by_id(step_id)
-                    .one(self.db.as_ref())
-                    .await?
-                    .ok_or_else(|| SwissPipeError::WorkflowNotFound(step_id.to_string()))?;
-                
-                if current_step.started_at.is_none() {
-                    step.started_at = Set(Some(now));
-                    tracing::debug!("Setting started_at for step {} at {}", step_id, now);
-                }
-            }
-            StepStatus::Completed | StepStatus::Failed | StepStatus::Skipped | StepStatus::Cancelled => {
-                step.completed_at = Set(Some(now));
-            }
-            _ => {}
-        }
-
-        step.update(self.db.as_ref()).await?;
-        tracing::debug!("Updated execution step {} status to {}", step_id, status);
-
-        Ok(())
-    }
 
     /// Cancel execution comprehensively - cancel jobs, steps (delays handled at WorkerPool level)
     pub async fn cancel_execution(&self, execution_id: &str) -> Result<()> {
@@ -264,13 +138,19 @@ impl ExecutionService {
         let txn = self.db.begin().await?;
         
         // Update execution status first (using transaction)
-        self.update_execution_status_with_txn(
-            &txn,
-            execution_id,
-            ExecutionStatus::Cancelled,
-            None,
-            Some("Execution cancelled by user".to_string()),
-        ).await?;
+        let current_execution = workflow_executions::Entity::find_by_id(execution_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| SwissPipeError::WorkflowNotFound(execution_id.to_string()))?;
+
+        let mut execution: workflow_executions::ActiveModel = current_execution.clone().into();
+        execution.status = Set(ExecutionStatus::Cancelled.to_string());
+        execution.current_node_id = Set(None);
+        execution.error_message = Set(Some("Execution cancelled by user".to_string()));
+
+        let now = chrono::Utc::now().timestamp_micros();
+        execution.completed_at = Set(Some(now));
+        execution.update(&txn).await?;
 
         // Cancel ALL jobs for this execution (pending, claimed, processing)
         let jobs = job_queue::Entity::find()

@@ -110,6 +110,7 @@ impl TemplateEngine {
             "metadata": workflow_event.metadata,
             "headers": workflow_event.headers,
             "condition_results": workflow_event.condition_results,
+            "hil_task": workflow_event.hil_task,
         }));
         
         // Add workflow data (legacy support)

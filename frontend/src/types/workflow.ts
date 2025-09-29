@@ -11,6 +11,7 @@ export interface Edge {
   from_node_id: string
   to_node_id: string
   condition_result?: boolean
+  source_handle_id?: string // Added for 3-handle routing support
 }
 
 export interface Workflow {
@@ -49,9 +50,10 @@ export interface EdgeRequest {
   from_node_id: string
   to_node_id: string
   condition_result?: boolean
+  source_handle_id?: string // Added for 3-handle routing support
 }
 
-export type NodeType = TriggerNode | ConditionNode | TransformerNode | HttpRequestNode | OpenObserveNode | AppNode | EmailNode | DelayNode | AnthropicNode
+export type NodeType = TriggerNode | ConditionNode | TransformerNode | HttpRequestNode | OpenObserveNode | AppNode | EmailNode | DelayNode | AnthropicNode | HumanInLoopNode
 
 export interface TriggerNode {
   Trigger: {
@@ -153,6 +155,17 @@ export interface AnthropicNode {
     timeout_seconds: number
     failure_action: FailureAction
     retry_config: RetryConfig
+  }
+}
+
+export interface HumanInLoopNode {
+  HumanInLoop: {
+    title: string
+    description?: string
+    timeout_seconds?: number
+    timeout_action?: string
+    required_fields?: string[]
+    metadata?: Record<string, any>
   }
 }
 

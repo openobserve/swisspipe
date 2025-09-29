@@ -49,6 +49,7 @@ pub async fn generate_code(
         metadata: std::collections::HashMap::new(),
         headers: std::collections::HashMap::new(),
         condition_results: std::collections::HashMap::new(),
+        hil_task: None,
     };
 
     // Default configuration for code generation
@@ -187,6 +188,7 @@ async fn generate_workflow_with_ai(
         metadata: std::collections::HashMap::new(),
         headers: std::collections::HashMap::new(),
         condition_results: std::collections::HashMap::new(),
+        hil_task: None,
     };
 
     // Configure retry for AI calls
@@ -634,10 +636,15 @@ fn extract_workflow_components(parsed: serde_json::Value) -> Result<CreateWorkfl
         let condition_result = edge_json.get("condition_result")
             .and_then(|v| v.as_bool());
 
+        let source_handle_id = edge_json.get("source_handle_id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
         edges.push(EdgeRequest {
             from_node_id,
             to_node_id,
             condition_result,
+            source_handle_id,
         });
     }
 
@@ -787,6 +794,7 @@ async fn create_workflow_from_ai_spec(
             NodeType::Delay { .. } => "delay".to_string(),
             NodeType::Anthropic { .. } => "anthropic".to_string(),
             NodeType::OpenObserve { .. } => "openobserve".to_string(),
+            NodeType::HumanInLoop { .. } => "human_in_loop".to_string(),
         };
 
         // Serialize full config to JSON
@@ -818,6 +826,7 @@ async fn create_workflow_from_ai_spec(
             from_node_id: Set(edge.from_node_id.clone()),
             to_node_id: Set(edge.to_node_id.clone()),
             condition_result: Set(edge.condition_result),
+            source_handle_id: Set(edge.source_handle_id.clone()),
             created_at: Set(now),
         };
 

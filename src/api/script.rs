@@ -157,5 +157,6 @@ fn create_workflow_event(input_data: Value) -> WorkflowEvent {
         metadata: HashMap::new(),
         headers: HashMap::new(),
         condition_results: HashMap::new(),
+        hil_task: None,
     }
 }

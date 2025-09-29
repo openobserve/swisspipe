@@ -145,6 +145,8 @@ const subtitleColorClass = computed(() => {
 .node-openobserve:hover,
 .node-email:hover,
 .node-delay:hover,
+.node-anthropic:hover,
+.node-human-in-loop:hover,
 .node-app:hover {
   transform: translateY(-1px);
 }
@@ -194,8 +196,22 @@ const subtitleColorClass = computed(() => {
 
 .node-delay:hover {
   background: rgba(107, 114, 128, 0.18) !important;
-  box-shadow: 
+  box-shadow:
     0 12px 40px rgba(107, 114, 128, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+.node-anthropic:hover {
+  background: rgba(217, 119, 6, 0.18) !important;
+  box-shadow:
+    0 12px 40px rgba(217, 119, 6, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+.node-human-in-loop:hover {
+  background: rgba(220, 38, 38, 0.18) !important;
+  box-shadow:
+    0 12px 40px rgba(220, 38, 38, 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
 }
 </style>

@@ -244,6 +244,7 @@ pub async fn create_workflow(
         from_node_id: e.from_node_id.clone(),
         to_node_id: e.to_node_id.clone(),
         condition_result: e.condition_result,
+        source_handle_id: e.source_handle_id.clone(), // Support for 3-handle routing
     }).collect();
 
     // Validate workflow structure
@@ -339,6 +340,7 @@ pub async fn create_workflow(
                 NodeType::Email { .. } => "email".to_string(),
                 NodeType::Delay { .. } => "delay".to_string(),
                 NodeType::Anthropic { .. } => "anthropic".to_string(),
+                NodeType::HumanInLoop { .. } => "human_in_loop".to_string(),
             }),
             config: Set(node_config),
             position_x: Set(position_x),
@@ -368,6 +370,7 @@ pub async fn create_workflow(
             from_node_id: Set(edge_req.from_node_id.clone()),
             to_node_id: Set(edge_req.to_node_id.clone()),
             condition_result: Set(edge_req.condition_result),
+            source_handle_id: Set(edge_req.source_handle_id.clone()),
             ..Default::default()
         };
 
@@ -445,6 +448,7 @@ pub async fn create_workflow(
             from_node_id: edge.from_node_id.clone(),
             to_node_id: edge.to_node_id.clone(),
             condition_result: edge.condition_result,
+            source_handle_id: edge.source_handle_id.clone(),
         })
         .collect();
 
@@ -535,6 +539,7 @@ pub async fn get_workflow(
             from_node_id: edge.from_node_id.clone(),
             to_node_id: edge.to_node_id.clone(),
             condition_result: edge.condition_result,
+            source_handle_id: edge.source_handle_id.clone(),
         })
         .collect();
 

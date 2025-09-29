@@ -1,7 +1,15 @@
 use crate::workflow::errors::SwissPipeError;
-use crate::async_execution::worker_pool::WorkerPoolConfig;
 use std::env;
 use url::Url;
+
+#[derive(Clone, Debug)]
+pub struct WorkerPoolConfig {
+    pub worker_count: usize,
+    pub job_poll_interval_ms: u64,
+    pub job_claim_timeout_seconds: u32,
+    pub worker_health_check_interval_seconds: u64,
+    pub job_claim_cleanup_interval_seconds: u64,
+}
 
 #[derive(Clone, Debug)]
 pub struct Config {

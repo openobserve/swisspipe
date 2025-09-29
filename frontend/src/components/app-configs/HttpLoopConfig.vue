@@ -302,7 +302,7 @@ function updateTerminationCondition(key: keyof TerminationCondition, value: stri
     action: 'Success'
   }
 
-  let updatedCondition = { ...currentCondition, [key]: value }
+  const updatedCondition = { ...currentCondition, [key]: value }
 
   // Basic JavaScript validation for script changes
   if (key === 'script') {

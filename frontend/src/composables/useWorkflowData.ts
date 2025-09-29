@@ -53,13 +53,23 @@ export function useWorkflowData() {
         // Use node IDs for edge connections
         const sourceNode = workflow.nodes.find(n => n.id === edge.from_node_id)
         const targetNode = workflow.nodes.find(n => n.id === edge.to_node_id)
-        
+
         if (sourceNode && targetNode) {
+          // Map source_handle_id from API to VueFlow sourceHandle
+          let sourceHandle = undefined
+          if (edge.source_handle_id) {
+            sourceHandle = edge.source_handle_id
+          } else if (edge.condition_result === true) {
+            sourceHandle = 'true'
+          } else if (edge.condition_result === false) {
+            sourceHandle = 'false'
+          }
+
           const vueFlowEdge = {
             id: edge.id,
             source: sourceNode.id,
             target: targetNode.id,
-            sourceHandle: edge.condition_result === true ? 'true' : edge.condition_result === false ? 'false' : undefined,
+            sourceHandle,
             targetHandle: undefined,
             data: {}
           }
@@ -117,11 +127,59 @@ export function useWorkflowData() {
 
       // Convert Vue Flow edges to API format
       const apiEdges = nodeStore.edges.map(edge => {
-        return {
+        // Map VueFlow sourceHandle to API source_handle_id
+        const result: {
+          from_node_id: string
+          to_node_id: string
+          condition_result?: boolean
+          source_handle_id?: string
+        } = {
           from_node_id: edge.source,
-          to_node_id: edge.target,
-          condition_result: edge.sourceHandle === 'true' ? true : edge.sourceHandle === 'false' ? false : undefined
+          to_node_id: edge.target
         }
+
+        if (edge.sourceHandle) {
+          // Handle HIL node handles (approved, denied, notification)
+          if (['approved', 'denied', 'notification'].includes(edge.sourceHandle)) {
+            result.source_handle_id = edge.sourceHandle
+          }
+          // Handle condition node handles (true, false)
+          else if (edge.sourceHandle === 'true') {
+            result.condition_result = true
+          } else if (edge.sourceHandle === 'false') {
+            result.condition_result = false
+          }
+          // Handle other specific handles
+          else {
+            result.source_handle_id = edge.sourceHandle
+          }
+        } else {
+          // Check if source is HIL node and infer missing handle
+          const sourceNode = nodeStore.nodes.find(n => n.id === edge.source)
+          if (sourceNode && sourceNode.type === 'human-in-loop') {
+            // Check which HIL handles are already used by other edges
+            const otherHilEdges = nodeStore.edges.filter(e =>
+              e.source === edge.source &&
+              e.id !== edge.id &&
+              e.sourceHandle
+            )
+            const usedHandles = otherHilEdges.map(e => e.sourceHandle)
+
+            // Infer the missing handle (should be approved if not used)
+            if (!usedHandles.includes('approved')) {
+              result.source_handle_id = 'approved'
+              console.log('Inferred missing approved handle for HIL edge:', edge.id)
+            } else if (!usedHandles.includes('denied')) {
+              result.source_handle_id = 'denied'
+              console.log('Inferred missing denied handle for HIL edge:', edge.id)
+            } else if (!usedHandles.includes('notification')) {
+              result.source_handle_id = 'notification'
+              console.log('Inferred missing notification handle for HIL edge:', edge.id)
+            }
+          }
+        }
+
+        return result
       })
 
       const workflowData = {

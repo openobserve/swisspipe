@@ -12,7 +12,6 @@ use crate::database::scheduled_delays::{DelayStatus};
 use crate::database::job_queue::JobStatus;
 use crate::workflow::errors::{SwissPipeError, Result};
 use crate::workflow::models::{WorkflowEvent};
-use crate::async_execution::JobManager;
 use sea_orm::DatabaseConnection;
 
 pub struct DelayScheduler {
@@ -23,7 +22,6 @@ pub struct DelayScheduler {
 
 impl DelayScheduler {
     pub async fn new(
-        _job_manager: Arc<JobManager>,  // Keep parameter for compatibility but don't store
         db: Arc<DatabaseConnection>,
     ) -> Result<Self> {
         tracing::info!("Creating DelayScheduler with tokio timers...");
