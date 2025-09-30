@@ -539,9 +539,15 @@ async function onExecutionSelect() {
         const predecessorOutput = await findImmediatePredecessorOutput(props.nodeId, stepsResponse.steps)
 
         if (predecessorOutput) {
-          // Use immediate predecessor's output as input data
-          inputData.value = JSON.stringify(predecessorOutput, null, 2)
-          console.log('Using immediate predecessor output as input data for condition')
+          // Wrap predecessor output in WorkflowEvent structure (same as what condition nodes receive at runtime)
+          const workflowEvent = {
+            data: predecessorOutput,
+            metadata: {},
+            headers: {},
+            condition_results: {}
+          }
+          inputData.value = JSON.stringify(workflowEvent, null, 2)
+          console.log('Using immediate predecessor output wrapped in WorkflowEvent structure')
         } else {
           // Show informational message when no predecessor data available
           const incomingEdges = (nodeStore.edges as WorkflowEdge[] | undefined)?.filter(e => e.target === props.nodeId) || []
