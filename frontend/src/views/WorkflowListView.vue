@@ -345,7 +345,8 @@ import { ref, onMounted, computed, h } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   MagnifyingGlassIcon,
-  PencilIcon
+  PencilIcon,
+  ClipboardDocumentListIcon
 } from '@heroicons/vue/24/outline'
 import {
   useVueTable,
@@ -356,6 +357,7 @@ import {
   FlexRender
 } from '@tanstack/vue-table'
 import { useWorkflowStore } from '../stores/workflows'
+import { useExecutionStore } from '../stores/executions'
 import HeaderComponent from '../components/HeaderComponent.vue'
 import AIWorkflowChat from '../components/AIWorkflowChat.vue'
 import type { Workflow } from '../types/workflow'
@@ -363,6 +365,7 @@ import { formatDate } from '../utils/formatting'
 
 const router = useRouter()
 const workflowStore = useWorkflowStore()
+const executionStore = useExecutionStore()
 
 const showCreateModal = ref(false)
 const showImportModal = ref(false)
@@ -463,6 +466,16 @@ const columns = computed<ColumnDef<Workflow>[]>(() => [
         class: 'flex items-center justify-end space-x-2'
       }, [
         h('button', {
+          class: 'text-blue-400 hover:text-blue-300 transition-colors',
+          title: 'View Executions',
+          onClick: (e: Event) => {
+            e.stopPropagation()
+            navigateToExecutions(workflow)
+          }
+        }, [
+          h(ClipboardDocumentListIcon, { class: 'h-5 w-5' })
+        ]),
+        h('button', {
           class: 'text-primary-400 hover:text-primary-300 transition-colors',
           title: 'Edit',
           onClick: (e: Event) => {
@@ -548,6 +561,13 @@ onMounted(() => {
 
 function navigateToDesigner(workflowId: string) {
   router.push(`/workflows/${workflowId}`)
+}
+
+function navigateToExecutions(workflow: Workflow) {
+  // Set the workflow name filter in the execution store
+  executionStore.workflowNameFilter = workflow.name
+  // Navigate to executions view
+  router.push('/executions')
 }
 
 async function createWorkflow() {
