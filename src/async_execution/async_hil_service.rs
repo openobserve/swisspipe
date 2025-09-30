@@ -11,6 +11,7 @@ use crate::workflow::{
     engine::WorkflowEngine,
 };
 use crate::async_execution::mpsc_job_distributor::MpscJobDistributor;
+use crate::log_workflow_error;
 
 /// Async-only HIL Service that eliminates foreign key constraint issues
 /// by ensuring execution records exist before creating HIL tasks
@@ -146,7 +147,7 @@ impl AsyncHilService {
 
         hil_task.insert(&txn).await
             .map_err(|e| {
-                tracing::error!("HIL task creation failed - task_id: {}, execution_id: {}, error: {}", task_id, execution_id, e);
+                log_workflow_error!(&context.workflow_id, execution_id, &context.node_id, "HIL task creation failed", e);
                 SwissPipeError::Generic(format!("Failed to create HIL task: {e}"))
             })?;
 

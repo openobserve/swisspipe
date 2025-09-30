@@ -58,7 +58,7 @@ impl DelayScheduler {
         let delay_model = scheduled_delays::ActiveModel {
             id: Set(delay_id.clone()),
             execution_id: Set(execution_id.clone()),
-            current_node_id: Set(current_node_id),     // Node ID field
+            current_node_id: Set(current_node_id.clone()),     // Node ID field
             next_node_id: Set(next_node_id.clone()),   // Node ID field
             scheduled_at: Set(scheduled_at_micros),
             status: Set(DelayStatus::Pending.to_string()),
@@ -69,7 +69,12 @@ impl DelayScheduler {
 
         let _delay_record = delay_model.insert(&txn).await
             .map_err(|e| {
-                tracing::error!("Failed to insert delay record: {}", e);
+                tracing::error!(
+                    execution_id = %execution_id,
+                    current_node_id = %current_node_id,
+                    error = %e,
+                    "Failed to insert delay record"
+                );
                 SwissPipeError::Generic(format!("Database insert failed: {e}"))
             })?;
 
@@ -105,7 +110,11 @@ impl DelayScheduler {
             
             tracing::info!("Delay task woken for delay_id: {}", delay_id_clone);
             if let Err(e) = Self::trigger_delay_direct(db_clone, delay_id_clone.clone()).await {
-                tracing::error!("Failed to trigger delay {}: {}", delay_id_clone, e);
+                tracing::error!(
+                    delay_id = %delay_id_clone,
+                    error = %e,
+                    "Failed to trigger delay"
+                );
             }
             
             // Clean up completed task handle to prevent memory leak
@@ -255,7 +264,13 @@ impl DelayScheduler {
                     tracing::debug!("Cancelled delay {} for execution {}", delay_record.id, execution_id);
                 }
                 Err(e) => {
-                    tracing::error!("Failed to cancel delay {} for execution {}: {}", delay_record.id, execution_id, e);
+                    tracing::error!(
+                        execution_id = %execution_id,
+                        delay_id = %delay_record.id,
+                        current_node_id = %delay_record.current_node_id,
+                        error = %e,
+                        "Failed to cancel delay for execution"
+                    );
                 }
             }
         }
@@ -302,23 +317,40 @@ impl DelayScheduler {
                         tracing::debug!("Created immediate trigger job for overdue delay: {}", delay_record.id);
                     }
                     Err(e) => {
-                        tracing::error!("Failed to create immediate trigger job for overdue delay {}: {}", delay_record.id, e);
+                        tracing::error!(
+                            execution_id = %delay_record.execution_id,
+                            delay_id = %delay_record.id,
+                            current_node_id = %delay_record.current_node_id,
+                            next_node_id = %delay_record.next_node_id,
+                            error = %e,
+                            "Failed to create immediate trigger job for overdue delay"
+                        );
                         // Continue processing other delays even if this one fails
                     }
                 }
             } else {
                 // Future delay with sufficient time remaining - reschedule safely
                 let delay_id = delay_record.id.clone();
+                let execution_id = delay_record.execution_id.clone();
+                let current_node_id = delay_record.current_node_id.clone();
+                let next_node_id = delay_record.next_node_id.clone();
                 let remaining_seconds = (delay_record.scheduled_at - now) / 1_000_000;
                 tracing::info!("Restoring future delay: {} (remaining: {}s)", delay_id, remaining_seconds);
-                
+
                 match self.restore_single_delay(delay_record).await {
                     Ok(restored_delay_id) => {
                         restored_count += 1;
                         tracing::debug!("Restored scheduled delay: {}", restored_delay_id);
                     }
                     Err(e) => {
-                        tracing::error!("Failed to restore delay {}: {}", delay_id, e);
+                        tracing::error!(
+                            execution_id = %execution_id,
+                            delay_id = %delay_id,
+                            current_node_id = %current_node_id,
+                            next_node_id = %next_node_id,
+                            error = %e,
+                            "Failed to restore delay"
+                        );
                         // Continue processing other delays even if this one fails
                     }
                 }
@@ -397,8 +429,14 @@ impl DelayScheduler {
         let now = Utc::now();
         let time_diff = scheduled_at - now;
         if time_diff.num_seconds() <= 5 {  // If <= 5 seconds remaining, treat as overdue
-            tracing::warn!("Delay {} is overdue or very close ({}s remaining), triggering immediately instead of restoring", 
-                delay_record.id, time_diff.num_seconds());
+            tracing::warn!(
+                execution_id = %delay_record.execution_id,
+                delay_id = %delay_record.id,
+                current_node_id = %delay_record.current_node_id,
+                next_node_id = %delay_record.next_node_id,
+                remaining_seconds = time_diff.num_seconds(),
+                "Delay is overdue or very close, triggering immediately instead of restoring"
+            );
             return self.create_immediate_trigger_job(&delay_record).await.map(|_| delay_record.id);
         }
         
@@ -415,7 +453,14 @@ impl DelayScheduler {
         let wake_time = match Instant::now().checked_add(sleep_duration) {
             Some(time) => time,
             None => {
-                tracing::error!("Duration overflow when restoring delay {}, triggering immediately", delay_record.id);
+                tracing::error!(
+                    execution_id = %delay_record.execution_id,
+                    delay_id = %delay_record.id,
+                    current_node_id = %delay_record.current_node_id,
+                    next_node_id = %delay_record.next_node_id,
+                    duration_secs = duration_secs,
+                    "Duration overflow when restoring delay, triggering immediately"
+                );
                 return self.create_immediate_trigger_job(&delay_record).await.map(|_| delay_record.id);
             }
         };
@@ -429,7 +474,11 @@ impl DelayScheduler {
             
             tracing::info!("Restored delay task woken for delay_id: {}", delay_id_clone);
             if let Err(e) = Self::trigger_delay_direct(db_clone, delay_id_clone.clone()).await {
-                tracing::error!("Failed to trigger restored delay {}: {}", delay_id_clone, e);
+                tracing::error!(
+                    delay_id = %delay_id_clone,
+                    error = %e,
+                    "Failed to trigger restored delay"
+                );
             }
             
             // Clean up completed task handle to prevent memory leak

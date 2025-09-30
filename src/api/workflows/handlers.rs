@@ -7,7 +7,7 @@ use sea_orm::{ActiveModelTrait, EntityTrait, Set, ColumnTrait, QueryFilter, Quer
 use serde::Deserialize;
 use std::collections::HashMap;
 use uuid::Uuid;
-use tracing::{info, warn, error, debug};
+use tracing::{info, debug};
 
 use crate::{
     database::{edges, entities, nodes},
@@ -50,7 +50,11 @@ where
         let body_bytes = match axum::body::to_bytes(req.into_body(), usize::MAX).await {
             Ok(bytes) => bytes,
             Err(err) => {
-                tracing::error!("Failed to read request body bytes: {}", err);
+                tracing::error!(
+                    error_type = "body_read_error",
+                    error = %err,
+                    "Failed to read request body bytes"
+                );
                 return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
                     error: "BODY_READ_ERROR".to_string(),
                     message: "Failed to read request body".to_string(),
@@ -62,7 +66,11 @@ where
         tracing::debug!("Request body size: {} bytes", body_bytes.len());
 
         if body_bytes.is_empty() {
-            tracing::error!("Request body is completely empty - this explains the EOF error");
+            tracing::error!(
+                error_type = "empty_body",
+                body_size = 0,
+                "Request body is completely empty - this explains the EOF error"
+            );
             return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
                 error: "EMPTY_BODY".to_string(),
                 message: "Request body is empty".to_string(),
@@ -86,7 +94,11 @@ where
         match serde_json::from_slice::<T>(&body_bytes) {
             Ok(value) => Ok(JsonWithBetterErrors(value)),
             Err(err) => {
-                tracing::error!("JSON deserialization failed: {}", err);
+                tracing::error!(
+                    error_type = "json_deserialization_failed",
+                    error = %err,
+                    "JSON deserialization failed"
+                );
 
                 Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
                     error: "INVALID_JSON".to_string(),
@@ -154,7 +166,12 @@ pub async fn list_workflows(
         .all(&*state.db)
         .await
         .map_err(|e| {
-            error!("Database error in list_workflows: {}", e);
+            tracing::error!(
+                error_type = "database_error",
+                operation = "list_workflows",
+                error = %e,
+                "Database error in list_workflows"
+            );
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                 error: "DATABASE_ERROR".to_string(),
                 message: "Failed to fetch workflows from database".to_string(),
@@ -173,7 +190,10 @@ pub async fn list_workflows(
                 name: w.name,
                 description: w.description,
                 start_node_id: w.start_node_id.unwrap_or_else(|| {
-                    warn!("Workflow {} has no start_node_id", workflow_id);
+                    tracing::warn!(
+                        workflow_id = %workflow_id,
+                        "Workflow has no start_node_id"
+                    );
                     String::new() // More efficient than "".to_string()
                 }),
                 enabled: w.enabled,
@@ -217,7 +237,12 @@ pub async fn search_workflows(
         .all(&*state.db)
         .await
         .map_err(|e| {
-            error!("Database error in search_workflows: {}", e);
+            tracing::error!(
+                error_type = "database_error",
+                operation = "search_workflows",
+                error = %e,
+                "Database error in search_workflows"
+            );
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                 error: "DATABASE_ERROR".to_string(),
                 message: "Failed to search workflows in database".to_string(),
@@ -261,8 +286,10 @@ pub async fn create_workflow(
             Some(node) => {
                 if !matches!(node.node_type, NodeType::Trigger { .. }) {
                     tracing::warn!(
-                        "Provided start_node_id '{}' is not a trigger node: workflow_name='{}'",
-                        provided_start_id, request.name
+                        start_node_id = %provided_start_id,
+                        workflow_name = %request.name,
+                        error_type = "invalid_start_node",
+                        "Provided start_node_id is not a trigger node"
                     );
                     return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
                         error: "INVALID_START_NODE".to_string(),
@@ -274,8 +301,10 @@ pub async fn create_workflow(
             }
             None => {
                 tracing::warn!(
-                    "Provided start_node_id '{}' not found in nodes list: workflow_name='{}'",
-                    provided_start_id, request.name
+                    start_node_id = %provided_start_id,
+                    workflow_name = %request.name,
+                    error_type = "start_node_not_found",
+                    "Provided start_node_id not found in nodes list"
                 );
                 return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
                     error: "START_NODE_NOT_FOUND".to_string(),
@@ -323,8 +352,12 @@ pub async fn create_workflow(
         &edges,
     ) {
         tracing::warn!(
-            "Workflow creation validation failed: workflow_name='{}', nodes_count={}, edges_count={}, error='{}'",
-            request.name, nodes.len(), edges.len(), validation_error
+            workflow_name = %request.name,
+            nodes_count = nodes.len(),
+            edges_count = edges.len(),
+            error = %validation_error,
+            error_type = "workflow_validation_failed",
+            "Workflow creation validation failed"
         );
         return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
             error: "WORKFLOW_VALIDATION_FAILED".to_string(),
@@ -336,7 +369,11 @@ pub async fn create_workflow(
     // Check for warnings and log them
     let warnings = WorkflowValidator::validate_condition_completeness(&nodes, &edges);
     for warning in warnings {
-        tracing::warn!("Workflow creation warning: workflow_name='{}', warning='{}'", request.name, warning);
+        tracing::warn!(
+            workflow_name = %request.name,
+            warning = %warning,
+            "Workflow creation warning"
+        );
     }
 
     // Create workflow
@@ -352,8 +389,13 @@ pub async fn create_workflow(
         .insert(&*state.db)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to create workflow: workflow_id={}, name='{}', error={:?}",
-                           workflow_id, request.name, e);
+            tracing::error!(
+                workflow_id = %workflow_id,
+                workflow_name = %request.name,
+                error = ?e,
+                error_type = "database_error",
+                "Failed to create workflow"
+            );
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                 error: "DATABASE_ERROR".to_string(),
                 message: "Failed to create workflow".to_string(),
@@ -365,8 +407,13 @@ pub async fn create_workflow(
     for node in &nodes {
         let node_config = serde_json::to_string(&node.node_type)
             .map_err(|e| {
-                tracing::error!("Failed to serialize node config during creation: workflow_id={}, node_id={}, error={:?}",
-                               workflow_id, node.id, e);
+                tracing::error!(
+                    workflow_id = %workflow_id,
+                    node_id = %node.id,
+                    error = ?e,
+                    error_type = "node_config_serialization_error",
+                    "Failed to serialize node config during creation"
+                );
                 (StatusCode::BAD_REQUEST, Json(ErrorResponse {
                     error: "NODE_CONFIG_ERROR".to_string(),
                     message: format!("Failed to serialize configuration for node '{}'", node.name),
@@ -420,8 +467,14 @@ pub async fn create_workflow(
             .insert(&*state.db)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to create node: workflow_id={}, node_id={}, node_name='{}', error={:?}",
-                               workflow_id, node.id, node.name, e);
+                tracing::error!(
+                    workflow_id = %workflow_id,
+                    node_id = %node.id,
+                    node_name = %node.name,
+                    error = ?e,
+                    error_type = "database_error",
+                    "Failed to create node"
+                );
                 (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                     error: "DATABASE_ERROR".to_string(),
                     message: format!("Failed to create node '{}'", node.name),
@@ -446,8 +499,14 @@ pub async fn create_workflow(
             .insert(&*state.db)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to create edge: workflow_id={}, from_node={}, to_node={}, error={:?}",
-                               workflow_id, edge_req.from_node_id, edge_req.to_node_id, e);
+                tracing::error!(
+                    workflow_id = %workflow_id,
+                    from_node_id = %edge_req.from_node_id,
+                    to_node_id = %edge_req.to_node_id,
+                    error = ?e,
+                    error_type = "database_error",
+                    "Failed to create edge"
+                );
                 (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                     error: "DATABASE_ERROR".to_string(),
                     message: "Failed to create workflow edge".to_string(),
@@ -462,7 +521,12 @@ pub async fn create_workflow(
         .all(&*state.db)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to fetch created nodes: workflow_id={}, error={:?}", workflow_id, e);
+            tracing::error!(
+                workflow_id = %workflow_id,
+                error = ?e,
+                error_type = "database_error",
+                "Failed to fetch created nodes"
+            );
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                 error: "DATABASE_ERROR".to_string(),
                 message: "Failed to fetch created workflow nodes".to_string(),
@@ -476,7 +540,12 @@ pub async fn create_workflow(
         .all(&*state.db)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to fetch created edges: workflow_id={}, error={:?}", workflow_id, e);
+            tracing::error!(
+                workflow_id = %workflow_id,
+                error = ?e,
+                error_type = "database_error",
+                "Failed to fetch created edges"
+            );
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                 error: "DATABASE_ERROR".to_string(),
                 message: "Failed to fetch created workflow edges".to_string(),
@@ -547,11 +616,19 @@ pub async fn get_workflow(
         .one(&*state.db)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to fetch workflow: workflow_id={}, error={:?}", id, e);
+            tracing::error!(
+                workflow_id = %id,
+                error = ?e,
+                error_type = "database_error",
+                "Failed to fetch workflow"
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         })?
         .ok_or_else(|| {
-            tracing::warn!("Workflow not found: workflow_id={}", id);
+            tracing::warn!(
+                workflow_id = %id,
+                "Workflow not found"
+            );
             StatusCode::NOT_FOUND
         })?;
 
@@ -561,7 +638,12 @@ pub async fn get_workflow(
         .all(&*state.db)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to fetch workflow nodes: workflow_id={}, error={:?}", id, e);
+            tracing::error!(
+                workflow_id = %id,
+                error = ?e,
+                error_type = "database_error",
+                "Failed to fetch workflow nodes"
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -571,7 +653,12 @@ pub async fn get_workflow(
         .all(&*state.db)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to fetch workflow edges: workflow_id={}, error={:?}", id, e);
+            tracing::error!(
+                workflow_id = %id,
+                error = ?e,
+                error_type = "database_error",
+                "Failed to fetch workflow edges"
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -616,7 +703,11 @@ pub async fn get_workflow(
         name: workflow.name,
         description: workflow.description,
         start_node_id: workflow.start_node_id.clone().ok_or_else(|| {
-            tracing::error!("Workflow {} missing start_node_id in get_workflow", workflow.id);
+            tracing::error!(
+                workflow_id = %workflow.id,
+                error_type = "missing_start_node_id",
+                "Workflow missing start_node_id in get_workflow"
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         })?,
         endpoint_url: format!("/api/v1/{}/trigger", workflow.id),
@@ -631,7 +722,10 @@ pub async fn get_workflow(
     if let Some(start_node_id) = &workflow.start_node_id {
         state.workflow_cache.put(id.clone(), start_node_id.clone()).await;
     } else {
-        tracing::warn!("Cannot cache workflow {} - missing start_node_id", id);
+        tracing::warn!(
+            workflow_id = %id,
+            "Cannot cache workflow - missing start_node_id"
+        );
     }
 
     Ok(Json(response))
@@ -648,14 +742,24 @@ pub async fn delete_workflow(
         .one(&*state.db)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to find workflow for disable: workflow_id={}, error={:?}", id, e);
+            tracing::error!(
+                workflow_id = %id,
+                error = ?e,
+                error_type = "database_error",
+                operation = "disable",
+                "Failed to find workflow for disable"
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
     let workflow = match workflow {
         Some(w) => w,
         None => {
-            tracing::warn!("Workflow not found for disable: workflow_id={}", id);
+            tracing::warn!(
+                workflow_id = %id,
+                operation = "disable",
+                "Workflow not found for disable"
+            );
             return Err(StatusCode::NOT_FOUND);
         }
     };
@@ -668,7 +772,12 @@ pub async fn delete_workflow(
     workflow.update(&*state.db)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to disable workflow: workflow_id={}, error={:?}", id, e);
+            tracing::error!(
+                workflow_id = %id,
+                error = ?e,
+                error_type = "database_error",
+                "Failed to disable workflow"
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -691,14 +800,24 @@ pub async fn enable_workflow(
         .one(&*state.db)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to find workflow for enable: workflow_id={}, error={:?}", id, e);
+            tracing::error!(
+                workflow_id = %id,
+                error = ?e,
+                error_type = "database_error",
+                operation = "enable",
+                "Failed to find workflow for enable"
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
     let workflow = match workflow {
         Some(w) => w,
         None => {
-            tracing::warn!("Workflow not found for enable: workflow_id={}", id);
+            tracing::warn!(
+                workflow_id = %id,
+                operation = "enable",
+                "Workflow not found for enable"
+            );
             return Err(StatusCode::NOT_FOUND);
         }
     };
@@ -711,7 +830,12 @@ pub async fn enable_workflow(
     workflow.update(&*state.db)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to enable workflow: workflow_id={}, error={:?}", id, e);
+            tracing::error!(
+                workflow_id = %id,
+                error = ?e,
+                error_type = "database_error",
+                "Failed to enable workflow"
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -737,7 +861,13 @@ pub async fn update_workflow(
         .all(&*state.db)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to fetch existing nodes for validation: workflow_id={}, error={:?}", id, e);
+            tracing::error!(
+                workflow_id = %id,
+                error = ?e,
+                error_type = "database_error",
+                operation = "validation",
+                "Failed to fetch existing nodes for validation"
+            );
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                 error: "DATABASE_ERROR".to_string(),
                 message: "Failed to fetch workflow data for validation".to_string(),
@@ -750,7 +880,13 @@ pub async fn update_workflow(
         .one(&*state.db)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to fetch workflow for validation: workflow_id={}, error={:?}", id, e);
+            tracing::error!(
+                workflow_id = %id,
+                error = ?e,
+                error_type = "database_error",
+                operation = "validation",
+                "Failed to fetch workflow for validation"
+            );
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                 error: "DATABASE_ERROR".to_string(),
                 message: "Failed to fetch workflow data".to_string(),
@@ -758,7 +894,11 @@ pub async fn update_workflow(
             }))
         })?
         .ok_or_else(|| {
-            tracing::warn!("Workflow not found for validation: workflow_id={}", id);
+            tracing::warn!(
+                workflow_id = %id,
+                operation = "validation",
+                "Workflow not found for validation"
+            );
             (StatusCode::NOT_FOUND, Json(ErrorResponse {
                 error: "WORKFLOW_NOT_FOUND".to_string(),
                 message: format!("Workflow '{id}' not found"),
@@ -767,7 +907,11 @@ pub async fn update_workflow(
         })?;
 
     let start_node_id = workflow.start_node_id.clone().ok_or_else(|| {
-        tracing::error!("Workflow {} has no start_node_id", id);
+        tracing::error!(
+            workflow_id = %id,
+            error_type = "invalid_workflow_state",
+            "Workflow has no start_node_id"
+        );
         (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
             error: "INVALID_WORKFLOW_STATE".to_string(),
             message: "Workflow is in invalid state - missing start node".to_string(),
@@ -779,8 +923,10 @@ pub async fn update_workflow(
     use super::validation::validate_workflow_update_request;
     if let Err(validation_error) = validate_workflow_update_request(&request, &start_node_id, &existing_nodes) {
         tracing::warn!(
-            "Workflow update validation failed: workflow_id={}, error='{}'",
-            id, validation_error
+            workflow_id = %id,
+            error = %validation_error,
+            error_type = "validation_failed",
+            "Workflow update validation failed"
         );
         return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
             error: "VALIDATION_FAILED".to_string(),

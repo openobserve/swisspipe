@@ -14,6 +14,7 @@ use crate::workflow::{
     engine::WorkflowEngine,
     errors::{Result, SwissPipeError},
 };
+use crate::{log_workflow_error, log_workflow_warn};
 // Removed unused ExecutionStatus import
 
 /// MPSC-enabled Worker Pool that receives jobs via channels instead of database polling
@@ -162,7 +163,10 @@ impl MpscWorkerPool {
                 tracing::info!("HTTP loop scheduler already set on workflow engine, skipping");
             }
             Err(e) => {
-                tracing::error!("Failed to set HTTP loop scheduler on workflow engine: {}", e);
+                tracing::error!(
+                    error = %e,
+                    "Failed to set HTTP loop scheduler on workflow engine"
+                );
                 return Err(e);
             }
         }
@@ -264,7 +268,11 @@ impl MpscWorkerPool {
                                 pool.processed_jobs.fetch_add(1, Ordering::SeqCst);
                             }
                             Err(e) => {
-                                tracing::error!("MPSC worker {} error processing job: {}", id, e);
+                                tracing::error!(
+                                    worker_id = %id,
+                                    error = %e,
+                                    "MPSC worker error processing job"
+                                );
                             }
                         }
                     }
@@ -296,7 +304,12 @@ impl MpscWorkerPool {
 
                     // Mark job as failed with cancellation message
                     if let Err(e) = self.mpsc_distributor.fail_job(&job_message.job_id, "Execution was cancelled").await {
-                        tracing::error!("Failed to mark cancelled MPSC job {} as failed: {}", job_message.job_id, e);
+                        log_workflow_error!(
+                            &job_message.execution_id,
+                            &job_message.execution_id,
+                            "Failed to mark cancelled MPSC job as failed",
+                            e
+                        );
                     }
 
                     // Update worker status back to idle
@@ -305,10 +318,19 @@ impl MpscWorkerPool {
                 }
             }
             Ok(None) => {
-                tracing::warn!("Execution {} not found for MPSC job {}", job_message.execution_id, job_message.job_id);
+                log_workflow_warn!(
+                    &job_message.execution_id,
+                    &job_message.execution_id,
+                    "Execution not found for MPSC job"
+                );
             }
             Err(e) => {
-                tracing::error!("Failed to check execution status for MPSC job {}: {}", job_message.job_id, e);
+                log_workflow_error!(
+                    &job_message.execution_id,
+                    &job_message.execution_id,
+                    "Failed to check execution status for MPSC job",
+                    e
+                );
             }
         }
 
@@ -323,7 +345,12 @@ impl MpscWorkerPool {
                             Ok(()) => {
                                 // Mark job as completed and update worker status
                                 if let Err(e) = self.mpsc_distributor.complete_job(&job_message.job_id).await {
-                                    tracing::error!("Failed to mark HIL resumption job {} as completed: {}", job_message.job_id, e);
+                                    log_workflow_error!(
+                                        &job_message.execution_id,
+                                        &job_message.execution_id,
+                                        "Failed to mark HIL resumption job as completed",
+                                        e
+                                    );
                                 }
                                 self.update_worker_status(worker_id, WorkerStatus::Idle, None).await;
                                 Ok(())
@@ -331,7 +358,12 @@ impl MpscWorkerPool {
                             Err(e) => {
                                 // Mark job as failed and update worker status
                                 if let Err(mark_err) = self.mpsc_distributor.fail_job(&job_message.job_id, &e.to_string()).await {
-                                    tracing::error!("Failed to mark HIL resumption job {} as failed: {}", job_message.job_id, mark_err);
+                                    log_workflow_error!(
+                                        &job_message.execution_id,
+                                        &job_message.execution_id,
+                                        "Failed to mark HIL resumption job as failed",
+                                        mark_err
+                                    );
                                 }
                                 self.update_worker_status(worker_id, WorkerStatus::Idle, None).await;
                                 Err(e)
@@ -359,7 +391,13 @@ impl MpscWorkerPool {
                                 // Process HIL job using AsyncHilService
                                 self.async_hil_service.process_hil_job(&job_message.execution_id, hil_config, &mock_event).await
                             } else {
-                                tracing::error!("HIL job missing hil_config in payload");
+                                let err = crate::workflow::errors::SwissPipeError::Generic("HIL job missing configuration".to_string());
+                                log_workflow_error!(
+                                    &job_message.execution_id,
+                                    &job_message.execution_id,
+                                    "HIL job missing hil_config in payload",
+                                    err
+                                );
                                 Err(crate::workflow::errors::SwissPipeError::Generic("HIL job missing configuration".to_string()))
                             }
                         },
@@ -380,11 +418,23 @@ impl MpscWorkerPool {
                                     // Execute the notification node using the workflow engine
                                     self.execute_notification_node(&job_message.execution_id, node_id, event).await
                                 } else {
-                                    tracing::error!("Failed to parse HIL notification event data");
+                                    let err = crate::workflow::errors::SwissPipeError::Generic("Invalid HIL notification event data".to_string());
+                                    log_workflow_error!(
+                                        &job_message.execution_id,
+                                        &job_message.execution_id,
+                                        "Failed to parse HIL notification event data",
+                                        err
+                                    );
                                     Err(crate::workflow::errors::SwissPipeError::Generic("Invalid HIL notification event data".to_string()))
                                 }
                             } else {
-                                tracing::error!("HIL notification job missing node_id or event data");
+                                let err = crate::workflow::errors::SwissPipeError::Generic("HIL notification job missing required data".to_string());
+                                log_workflow_error!(
+                                    &job_message.execution_id,
+                                    &job_message.execution_id,
+                                    "HIL notification job missing node_id or event data",
+                                    err
+                                );
                                 Err(crate::workflow::errors::SwissPipeError::Generic("HIL notification job missing required data".to_string()))
                             }
                         },
@@ -405,11 +455,23 @@ impl MpscWorkerPool {
                                     // Execute the node using the workflow engine's node executor
                                     self.execute_single_node(&job_message.execution_id, node_id, event).await
                                 } else {
-                                    tracing::error!("Failed to parse node execution event data");
+                                    let err = crate::workflow::errors::SwissPipeError::Generic("Invalid node execution event data".to_string());
+                                    log_workflow_error!(
+                                        &job_message.execution_id,
+                                        &job_message.execution_id,
+                                        "Failed to parse node execution event data",
+                                        err
+                                    );
                                     Err(crate::workflow::errors::SwissPipeError::Generic("Invalid node execution event data".to_string()))
                                 }
                             } else {
-                                tracing::error!("Node execution job missing node_id or event data");
+                                let err = crate::workflow::errors::SwissPipeError::Generic("Node execution job missing required data".to_string());
+                                log_workflow_error!(
+                                    &job_message.execution_id,
+                                    &job_message.execution_id,
+                                    "Node execution job missing node_id or event data",
+                                    err
+                                );
                                 Err(crate::workflow::errors::SwissPipeError::Generic("Node execution job missing required data".to_string()))
                             }
                         },
@@ -436,7 +498,12 @@ impl MpscWorkerPool {
             Ok(()) => {
                 // Mark job as completed in MPSC distributor
                 if let Err(e) = self.mpsc_distributor.complete_job(&job_message.job_id).await {
-                    tracing::error!("Failed to mark MPSC job {} as completed: {}", job_message.job_id, e);
+                    log_workflow_error!(
+                        &job_message.execution_id,
+                        &job_message.execution_id,
+                        "Failed to mark MPSC job as completed",
+                        e
+                    );
                 }
                 tracing::info!("MPSC job {} completed successfully", job_message.job_id);
             }
@@ -448,11 +515,22 @@ impl MpscWorkerPool {
                         if will_retry {
                             tracing::info!("MPSC job {} failed, will retry: {}", job_message.job_id, error_msg);
                         } else {
-                            tracing::error!("MPSC job {} failed permanently: {}", job_message.job_id, error_msg);
+                            let err = crate::workflow::errors::SwissPipeError::Generic(error_msg.clone());
+                            log_workflow_error!(
+                                &job_message.execution_id,
+                                &job_message.execution_id,
+                                "MPSC job failed permanently",
+                                err
+                            );
                         }
                     }
                     Err(fail_err) => {
-                        tracing::error!("Failed to mark MPSC job {} as failed: {}", job_message.job_id, fail_err);
+                        log_workflow_error!(
+                            &job_message.execution_id,
+                            &job_message.execution_id,
+                            "Failed to mark MPSC job as failed",
+                            fail_err
+                        );
                     }
                 }
             }
@@ -542,8 +620,12 @@ impl MpscWorkerPool {
         };
 
         if target_nodes.is_empty() {
-            tracing::warn!("No target nodes found for HIL decision '{}' from node {}",
-                         resumption_payload.resume_path, hil_task.node_id);
+            log_workflow_warn!(
+                &hil_task.workflow_id,
+                &hil_task.execution_id,
+                &hil_task.node_id,
+                "No target nodes found for HIL decision"
+            );
             return Ok(());
         }
 
@@ -637,8 +719,15 @@ impl MpscWorkerPool {
             use sea_orm::ActiveModelTrait;
             job.insert(self.db.as_ref()).await
                 .map_err(|e| {
-                    tracing::error!("Failed to create HIL continuation job for node {}: {}", target_node_id, e);
-                    SwissPipeError::Generic(format!("Failed to create continuation job: {e}"))
+                    let err_msg = format!("Failed to create continuation job: {e}");
+                    log_workflow_error!(
+                        &hil_task.workflow_id,
+                        &hil_task.execution_id,
+                        &target_node_id,
+                        "Failed to create HIL continuation job",
+                        SwissPipeError::Generic(err_msg.clone())
+                    );
+                    SwissPipeError::Generic(err_msg)
                 })?;
 
             tracing::info!("Created HIL continuation job {} for node {} in execution {}",
@@ -680,24 +769,46 @@ impl MpscWorkerPool {
                                 Ok(())
                             }
                             Err(e) => {
-                                tracing::error!("Failed to execute HIL notification node {}: {}", node_id, e);
+                                log_workflow_error!(
+                                    &execution.workflow_id,
+                                    execution_id,
+                                    node_id,
+                                    "Failed to execute HIL notification node",
+                                    e
+                                );
                                 Err(e)
                             }
                         }
                     } else {
                         let error_msg = format!("HIL notification node {node_id} not found in workflow");
-                        tracing::error!("{}", error_msg);
+                        let err = crate::workflow::errors::SwissPipeError::Generic(error_msg.clone());
+                        log_workflow_error!(
+                            &execution.workflow_id,
+                            execution_id,
+                            node_id,
+                            &error_msg,
+                            err
+                        );
                         Err(crate::workflow::errors::SwissPipeError::Generic(error_msg))
                     }
                 }
                 Err(e) => {
-                    tracing::error!("Failed to load workflow for HIL notification: {}", e);
+                    log_workflow_error!(
+                        &execution.workflow_id,
+                        execution_id,
+                        "Failed to load workflow for HIL notification",
+                        e
+                    );
                     Err(e)
                 }
             }
         } else {
             let error_msg = format!("Execution not found: {execution_id}");
-            tracing::error!("{}", error_msg);
+            tracing::error!(
+                execution_id = execution_id,
+                error = %error_msg,
+                "Execution not found"
+            );
             Err(crate::workflow::errors::SwissPipeError::Generic(error_msg))
         }
     }
@@ -748,24 +859,46 @@ impl MpscWorkerPool {
                                 Ok(())
                             }
                             Err(e) => {
-                                tracing::error!("Failed to execute target node {}: {}", node_id, e);
+                                log_workflow_error!(
+                                    &execution.workflow_id,
+                                    execution_id,
+                                    node_id,
+                                    "Failed to execute target node",
+                                    e
+                                );
                                 Err(e)
                             }
                         }
                     } else {
                         let error_msg = format!("Target node {node_id} not found in workflow");
-                        tracing::error!("{}", error_msg);
+                        let err = crate::workflow::errors::SwissPipeError::Generic(error_msg.clone());
+                        log_workflow_error!(
+                            &execution.workflow_id,
+                            execution_id,
+                            node_id,
+                            &error_msg,
+                            err
+                        );
                         Err(crate::workflow::errors::SwissPipeError::Generic(error_msg))
                     }
                 }
                 Err(e) => {
-                    tracing::error!("Failed to load workflow for single node execution: {}", e);
+                    log_workflow_error!(
+                        &execution.workflow_id,
+                        execution_id,
+                        "Failed to load workflow for single node execution",
+                        e
+                    );
                     Err(e)
                 }
             }
         } else {
             let error_msg = format!("Execution not found: {execution_id}");
-            tracing::error!("{}", error_msg);
+            tracing::error!(
+                execution_id = execution_id,
+                error = %error_msg,
+                "Execution not found"
+            );
             Err(crate::workflow::errors::SwissPipeError::Generic(error_msg))
         }
     }
@@ -784,7 +917,11 @@ impl MpscWorkerPool {
             .all(&*self.db)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to check pending HIL jobs for execution {}: {}", execution_id, e);
+                tracing::error!(
+                    execution_id = execution_id,
+                    error = %e,
+                    "Failed to check pending HIL jobs for execution"
+                );
                 crate::workflow::errors::SwissPipeError::Generic(format!("Database error: {e}"))
             })?;
 
@@ -800,11 +937,18 @@ impl MpscWorkerPool {
             .one(&*self.db)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to fetch execution {} for HIL completion check: {}", execution_id, e);
+                tracing::error!(
+                    execution_id = execution_id,
+                    error = %e,
+                    "Failed to fetch execution for HIL completion check"
+                );
                 crate::workflow::errors::SwissPipeError::Generic(format!("Database error: {e}"))
             })?
             .ok_or_else(|| {
-                tracing::error!("Execution {} not found for HIL completion check", execution_id);
+                tracing::error!(
+                    execution_id = execution_id,
+                    "Execution not found for HIL completion check"
+                );
                 crate::workflow::errors::SwissPipeError::Generic(format!("Execution not found: {execution_id}"))
             })?;
 
@@ -816,6 +960,7 @@ impl MpscWorkerPool {
         }
 
         // All HIL continuation jobs are complete, update the execution status to completed
+        let workflow_id = execution.workflow_id.clone();
         let mut execution_active: workflow_executions::ActiveModel = execution.into();
         execution_active.status = Set("completed".to_string());
         execution_active.completed_at = Set(Some(chrono::Utc::now().timestamp_micros()));
@@ -823,8 +968,14 @@ impl MpscWorkerPool {
 
         execution_active.update(&*self.db).await
             .map_err(|e| {
-                tracing::error!("Failed to update HIL workflow {} status to completed: {}", execution_id, e);
-                crate::workflow::errors::SwissPipeError::Generic(format!("Database error: {e}"))
+                let err_msg = format!("Database error: {e}");
+                log_workflow_error!(
+                    &workflow_id,
+                    execution_id,
+                    "Failed to update HIL workflow status to completed",
+                    crate::workflow::errors::SwissPipeError::Generic(err_msg.clone())
+                );
+                crate::workflow::errors::SwissPipeError::Generic(err_msg)
             })?;
 
         tracing::info!("HIL workflow {} completed - updated status from pending_human_input to completed", execution_id);
@@ -861,7 +1012,12 @@ impl MpscWorkerPool {
         // Load the workflow
         let workflow = self.workflow_engine.workflow_loader().load_workflow(&execution.workflow_id).await
             .map_err(|e| {
-                tracing::error!("Failed to load workflow {}: {}", execution.workflow_id, e);
+                log_workflow_error!(
+                    &execution.workflow_id,
+                    execution_id,
+                    "Failed to load workflow",
+                    e
+                );
                 e
             })?;
 
@@ -903,7 +1059,13 @@ impl MpscWorkerPool {
                     }
                 }
                 Err(e) => {
-                    tracing::error!("Failed to parse input data for execution {}: {}", execution_id, e);
+                    let err = crate::workflow::errors::SwissPipeError::Generic(format!("Invalid input data: {e}"));
+                    log_workflow_error!(
+                        &execution.workflow_id,
+                        execution_id,
+                        "Failed to parse input data for execution",
+                        err
+                    );
                     return Err(crate::workflow::errors::SwissPipeError::Generic(format!("Invalid input data: {e}")));
                 }
             }
@@ -970,9 +1132,13 @@ impl MpscWorkerPool {
 
                 // Workflow failure is tracked here in workflow_executions table
                 // Individual node failures are tracked as steps in NodeExecutor
-                tracing::error!("Workflow execution failed: {}", e);
+                log_workflow_error!(
+                    &execution.workflow_id,
+                    execution_id,
+                    "Workflow execution failed",
+                    e
+                );
 
-                tracing::error!("Workflow execution failed for {}: {}", execution_id, e);
                 false
             }
         };
@@ -1029,10 +1195,17 @@ impl MpscWorkerPool {
                         tracing::debug!("MPSC worker {} stopped gracefully", worker.id);
                     }
                     Ok(Err(e)) => {
-                        tracing::error!("MPSC worker {} stopped with error: {}", worker.id, e);
+                        tracing::error!(
+                            worker_id = %worker.id,
+                            error = %e,
+                            "MPSC worker stopped with error"
+                        );
                     }
                     Err(_) => {
-                        tracing::warn!("MPSC worker {} shutdown timed out", worker.id);
+                        tracing::warn!(
+                            worker_id = %worker.id,
+                            "MPSC worker shutdown timed out"
+                        );
                     }
                 }
                 worker.status = WorkerStatus::Stopped;
@@ -1065,12 +1238,19 @@ impl MpscWorkerPool {
                     }
                 }
                 Err(e) => {
-                    tracing::error!("Failed to cancel delays for MPSC execution {}: {}", execution_id, e);
+                    tracing::error!(
+                        execution_id = execution_id,
+                        error = %e,
+                        "Failed to cancel delays for MPSC execution"
+                    );
                     // Don't fail the entire cancellation if delay cancellation fails
                 }
             }
         } else {
-            tracing::warn!("DelayScheduler not available for cancelling delays in MPSC execution {}", execution_id);
+            tracing::warn!(
+                execution_id = execution_id,
+                "DelayScheduler not available for cancelling delays in MPSC execution"
+            );
         }
 
         tracing::info!("Completed comprehensive MPSC execution cancellation for: {}", execution_id);

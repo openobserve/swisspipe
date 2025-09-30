@@ -95,7 +95,10 @@ impl MpscJobDistributor {
                                 }
                             }
                             Err(e) => {
-                                tracing::error!("MPSC_AUDIT: Job distribution error - error: {}", e);
+                                tracing::error!(
+                                    error = %e,
+                                    "MPSC_AUDIT: Job distribution error"
+                                );
 
                                 // Update failure metrics
                                 let mut m = metrics.write().await;
@@ -130,7 +133,10 @@ impl MpscJobDistributor {
         ).await {
             Ok(lock) => lock,
             Err(_) => {
-                tracing::error!("MPSC_AUDIT: Global job consumer lock timeout after 30 seconds - potential deadlock detected");
+                tracing::error!(
+                    timeout_seconds = 30,
+                    "MPSC_AUDIT: Global job consumer lock timeout - potential deadlock detected"
+                );
                 return Err(SwissPipeError::Generic(
                     "Job consumer lock timeout - potential deadlock detected".to_string()
                 ));
@@ -174,14 +180,22 @@ impl MpscJobDistributor {
                 Some(_) => {
                     // Job already claimed or processed, skip it
                     if let Err(e) = txn.commit().await {
-                        tracing::warn!("MPSC_AUDIT: Failed to commit transaction for already claimed job {}: {}", job.id, e);
+                        tracing::warn!(
+                            job_id = %job.id,
+                            error = %e,
+                            "MPSC_AUDIT: Failed to commit transaction for already claimed job"
+                        );
                     }
                     continue;
                 }
                 None => {
                     // Job no longer exists, skip it
                     if let Err(e) = txn.commit().await {
-                        tracing::warn!("MPSC_AUDIT: Failed to commit transaction for non-existent job {}: {}", job.id, e);
+                        tracing::warn!(
+                            job_id = %job.id,
+                            error = %e,
+                            "MPSC_AUDIT: Failed to commit transaction for non-existent job"
+                        );
                     }
                     continue;
                 }
@@ -199,14 +213,24 @@ impl MpscJobDistributor {
                 Ok(_) => {
                     // Commit immediately after claiming
                     if let Err(e) = txn.commit().await {
-                        tracing::error!("MPSC_AUDIT: Failed to commit job claim for {}: {}", current_job.id, e);
+                        tracing::error!(
+                            job_id = %current_job.id,
+                            execution_id = %current_job.execution_id,
+                            error = %e,
+                            "MPSC_AUDIT: Failed to commit job claim"
+                        );
                         continue;
                     }
                 }
                 Err(e) => {
                     tracing::debug!("MPSC_AUDIT: Failed to claim job {} (likely race condition): {}", current_job.id, e);
                     if let Err(rollback_err) = txn.rollback().await {
-                        tracing::warn!("MPSC_AUDIT: Failed to rollback transaction for job {}: {}", current_job.id, rollback_err);
+                        tracing::warn!(
+                            job_id = %current_job.id,
+                            execution_id = %current_job.execution_id,
+                            error = %rollback_err,
+                            "MPSC_AUDIT: Failed to rollback transaction for job"
+                        );
                     }
                     continue;
                 }
@@ -224,7 +248,12 @@ impl MpscJobDistributor {
 
             // Send to worker channel (unbounded, so this won't block)
             if let Err(e) = job_sender.send(job_message) {
-                tracing::error!("MPSC_AUDIT: Failed to send job to channel - job_id: {}, error: {}", current_job.id, e);
+                tracing::error!(
+                    job_id = %current_job.id,
+                    execution_id = %current_job.execution_id,
+                    error = %e,
+                    "MPSC_AUDIT: Failed to send job to channel"
+                );
 
                 // Increment failure metrics
                 let mut m = metrics.write().await;
@@ -372,7 +401,10 @@ impl MpscJobDistributor {
 
         // Signal shutdown to consumer
         if let Err(e) = self.shutdown_sender.send(()) {
-            tracing::warn!("MPSC_AUDIT: Failed to send shutdown signal: {}", e);
+            tracing::warn!(
+                error = %e,
+                "MPSC_AUDIT: Failed to send shutdown signal"
+            );
         }
 
         // Give consumer time to process remaining jobs

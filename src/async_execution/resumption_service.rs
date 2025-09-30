@@ -151,7 +151,11 @@ impl ResumptionService {
         }
 
         let count = stale_jobs.len();
-        tracing::warn!("Found {} stale jobs, resetting to pending", count);
+        tracing::warn!(
+            stale_job_count = count,
+            stale_timeout_minutes = stale_timeout_minutes,
+            "Found stale jobs, resetting to pending"
+        );
 
         let txn = self.db.begin().await?;
         let now = chrono::Utc::now().timestamp_micros();
@@ -229,8 +233,9 @@ impl ResumptionService {
                     // But since we're here, let's restart from this step
                     let node_id = step.node_id.clone();
                     tracing::warn!(
-                        "Found failed step '{}' for execution {}, will retry from here",
-                        node_id, execution_id
+                        execution_id = %execution_id,
+                        node_id = %node_id,
+                        "Found failed step for execution, will retry from here"
                     );
                     return Ok(ResumeInfo {
                         resume_node: Some(node_id),
@@ -244,8 +249,8 @@ impl ResumptionService {
         // All steps are completed - this shouldn't happen for interrupted executions
         // But let's be safe and restart from beginning
         tracing::warn!(
-            "All steps completed for interrupted execution {}, restarting from beginning",
-            execution_id
+            execution_id = %execution_id,
+            "All steps completed for interrupted execution, restarting from beginning"
         );
         Ok(ResumeInfo {
             resume_node: None,

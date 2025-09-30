@@ -12,6 +12,7 @@ use crate::workflow::models::{WorkflowEvent, LoopConfig, BackoffStrategy, Termin
 use crate::utils::{http_client::AppExecutor, javascript::JavaScriptExecutor};
 use crate::workflow::models::{HttpMethod, RetryConfig};
 use sea_orm::DatabaseConnection;
+use crate::{log_workflow_error, log_workflow_warn};
 
 // Constants for configuration limits and defaults
 #[allow(dead_code)]
@@ -48,6 +49,42 @@ pub struct HttpLoopResponse {
 }
 
 impl HttpLoopScheduler {
+    /// Parse execution_id from execution_step_id (format: "{execution_id}_{node_id}")
+    fn parse_execution_id(execution_step_id: &str) -> &str {
+        if let Some(underscore_pos) = execution_step_id.find('_') {
+            &execution_step_id[..underscore_pos]
+        } else {
+            execution_step_id
+        }
+    }
+
+    /// Parse node_id from execution_step_id (format: "{execution_id}_{node_id}")
+    fn parse_node_id(execution_step_id: &str) -> &str {
+        if let Some(underscore_pos) = execution_step_id.find('_') {
+            &execution_step_id[underscore_pos + 1..]
+        } else {
+            "unknown"
+        }
+    }
+
+    /// Get workflow_id from execution_step_id by querying the database
+    async fn get_workflow_id_from_step(db: &DatabaseConnection, execution_step_id: &str) -> Option<String> {
+        use crate::database::workflow_executions;
+        use sea_orm::EntityTrait;
+
+        // First get the execution step to find execution_id
+        let execution_id = Self::parse_execution_id(execution_step_id);
+
+        // Then get the workflow execution to find workflow_id
+        match workflow_executions::Entity::find_by_id(execution_id)
+            .one(db)
+            .await
+        {
+            Ok(Some(execution)) => Some(execution.workflow_id),
+            _ => None,
+        }
+    }
+
     pub async fn new(db: Arc<DatabaseConnection>, config: crate::config::HttpLoopConfig) -> Result<Self> {
         tracing::info!("Creating HttpLoopScheduler...");
 
@@ -90,6 +127,7 @@ impl HttpLoopScheduler {
                     loop_tasks.clone(),
                     scheduler_config.clone(),
                 ).await {
+                    // This is a system-level error without specific workflow context
                     tracing::error!("Error processing ready loops: {}", e);
                 }
             }
@@ -133,7 +171,15 @@ impl HttpLoopScheduler {
             let loop_config = match Self::create_loop_config_from_state(&loop_state) {
                 Ok(config) => config,
                 Err(e) => {
-                    tracing::error!("Failed to create loop config for {}: {}", loop_id, e);
+                    // Get workflow context for logging
+                    let execution_id = Self::parse_execution_id(&loop_state.execution_step_id);
+                    let node_id = Self::parse_node_id(&loop_state.execution_step_id);
+                    if let Some(workflow_id) = Self::get_workflow_id_from_step(db.as_ref(), &loop_state.execution_step_id).await {
+                        log_workflow_error!(&workflow_id, execution_id, node_id,
+                            format!("Failed to create loop config for {}", loop_id), e);
+                    } else {
+                        tracing::error!("Failed to create loop config for {}: {}", loop_id, e);
+                    }
                     continue;
                 }
             };
@@ -159,9 +205,18 @@ impl HttpLoopScheduler {
                 let js_executor_clone = js_executor.clone();
                 let loop_id_clone = loop_id.clone();
                 let scheduler_config_clone = scheduler_config.clone();
+                let execution_step_id_clone = loop_config.execution_step_id.clone();
                 let task = tokio::spawn(async move {
-                    if let Err(e) = Self::execute_loop_iteration(db_clone, app_executor_clone, js_executor_clone, loop_config, scheduler_config_clone).await {
-                        tracing::error!("HTTP loop iteration failed for {}: {}", loop_id_clone, e);
+                    if let Err(e) = Self::execute_loop_iteration(db_clone.clone(), app_executor_clone, js_executor_clone, loop_config, scheduler_config_clone).await {
+                        // Get workflow context for logging
+                        let execution_id = Self::parse_execution_id(&execution_step_id_clone);
+                        let node_id = Self::parse_node_id(&execution_step_id_clone);
+                        if let Some(workflow_id) = Self::get_workflow_id_from_step(db_clone.as_ref(), &execution_step_id_clone).await {
+                            log_workflow_error!(&workflow_id, execution_id, node_id,
+                                format!("HTTP loop iteration failed for {}", loop_id_clone), e);
+                        } else {
+                            tracing::error!("HTTP loop iteration failed for {}: {}", loop_id_clone, e);
+                        }
                     }
                 });
 
@@ -200,6 +255,7 @@ impl HttpLoopScheduler {
             "DELETE" => crate::workflow::models::HttpMethod::Delete,
             "PATCH" => crate::workflow::models::HttpMethod::Patch,
             _ => {
+                // This is a system-level validation warning, no workflow context needed
                 tracing::warn!("Unknown HTTP method '{}', defaulting to GET", loop_state.method);
                 crate::workflow::models::HttpMethod::Get
             }
@@ -268,14 +324,30 @@ impl HttpLoopScheduler {
             let _loop_config = match Self::create_loop_config_from_state(&loop_state) {
                 Ok(config) => config,
                 Err(e) => {
-                    tracing::error!("Failed to create config for loop {}: {}, skipping", loop_id, e);
+                    // Get workflow context for logging
+                    let execution_id = Self::parse_execution_id(&loop_state.execution_step_id);
+                    let node_id = Self::parse_node_id(&loop_state.execution_step_id);
+                    if let Some(workflow_id) = Self::get_workflow_id_from_step(self.db.as_ref(), &loop_state.execution_step_id).await {
+                        log_workflow_error!(&workflow_id, execution_id, node_id,
+                            format!("Failed to create config for loop {}, skipping", loop_id), e);
+                    } else {
+                        tracing::error!("Failed to create config for loop {}: {}, skipping", loop_id, e);
+                    }
                     continue;
                 }
             };
 
             // Set next execution time to now (resume immediately)
             if let Err(e) = self.update_next_execution_time(&loop_id, chrono::Utc::now()).await {
-                tracing::error!("Failed to update next execution time for loop {}: {}", loop_id, e);
+                // Get workflow context for logging
+                let execution_id = Self::parse_execution_id(&loop_state.execution_step_id);
+                let node_id = Self::parse_node_id(&loop_state.execution_step_id);
+                if let Some(workflow_id) = Self::get_workflow_id_from_step(self.db.as_ref(), &loop_state.execution_step_id).await {
+                    log_workflow_error!(&workflow_id, execution_id, node_id,
+                        format!("Failed to update next execution time for loop {}", loop_id), e);
+                } else {
+                    tracing::error!("Failed to update next execution time for loop {}: {}", loop_id, e);
+                }
                 continue;
             }
 
@@ -421,6 +493,7 @@ impl HttpLoopScheduler {
 
             // Add detailed logging for immediate completion
             if poll_count == 0 && matches!(status, LoopStatus::Completed | LoopStatus::Failed | LoopStatus::Cancelled) {
+                // This is a system-level race condition warning
                 tracing::warn!("Loop {} completed immediately after scheduling - possible race condition! Status: {:?}, Iteration: {}, Reason: {:?}",
                     loop_id, status, loop_state.current_iteration, loop_state.termination_reason);
             }
@@ -453,11 +526,27 @@ impl HttpLoopScheduler {
                     }
                 }
                 LoopStatus::Failed => {
-                    tracing::warn!("HTTP loop failed: {}", loop_id);
+                    // Get workflow context for logging
+                    let execution_id = Self::parse_execution_id(&loop_state.execution_step_id);
+                    let node_id = Self::parse_node_id(&loop_state.execution_step_id);
+                    if let Some(workflow_id) = Self::get_workflow_id_from_step(self.db.as_ref(), &loop_state.execution_step_id).await {
+                        log_workflow_warn!(&workflow_id, execution_id, node_id,
+                            format!("HTTP loop failed: {}", loop_id));
+                    } else {
+                        tracing::warn!("HTTP loop failed: {}", loop_id);
+                    }
                     return Err(SwissPipeError::Generic(format!("HTTP loop failed: {loop_id}")));
                 }
                 LoopStatus::Cancelled => {
-                    tracing::warn!("HTTP loop was cancelled: {}", loop_id);
+                    // Get workflow context for logging
+                    let execution_id = Self::parse_execution_id(&loop_state.execution_step_id);
+                    let node_id = Self::parse_node_id(&loop_state.execution_step_id);
+                    if let Some(workflow_id) = Self::get_workflow_id_from_step(self.db.as_ref(), &loop_state.execution_step_id).await {
+                        log_workflow_warn!(&workflow_id, execution_id, node_id,
+                            format!("HTTP loop was cancelled: {}", loop_id));
+                    } else {
+                        tracing::warn!("HTTP loop was cancelled: {}", loop_id);
+                    }
                     return Err(SwissPipeError::Generic(format!("HTTP loop was cancelled: {loop_id}")));
                 }
                 LoopStatus::Running | LoopStatus::Paused => {
@@ -606,10 +695,19 @@ impl HttpLoopScheduler {
         let app_executor = Arc::clone(&self.app_executor);
         let js_executor = Arc::clone(&self.js_executor);
         let scheduler_config = self.config.clone();
+        let execution_step_id = config.execution_step_id.clone();
 
         tokio::spawn(async move {
-            if let Err(e) = Self::execute_loop_iteration(db, app_executor, js_executor, config, scheduler_config).await {
-                tracing::error!("HTTP loop iteration failed: {}", e);
+            if let Err(e) = Self::execute_loop_iteration(db.clone(), app_executor, js_executor, config, scheduler_config).await {
+                // Get workflow context for logging
+                let execution_id = Self::parse_execution_id(&execution_step_id);
+                let node_id = Self::parse_node_id(&execution_step_id);
+                if let Some(workflow_id) = Self::get_workflow_id_from_step(db.as_ref(), &execution_step_id).await {
+                    log_workflow_error!(&workflow_id, execution_id, node_id,
+                        "HTTP loop iteration failed".to_string(), e);
+                } else {
+                    tracing::error!("HTTP loop iteration failed: {}", e);
+                }
             }
         })
     }
@@ -704,7 +802,15 @@ impl HttpLoopScheduler {
                 }
                 Err(e) => {
                     let error_str = e.to_string();
-                    tracing::warn!("HTTP request execution failed for loop {} iteration {}: {}", loop_id, iteration_num, error_str);
+                    // Get workflow context for logging
+                    let execution_id = Self::parse_execution_id(&config.execution_step_id);
+                    let node_id = Self::parse_node_id(&config.execution_step_id);
+                    if let Some(workflow_id) = Self::get_workflow_id_from_step(db.as_ref(), &config.execution_step_id).await {
+                        log_workflow_warn!(&workflow_id, execution_id, node_id,
+                            format!("HTTP request execution failed for loop {} iteration {}: {}", loop_id, iteration_num, error_str));
+                    } else {
+                        tracing::warn!("HTTP request execution failed for loop {} iteration {}: {}", loop_id, iteration_num, error_str);
+                    }
                     let error = SwissPipeError::Generic(format!("HTTP loop execution failed: {e}"));
                     (false, None, None, Some(error_str), Err(error))
                 }
@@ -875,6 +981,7 @@ impl HttpLoopScheduler {
             }
             Err(SwissPipeError::App(crate::workflow::errors::AppError::InvalidStatus { status })) => {
                 // HTTP response with non-2xx status code - we still want to capture this
+                // This is an informational log at INFO level, no workflow context needed
                 tracing::info!("HTTP loop captured non-success response: status {}", status);
 
                 // We need to make another request to capture the response body for non-2xx responses
@@ -895,6 +1002,7 @@ impl HttpLoopScheduler {
             }
             Err(e) => {
                 // Network error, timeout, or other failure
+                // This is already logged in execute_loop_iteration_internal, no need to duplicate
                 tracing::warn!("HTTP loop request failed: {}", e);
 
                 let mut error_event = event.clone();
@@ -1099,6 +1207,7 @@ impl HttpLoopScheduler {
                     return Ok(false);
                 }
                 Err(e) => {
+                    // This is a script evaluation error - system-level warning
                     tracing::warn!("Termination condition evaluation error: {} - Script: {}", e, condition.script.chars().take(100).collect::<String>());
                     return Ok(false); // Don't fail loop on condition errors
                 }
@@ -1215,6 +1324,7 @@ impl HttpLoopScheduler {
                         Ok(interval)
                     }
                     Err(e) => {
+                        // This is a script execution error - system-level error without specific workflow context
                         tracing::error!("Custom backoff strategy execution failed: {}, using current interval: {}", e, current_interval);
                         Ok(current_interval)
                     }
@@ -1395,6 +1505,7 @@ impl HttpLoopScheduler {
                 Ok(())
             }
             Err(e) => {
+                // This is a database-level error - system-level without workflow context
                 tracing::error!("Failed to insert loop state: {}", e);
                 Err(SwissPipeError::Generic(format!("Failed to insert loop state: {e}")))
             }
@@ -1458,6 +1569,7 @@ impl HttpLoopScheduler {
             }
             Err(e) => {
                 if let Err(rollback_err) = txn.rollback().await {
+                    // This is a database transaction error - system-level
                     tracing::error!("Failed to rollback transaction for loop {}: {}", loop_id, rollback_err);
                 }
                 Err(e)

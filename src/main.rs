@@ -40,8 +40,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load environment variables from .env file
     dotenvy::dotenv().ok();
 
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
+    // Initialize tracing with JSON format for structured logging
+    tracing_subscriber::fmt()
+        .json()
+        .with_current_span(false)
+        .with_span_list(false)
+        .init();
 
     // Load configuration
     let config = Config::from_env()?;

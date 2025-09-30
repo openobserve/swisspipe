@@ -9,6 +9,7 @@ use crate::{
         errors::{Result, SwissPipeError},
         models::{Node, NodeType, WorkflowEvent, FailureAction, RetryConfig, NodeOutput},
     },
+    log_workflow_error, log_workflow_warn,
 };
 
 /// Configuration for Human in Loop node execution
@@ -112,7 +113,8 @@ impl NodeExecutor {
     ) -> Result<NodeOutput> {
         // Create execution step for tracking - store complete event with data, metadata, headers, etc.
         let event_json = serde_json::to_value(&event).map_err(|e| {
-            tracing::warn!("Failed to serialize event for step tracking: {}", e);
+            log_workflow_warn!(&node.workflow_id, execution_id, &node.id,
+                format!("Failed to serialize event for step tracking: {}", e));
             e
         }).unwrap_or(serde_json::json!({}));
         let input_data = Some(&event_json);
@@ -122,13 +124,15 @@ impl NodeExecutor {
             &node.name,
             input_data,
         ).await.map_err(|e| {
-            tracing::warn!("Failed to create execution step: {}", e);
+            log_workflow_warn!(&node.workflow_id, execution_id, &node.id,
+                format!("Failed to create execution step: {}", e));
             e
         }).unwrap_or_else(|_| "unknown_step".to_string());
 
         // Mark step as running
         if let Err(e) = self.step_tracker.mark_step_running(&step_id).await {
-            tracing::warn!("Failed to mark step as running: {}", e);
+            log_workflow_warn!(&node.workflow_id, execution_id, &node.id,
+                format!("Failed to mark step as running: {}", e));
         }
 
         // Execute the node
@@ -159,13 +163,15 @@ impl NodeExecutor {
                 };
 
                 if let Err(e) = self.step_tracker.complete_step(&step_id, output_data).await {
-                    tracing::warn!("Failed to complete execution step: {}", e);
+                    log_workflow_warn!(&node.workflow_id, execution_id, &node.id,
+                        format!("Failed to complete execution step: {}", e));
                 }
             }
             Err(error) => {
                 let error_message = error.to_string();
                 if let Err(e) = self.step_tracker.fail_step(&step_id, &error_message, None).await {
-                    tracing::warn!("Failed to mark step as failed: {}", e);
+                    log_workflow_warn!(&node.workflow_id, execution_id, &node.id,
+                        format!("Failed to mark step as failed: {}", e));
                 }
             }
         }
@@ -216,6 +222,8 @@ impl NodeExecutor {
                     headers,
                     node_name: params.node_name,
                     loop_config,
+                    workflow_id: params.workflow_id,
+                    node_id: params.node_id,
                 };
                 self.execute_http_request_node(&config, event, params.execution_id, params.node_id).await
             }
@@ -227,14 +235,16 @@ impl NodeExecutor {
                     failure_action,
                     retry_config,
                     node_name: params.node_name,
+                    workflow_id: params.workflow_id,
+                    node_id: params.node_id,
                 };
-                self.execute_openobserve_node(&config, event).await
+                self.execute_openobserve_node(&config, event, params.execution_id).await
             }
             NodeType::Email { config } => {
-                self.execute_email_node(config, event, params.execution_id, params.node_id, params.node_name).await
+                self.execute_email_node(config, event, params.execution_id, params.node_id, params.node_name, params.workflow_id).await
             }
             NodeType::Delay { duration, unit } => {
-                self.execute_delay_node(*duration, unit, params.node_name, event).await
+                self.execute_delay_node(*duration, unit, params.node_name, event, params.workflow_id, params.execution_id, params.node_id).await
             }
             NodeType::Anthropic { model, max_tokens, temperature, system_prompt, user_prompt, timeout_seconds, failure_action, retry_config } => {
                 let config = AnthropicNodeConfig {
@@ -247,8 +257,10 @@ impl NodeExecutor {
                     failure_action,
                     retry_config,
                     node_name: params.node_name,
+                    workflow_id: params.workflow_id,
+                    node_id: params.node_id,
                 };
-                self.execute_anthropic_node(&config, event).await
+                self.execute_anthropic_node(&config, event, params.execution_id).await
             }
             NodeType::HumanInLoop { title, description, timeout_seconds, timeout_action, required_fields, metadata } => {
                 let config = HilNodeConfig {
@@ -315,7 +327,7 @@ impl NodeExecutor {
             None => {
                 tracing::debug!("Taking single HTTP request path (no loop)");
                 // Standard HTTP request (existing behavior)
-                self.execute_single_http_request(config, event).await
+                self.execute_single_http_request(config, event, execution_id).await
             }
             Some(loop_config) => {
                 tracing::debug!("Taking HTTP loop path");
@@ -330,6 +342,7 @@ impl NodeExecutor {
         &self,
         config: &HttpRequestConfig<'_>,
         event: WorkflowEvent,
+        execution_id: &str,
     ) -> Result<WorkflowEvent> {
         match config.failure_action {
             FailureAction::Retry => {
@@ -357,7 +370,8 @@ impl NodeExecutor {
                 ).await {
                     Ok(result) => Ok(result),
                     Err(e) => {
-                        tracing::warn!("HTTP request node '{}' failed but continuing: {}", config.node_name, e);
+                        log_workflow_warn!(config.workflow_id, execution_id, config.node_id,
+                            format!("HTTP request node '{}' failed but continuing: {}", config.node_name, e));
                         Ok(event)
                     }
                 }
@@ -437,6 +451,7 @@ impl NodeExecutor {
         &self,
         config: &OpenObserveConfig<'_>,
         event: WorkflowEvent,
+        execution_id: &str,
     ) -> Result<WorkflowEvent> {
         match config.failure_action {
             FailureAction::Retry => {
@@ -462,7 +477,8 @@ impl NodeExecutor {
                 ).await {
                     Ok(result) => Ok(result),
                     Err(e) => {
-                        tracing::warn!("OpenObserve node '{}' failed but continuing: {}", config.node_name, e);
+                        log_workflow_warn!(config.workflow_id, execution_id, config.node_id,
+                            format!("OpenObserve node '{}' failed but continuing: {}", config.node_name, e));
                         Ok(event)
                     }
                 }
@@ -491,6 +507,7 @@ impl NodeExecutor {
         execution_id: &str,
         node_id: &str,
         node_name: &str,
+        workflow_id: &str,
     ) -> Result<WorkflowEvent> {
         tracing::debug!("Executing email node '{}' with config: {:?}", node_name, config);
         tracing::info!("EMAIL NODE: Event received - hil_task present: {:?}", event.hil_task.is_some());
@@ -503,7 +520,8 @@ impl NodeExecutor {
                 Ok(event)
             }
             Err(e) => {
-                tracing::error!("Email node '{}' failed: {}", node_name, e);
+                log_workflow_error!(workflow_id, execution_id, node_id,
+                    format!("Email node '{}' failed", node_name), e);
                 Err(SwissPipeError::Generic(format!("Email node failed: {e}")))
             }
         }
@@ -516,6 +534,9 @@ impl NodeExecutor {
         unit: &crate::workflow::models::DelayUnit,
         node_name: &str,
         event: WorkflowEvent,
+        workflow_id: &str,
+        execution_id: &str,
+        node_id: &str,
     ) -> Result<WorkflowEvent> {
         use crate::workflow::models::DelayUnit;
         use tokio::time::{sleep, Duration};
@@ -530,10 +551,9 @@ impl NodeExecutor {
         // Cap at 1 hour for safety in direct execution
         let capped_delay_ms = delay_ms.min(3_600_000);
         if delay_ms > capped_delay_ms {
-            tracing::warn!(
-                "Delay node '{}' requested {}ms but capped to {}ms (1 hour)",
-                node_name, delay_ms, capped_delay_ms
-            );
+            log_workflow_warn!(workflow_id, execution_id, node_id,
+                format!("Delay node '{}' requested {}ms but capped to {}ms (1 hour)",
+                    node_name, delay_ms, capped_delay_ms));
         }
 
         tracing::info!("Delay node '{}' sleeping for {}ms", node_name, capped_delay_ms);
@@ -548,6 +568,7 @@ impl NodeExecutor {
         &self,
         config: &AnthropicNodeConfig<'_>,
         event: WorkflowEvent,
+        execution_id: &str,
     ) -> Result<WorkflowEvent> {
         let anthropic_config = AnthropicCallConfig {
             model: config.model,
@@ -574,7 +595,8 @@ impl NodeExecutor {
                 match self.anthropic_service.call_anthropic(&single_attempt_config, &event).await {
                     Ok(result) => Ok(result),
                     Err(e) => {
-                        tracing::warn!("Anthropic node '{}' failed but continuing: {}", config.node_name, e);
+                        log_workflow_warn!(config.workflow_id, execution_id, config.node_id,
+                            format!("Anthropic node '{}' failed but continuing: {}", config.node_name, e));
                         Ok(event)
                     }
                 }
@@ -640,8 +662,8 @@ impl NodeExecutor {
         tracing::debug!("Attempting to insert HIL task with UUID: {} (execution_id='{}', workflow_id='{}')", task_id, execution_id, context.workflow_id);
         let _hil_task = hil_task.insert(self.db.as_ref()).await
             .map_err(|e| {
-                tracing::error!("HIL task insertion failed - task_id: {}, execution_id: {}, workflow_id: {}, error: {}",
-                    task_id, execution_id, context.workflow_id, e);
+                log_workflow_error!(context.workflow_id, execution_id.as_str(), context.node_id,
+                    format!("HIL task insertion failed - task_id: {}", task_id), e);
                 SwissPipeError::Generic(format!("Failed to create HIL task: {e}"))
             })?;
 
@@ -681,7 +703,8 @@ impl NodeExecutor {
             // Store resumption state for database job queue
             tracing::info!("Database job queue resumption state would be stored for HIL task: {}", node_execution_id);
         } else {
-            tracing::warn!("HIL service not available - continuing anyway");
+            log_workflow_warn!(context.workflow_id, execution_id.as_str(), context.node_id,
+                "HIL service not available - continuing anyway");
         }
 
         // Return simple event with HIL metadata (dedicated notification node will handle notifications)
@@ -764,7 +787,8 @@ impl NodeExecutor {
 
                 tracing::info!("Created HIL task in database with node_execution_id: {}", node_execution_id);
             } else {
-                tracing::warn!("HIL service not available - HIL task creation skipped");
+                log_workflow_warn!(params.workflow_id, params.execution_id, params.node_id,
+                    "HIL service not available - HIL task creation skipped");
             }
 
             // Add HIL task details to the event data
@@ -844,6 +868,8 @@ struct HttpRequestConfig<'a> {
     headers: &'a std::collections::HashMap<String, String>,
     node_name: &'a str,
     loop_config: &'a Option<crate::workflow::models::LoopConfig>,
+    workflow_id: &'a str,
+    node_id: &'a str,
 }
 
 struct OpenObserveConfig<'a> {
@@ -853,6 +879,8 @@ struct OpenObserveConfig<'a> {
     failure_action: &'a FailureAction,
     retry_config: &'a RetryConfig,
     node_name: &'a str,
+    workflow_id: &'a str,
+    node_id: &'a str,
 }
 
 struct AnthropicNodeConfig<'a> {
@@ -865,4 +893,6 @@ struct AnthropicNodeConfig<'a> {
     failure_action: &'a FailureAction,
     retry_config: &'a RetryConfig,
     node_name: &'a str,
+    workflow_id: &'a str,
+    node_id: &'a str,
 }

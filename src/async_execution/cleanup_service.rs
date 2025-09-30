@@ -6,6 +6,7 @@ use sea_orm::{
 };
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
+use crate::log_workflow_error;
 
 #[derive(Clone, Debug)]
 pub struct CleanupService {
@@ -73,7 +74,11 @@ impl CleanupService {
     async fn run_cleanup_loop(&self) {
         loop {
             if let Err(e) = self.cleanup_old_executions().await {
-                tracing::error!("Error during cleanup: {}", e);
+                tracing::error!(
+                    error = %e,
+                    retention_count = self.retention_count,
+                    "Error during cleanup"
+                );
             }
 
             sleep(self.cleanup_interval).await;
@@ -101,9 +106,9 @@ impl CleanupService {
                     total_deleted += deleted_count;
                 }
                 Err(e) => {
-                    tracing::error!(
-                        "Error cleaning up executions for workflow {}: {}",
-                        workflow_id,
+                    log_workflow_error!(
+                        &workflow_id,
+                        "Error cleaning up executions for workflow",
                         e
                     );
                 }

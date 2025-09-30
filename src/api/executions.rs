@@ -39,12 +39,16 @@ pub async fn get_execution(
     Path(execution_id): Path<String>,
 ) -> std::result::Result<Json<Value>, StatusCode> {
     let execution_service = ExecutionService::new(state.db.clone());
-    
+
     let execution = execution_service
         .get_execution(&execution_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to get execution: {}", e);
+            tracing::error!(
+                error = %e,
+                execution_id = %execution_id,
+                "Failed to get execution"
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -75,12 +79,16 @@ pub async fn get_execution_steps(
     Path(execution_id): Path<String>,
 ) -> std::result::Result<Json<Value>, StatusCode> {
     let execution_service = ExecutionService::new(state.db.clone());
-    
+
     let steps = execution_service
         .get_execution_steps(&execution_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to get execution steps: {}", e);
+            tracing::error!(
+                error = %e,
+                execution_id = %execution_id,
+                "Failed to get execution steps"
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -120,7 +128,11 @@ pub async fn cancel_execution(
         .cancel_execution_with_delays(&execution_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to cancel execution: {}", e);
+            tracing::error!(
+                error = %e,
+                execution_id = %execution_id,
+                "Failed to cancel execution"
+            );
             match e {
                 crate::workflow::errors::SwissPipeError::WorkflowNotFound(_) => StatusCode::NOT_FOUND,
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
@@ -167,12 +179,16 @@ pub async fn get_execution_status(
     Path(execution_id): Path<String>,
 ) -> std::result::Result<Json<Value>, StatusCode> {
     let execution_service = ExecutionService::new(state.db.clone());
-    
+
     let execution = execution_service
         .get_execution(&execution_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to get execution: {}", e);
+            tracing::error!(
+                error = %e,
+                execution_id = %execution_id,
+                "Failed to get execution status"
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -217,7 +233,11 @@ pub async fn get_all_executions(
             )
             .await
             .map_err(|e| {
-                tracing::error!("Failed to get executions by workflow with names: {}", e);
+                tracing::error!(
+                    error = %e,
+                    workflow_id = workflow_id,
+                    "Failed to get executions by workflow with names"
+                );
                 StatusCode::INTERNAL_SERVER_ERROR
             })?
     } else {
@@ -231,7 +251,10 @@ pub async fn get_all_executions(
             )
             .await
             .map_err(|e| {
-                tracing::error!("Failed to get all executions with names: {}", e);
+                tracing::error!(
+                    error = %e,
+                    "Failed to get all executions with names"
+                );
                 StatusCode::INTERNAL_SERVER_ERROR
             })?
     };
@@ -282,7 +305,10 @@ pub async fn get_cleanup_stats(
     ) {
         Ok(service) => service,
         Err(e) => {
-            tracing::error!("Failed to initialize cleanup service: {}", e);
+            tracing::error!(
+                error = %e,
+                "Failed to initialize cleanup service"
+            );
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
@@ -291,7 +317,10 @@ pub async fn get_cleanup_stats(
         .get_cleanup_stats()
         .await
         .map_err(|e| {
-            tracing::error!("Failed to get cleanup stats: {}", e);
+            tracing::error!(
+                error = %e,
+                "Failed to get cleanup stats"
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 

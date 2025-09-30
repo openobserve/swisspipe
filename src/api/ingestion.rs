@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use crate::{
     async_execution::ExecutionService,
     AppState,
+    log_workflow_warn,
 };
 
 pub fn routes() -> Router<AppState> {
@@ -92,7 +93,11 @@ async fn execute_workflow_async(
         .load_workflow(workflow_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to load workflow {}: {}", workflow_id, e);
+            tracing::error!(
+                error = %e,
+                workflow_id = workflow_id,
+                "Failed to load workflow"
+            );
             match e {
                 crate::workflow::errors::SwissPipeError::WorkflowNotFound(_) => StatusCode::NOT_FOUND,
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
@@ -101,7 +106,10 @@ async fn execute_workflow_async(
 
     // Check if workflow is enabled
     if !workflow.enabled {
-        tracing::warn!("Workflow {} is disabled, rejecting ingestion request", workflow_id);
+        log_workflow_warn!(
+            workflow_id,
+            "Workflow is disabled, rejecting ingestion request"
+        );
         return Err(StatusCode::FORBIDDEN);
     }
 
@@ -128,7 +136,11 @@ async fn execute_workflow_async(
         )
         .await
         .map_err(|e| {
-            tracing::error!("Failed to create execution: {}", e);
+            tracing::error!(
+                error = %e,
+                workflow_id = workflow_id,
+                "Failed to create execution"
+            );
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 

@@ -1,7 +1,10 @@
-use crate::workflow::{
-    errors::{Result, SwissPipeError},
-    models::{Node, Workflow, WorkflowEvent, InputMergeStrategy, NodeOutput, HilMultiPathResult, NodeType},
-    input_sync::InputSyncService,
+use crate::{
+    workflow::{
+        errors::{Result, SwissPipeError},
+        models::{Node, Workflow, WorkflowEvent, InputMergeStrategy, NodeOutput, HilMultiPathResult, NodeType},
+        input_sync::InputSyncService,
+    },
+    log_workflow_error, log_workflow_warn,
 };
 use std::{collections::{HashMap, HashSet}, sync::Arc};
 use tokio::task::JoinSet;
@@ -153,7 +156,7 @@ impl DagExecutor {
                                 // After HIL MultiPath, check if workflow should be marked as blocked for human input
                                 // If no non-HIL nodes are pending and notification path has been executed,
                                 // the workflow is blocked waiting for human response
-                                if self.is_workflow_blocked_for_human_input(workflow, &completed_nodes, &executed_hil_handles, &mut pending_executions).await? {
+                                if self.is_workflow_blocked_for_human_input(workflow, &completed_nodes, &executed_hil_handles, &mut pending_executions, execution_id).await? {
                                     tracing::info!("Workflow blocked for human input after HIL node '{}' - exiting execution loop", node_id);
 
                                     // Return a special event indicating the workflow is pending human input
@@ -516,7 +519,8 @@ impl DagExecutor {
         }
 
         // No edge found - shouldn't happen if predecessor relationship exists
-        tracing::warn!("No edge found from HIL node '{}' to '{}'", hil_node_id, target_node_id);
+        log_workflow_warn!(&workflow.id,
+            format!("No edge found from HIL node '{}' to '{}'", hil_node_id, target_node_id));
         Ok(None)
     }
 
@@ -690,6 +694,7 @@ impl DagExecutor {
         completed_nodes: &HashSet<String>,
         executed_hil_handles: &HashMap<String, HashSet<String>>,
         pending_executions: &mut tokio::task::JoinSet<Result<(String, NodeOutput)>>,
+        execution_id: &str,
     ) -> Result<bool> {
         // Wait for any notification path executions to complete first
         // This ensures we don't return blocked status while notification is still running
@@ -707,16 +712,19 @@ impl DagExecutor {
                                 tracing::debug!("Notification node '{}' marked workflow complete", node_id);
                             },
                             _ => {
-                                tracing::warn!("Unexpected output type from notification node '{}': {:?}", node_id, output);
+                                log_workflow_warn!(&workflow.id, execution_id, &node_id,
+                                    format!("Unexpected output type from notification node: {:?}", output));
                             }
                         }
                     },
                     Ok(Err(e)) => {
-                        tracing::error!("Notification path execution failed: {}", e);
+                        log_workflow_error!(&workflow.id, execution_id,
+                            "Notification path execution failed", e);
                         return Err(e);
                     },
                     Err(join_error) => {
-                        tracing::error!("Notification path task join failed: {}", join_error);
+                        log_workflow_error!(&workflow.id, execution_id,
+                            "Notification path task join failed", join_error);
                         return Err(SwissPipeError::Generic(format!("Task join error: {join_error}")));
                     }
                 }

@@ -5,6 +5,7 @@ use tokio::sync::Mutex;
 use crate::database::human_in_loop_tasks;
 use crate::workflow::errors::{Result, SwissPipeError};
 use crate::workflow::models::{WorkflowEvent, WorkflowResumptionState};
+use crate::log_workflow_error;
 
 /// HIL Service manages workflow resumption through database job queue (no in-memory channels)
 #[derive(Clone)]
@@ -207,8 +208,13 @@ impl HilService {
 
         txn.execute(stmt).await
             .map_err(|e| {
-                tracing::error!("HIL task insertion failed - task_id: {}, node_execution_id: {}, error: {}",
-                               task_id, node_execution_id, e);
+                log_workflow_error!(
+                    workflow_id,
+                    execution_id,
+                    node_id,
+                    "HIL task insertion failed",
+                    e
+                );
                 crate::workflow::errors::SwissPipeError::Generic(
                     format!("Failed to create HIL task: {e}")
                 )
@@ -363,7 +369,13 @@ impl HilService {
                     processed_count += 1;
                 }
                 Err(e) => {
-                    tracing::error!("Failed to update expired HIL task {} within transaction: {}", task.id, e);
+                    log_workflow_error!(
+                        &task.workflow_id,
+                        &task.execution_id,
+                        &task.node_id,
+                        "Failed to update expired HIL task within transaction",
+                        e
+                    );
                     failed_updates.push((task.id.clone(), e.to_string()));
                 }
             }
@@ -372,11 +384,18 @@ impl HilService {
         // Handle transaction commit/rollback based on results
         if !failed_updates.is_empty() {
             // Some updates failed - rollback transaction to maintain consistency
-            tracing::error!("Rolling back timeout processing transaction due to {} failed updates: {:?}",
-                           failed_updates.len(), failed_updates);
+            tracing::error!(
+                failed_updates_count = failed_updates.len(),
+                failed_updates = ?failed_updates,
+                "Rolling back timeout processing transaction due to failed updates"
+            );
 
             if let Err(rollback_err) = txn.rollback().await {
-                tracing::error!("Failed to rollback timeout processing transaction: {}", rollback_err);
+                tracing::error!(
+                    error = %rollback_err,
+                    failed_updates = ?failed_updates,
+                    "Failed to rollback timeout processing transaction"
+                );
                 return Err(SwissPipeError::Generic(format!(
                     "Failed to rollback timeout processing after errors: {rollback_err}. Original errors: {failed_updates:?}"
                 )));
@@ -418,13 +437,19 @@ impl HilService {
                         }
                     }
                     Err(e) => {
-                        tracing::error!("HIL timeout processor error: {}", e);
+                        tracing::error!(
+                            error = %e,
+                            "HIL timeout processor error"
+                        );
                     }
                 }
 
                 // Also cleanup any orphaned workflow blocks
                 if let Err(e) = service.cleanup_expired_blocks().await {
-                    tracing::error!("HIL cleanup error: {}", e);
+                    tracing::error!(
+                        error = %e,
+                        "HIL cleanup error"
+                    );
                 }
             }
         });

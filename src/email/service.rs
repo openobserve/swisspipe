@@ -218,7 +218,11 @@ impl EmailService {
                 })
             }
             Err(e) => {
-                tracing::error!("SMTP send error: {}", e);
+                tracing::error!(
+                    error = %e,
+                    smtp_config = smtp_config_name,
+                    "SMTP send error"
+                );
                 Ok(EmailSendResult {
                     success: false,
                     message_id: None,
@@ -397,7 +401,12 @@ impl EmailService {
                 txn.commit().await.map_err(EmailError::DatabaseError)?;
             }
             Err(e) => {
-                tracing::error!("Failed to insert email queue record: {:?}", e);
+                tracing::error!(
+                    error = ?e,
+                    execution_id = execution_id.as_ref().map(|s| s.as_str()),
+                    node_id = node_id.as_ref().map(|s| s.as_str()),
+                    "Failed to insert email queue record"
+                );
                 let _ = txn.rollback().await; // Ignore rollback errors
                 return Err(e.into());
             }
@@ -532,7 +541,13 @@ impl EmailService {
                         &email_message,
                         &result,
                     ).await {
-                        tracing::warn!("Failed to log email audit for queued email {}: {}", email.id, audit_error);
+                        tracing::warn!(
+                            error = %audit_error,
+                            email_queue_id = %email.id,
+                            execution_id = execution_id,
+                            node_id = node_id,
+                            "Failed to log email audit for queued email"
+                        );
                     }
                     
                     if result.success {
@@ -656,16 +671,21 @@ impl EmailService {
         for email in expired_emails {
             let max_wait_microseconds = email.max_wait_minutes as i64 * 60 * 1_000_000;
             let deadline = email.queued_at + max_wait_microseconds;
-            
+
             if now > deadline {
                 // Mark as expired instead of deleting immediately
+                let email_id = email.id.clone();
                 let mut active_model: email_queue::ActiveModel = email.into();
                 active_model.status = Set("expired".to_string());
                 active_model.updated_at = Set(now);
-                
+
                 match active_model.update(&*self.db).await {
                     Ok(_) => expired_count += 1,
-                    Err(e) => tracing::warn!("Failed to mark email as expired: {}", e),
+                    Err(e) => tracing::warn!(
+                        error = %e,
+                        email_id = %email_id,
+                        "Failed to mark email as expired"
+                    ),
                 }
             }
         }
