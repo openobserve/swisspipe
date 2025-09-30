@@ -346,7 +346,7 @@ import { useRouter } from 'vue-router'
 import {
   MagnifyingGlassIcon,
   PencilIcon,
-  ClipboardDocumentListIcon
+  ChevronDoubleRightIcon
 } from '@heroicons/vue/24/outline'
 import {
   useVueTable,
@@ -473,7 +473,7 @@ const columns = computed<ColumnDef<Workflow>[]>(() => [
             navigateToExecutions(workflow)
           }
         }, [
-          h(ClipboardDocumentListIcon, { class: 'h-5 w-5' })
+          h(ChevronDoubleRightIcon, { class: 'h-5 w-5' })
         ]),
         h('button', {
           class: 'text-primary-400 hover:text-primary-300 transition-colors',
