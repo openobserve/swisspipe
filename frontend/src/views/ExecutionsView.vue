@@ -91,6 +91,9 @@
                   Current Node
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  Steps
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                   Started
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
@@ -131,6 +134,12 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                   {{ execution.current_node_id || '-' }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                  <span v-if="execution.step_count !== undefined" class="px-2 py-1 bg-blue-900/30 text-blue-300 rounded-md font-medium">
+                    {{ execution.step_count }}
+                  </span>
+                  <span v-else class="text-gray-500">0</span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                   {{ executionStore.formatTimestamp(execution.started_at) }}

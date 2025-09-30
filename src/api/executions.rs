@@ -259,6 +259,16 @@ pub async fn get_all_executions(
             })?
     };
 
+    // Fetch step counts for all executions in a single batch query
+    let execution_ids: Vec<String> = executions.iter().map(|(exec, _)| exec.id.clone()).collect();
+    let step_counts = execution_service
+        .get_execution_step_counts_batch(&execution_ids)
+        .await
+        .unwrap_or_else(|e| {
+            tracing::error!(error = %e, "Failed to fetch step counts");
+            std::collections::HashMap::new()
+        });
+
     let executions_json: Vec<Value> = executions
         .into_iter()
         .map(|(exec, workflow)| {
@@ -267,6 +277,8 @@ pub async fn get_all_executions(
             } else {
                 None
             };
+
+            let step_count = step_counts.get(&exec.id).copied();
 
             serde_json::json!({
                 "id": exec.id,
@@ -280,6 +292,7 @@ pub async fn get_all_executions(
                 "started_at": exec.started_at,
                 "completed_at": exec.completed_at,
                 "duration_ms": duration_ms,
+                "step_count": step_count,
                 "created_at": exec.created_at,
                 "updated_at": exec.updated_at
             })

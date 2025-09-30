@@ -16,6 +16,7 @@ export interface WorkflowExecution {
   duration_ms?: number
   created_at: number
   updated_at: number
+  step_count?: number // Step count from backend
 }
 
 export interface ExecutionStep {

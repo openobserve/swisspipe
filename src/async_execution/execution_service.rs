@@ -10,7 +10,7 @@ use crate::workflow::{
 };
 use sea_orm::{
     ActiveModelTrait, DatabaseConnection, EntityTrait, QueryFilter, ColumnTrait, Set,
-    QuerySelect, QueryOrder, TransactionTrait,
+    QuerySelect, QueryOrder, TransactionTrait, PaginatorTrait,
 };
 use serde_json::Value;
 use std::sync::Arc;
@@ -126,8 +126,37 @@ impl ExecutionService {
         Ok(steps)
     }
 
+    /// Get execution step count by execution ID
+    #[allow(dead_code)]
+    pub async fn get_execution_step_count(&self, execution_id: &str) -> Result<i64> {
+        let count = workflow_execution_steps::Entity::find()
+            .filter(workflow_execution_steps::Column::ExecutionId.eq(execution_id))
+            .count(self.db.as_ref())
+            .await?;
 
+        Ok(count as i64)
+    }
 
+    /// Get step counts for multiple execution IDs in a single query
+    pub async fn get_execution_step_counts_batch(&self, execution_ids: &[String]) -> Result<std::collections::HashMap<String, i64>> {
+        if execution_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        // Use IN clause filter for efficient batch counting
+        let steps = workflow_execution_steps::Entity::find()
+            .filter(workflow_execution_steps::Column::ExecutionId.is_in(execution_ids.iter().cloned()))
+            .all(self.db.as_ref())
+            .await?;
+
+        // Group by execution_id and count
+        let mut counts = std::collections::HashMap::new();
+        for step in steps {
+            *counts.entry(step.execution_id).or_insert(0) += 1;
+        }
+
+        Ok(counts)
+    }
 
     /// Cancel execution comprehensively - cancel jobs, steps (delays handled at WorkerPool level)
     pub async fn cancel_execution(&self, execution_id: &str) -> Result<()> {
