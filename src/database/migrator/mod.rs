@@ -14,7 +14,6 @@ mod m20241210_000004_create_node_input_sync_table;
 mod m20241215_000001_create_sessions_table;
 mod m20241215_000002_create_csrf_tokens_table;
 mod m20250115_000001_create_settings_table;
-mod m20250120_000001_add_default_email_settings;
 mod m20250121_000001_create_http_loop_states_table;
 mod m20250121_000002_add_http_loop_config_fields;
 mod m20250125_000001_create_human_in_loop_tasks_table;
@@ -40,7 +39,6 @@ impl MigratorTrait for Migrator {
             Box::new(m20241215_000001_create_sessions_table::Migration),
             Box::new(m20241215_000002_create_csrf_tokens_table::Migration),
             Box::new(m20250115_000001_create_settings_table::Migration),
-            Box::new(m20250120_000001_add_default_email_settings::Migration),
             Box::new(m20250121_000001_create_http_loop_states_table::Migration),
             Box::new(m20250121_000002_add_http_loop_config_fields::Migration),
             Box::new(m20250125_000001_create_human_in_loop_tasks_table::Migration),

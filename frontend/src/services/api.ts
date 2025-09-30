@@ -346,12 +346,6 @@ class ApiClient {
     return response.data
   }
 
-  async getDefaultEmailSettings(): Promise<{ defaultFromEmail: string; defaultFromName: string }> {
-    const settings = await this.getSettings()
-    const defaultFromEmail = settings.settings.find(s => s.key === 'default_from_email')?.value || ''
-    const defaultFromName = settings.settings.find(s => s.key === 'default_from_name')?.value || ''
-    return { defaultFromEmail, defaultFromName }
-  }
 
   // HTTP Loop endpoints
   async getLoopStatus(loopId: string): Promise<LoopStatus> {
