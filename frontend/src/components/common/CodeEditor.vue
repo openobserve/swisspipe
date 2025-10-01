@@ -157,7 +157,7 @@ function initializeEditor() {
     theme: 'swisspipe-dark',
     readOnly: props.readonly,
     automaticLayout: true,
-    minimap: { enabled: true },
+    minimap: { enabled: false },
     scrollBeyondLastLine: false,
     fontSize: 11,
     lineNumbers: 'on',
