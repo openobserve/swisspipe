@@ -362,8 +362,8 @@ impl NodeExecutor {
     ) -> Result<WorkflowEvent> {
         tracing::debug!("Executing HTTP request node: loop_config_present={}", config.loop_config.is_some());
 
-        // Resolve templates in URL
-        let resolved_url = self.resolve_template(config.url).await?;
+        // Resolve templates in URL and trim whitespace
+        let resolved_url = self.resolve_template(config.url).await?.trim().to_string();
 
         // Resolve templates in headers
         let mut resolved_headers = std::collections::HashMap::new();
@@ -481,7 +481,7 @@ impl NodeExecutor {
         let http_loop_config = HttpLoopConfig {
             loop_id: loop_id.clone(),
             execution_step_id,
-            url: config.url.to_string(),
+            url: config.url.to_string(), // Already trimmed after template resolution
             method: config.method.clone(),
             timeout_seconds: config.timeout_seconds,
             headers: config.headers.clone(),

@@ -1339,13 +1339,14 @@ impl HttpLoopScheduler {
 
     /// Validate HTTP loop configuration before scheduling
     fn validate_loop_config(config: &HttpLoopConfig) -> Result<()> {
-        // Validate URL format
-        if config.url.trim().is_empty() {
+        // Validate URL format (trim whitespace first)
+        let trimmed_url = config.url.trim();
+        if trimmed_url.is_empty() {
             return Err(SwissPipeError::Generic("HTTP loop URL cannot be empty".to_string()));
         }
 
-        // Basic URL format validation
-        if !config.url.starts_with("http://") && !config.url.starts_with("https://") {
+        // Basic URL format validation on trimmed URL
+        if !trimmed_url.starts_with("http://") && !trimmed_url.starts_with("https://") {
             return Err(SwissPipeError::Generic(format!("Invalid URL format: {}", config.url)));
         }
 
