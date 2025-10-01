@@ -44,6 +44,12 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/variables',
+      name: 'variables',
+      component: () => import('../views/VariablesView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/api-docs',
       name: 'api-docs',
       component: () => import('../views/ApiDocumentationView.vue'),

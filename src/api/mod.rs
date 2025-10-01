@@ -9,6 +9,7 @@ pub mod script;
 pub mod segment;
 pub mod settings;
 pub mod static_files;
+pub mod variables;
 pub mod workflows;
 
 use axum::Router;
@@ -30,6 +31,7 @@ pub fn create_router() -> Router<AppState> {
         .nest("/api/admin/v1/ai", ai::create_ai_routes())
         .nest("/api/admin/v1/settings", settings::routes())
         .nest("/api/admin/v1/hil", hil::routes())
+        .nest("/api/admin/v1/variables", variables::routes())
         .nest("/auth", auth_handlers::routes())
         // Static file routes (lower priority, fallback for SPA)
         .merge(static_files::routes())

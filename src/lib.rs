@@ -10,6 +10,7 @@ pub mod database;
 pub mod email;
 pub mod hil;
 pub mod utils;
+pub mod variables;
 pub mod workflow;
 
 pub use database::establish_connection;
@@ -25,4 +26,6 @@ pub struct AppState {
     pub workflow_cache: Arc<cache::WorkflowCache>,
     pub delay_scheduler: Arc<async_execution::DelayScheduler>,
     pub http_loop_scheduler: Arc<async_execution::HttpLoopScheduler>,
+    pub variable_service: Arc<variables::VariableService>,
+    pub template_engine: Arc<variables::TemplateEngine>,
 }

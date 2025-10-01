@@ -5,6 +5,7 @@ use crate::{
     email::{service::EmailService, EmailConfig},
     hil::{HilService, service::HilTaskParams},
     utils::{http_client::AppExecutor, javascript::JavaScriptExecutor},
+    variables::{VariableService, TemplateEngine},
     workflow::{
         errors::{Result, SwissPipeError},
         models::{Node, NodeType, WorkflowEvent, FailureAction, RetryConfig, NodeOutput},
@@ -51,6 +52,8 @@ pub struct NodeExecutor {
     http_loop_scheduler: Arc<OnceLock<Arc<HttpLoopScheduler>>>,
     hil_service: Arc<OnceLock<Arc<HilService>>>,
     step_tracker: Arc<StepTracker>,
+    variable_service: Arc<OnceLock<Arc<VariableService>>>,
+    template_engine: Arc<OnceLock<Arc<TemplateEngine>>>,
 }
 
 impl NodeExecutor {
@@ -71,6 +74,8 @@ impl NodeExecutor {
             http_loop_scheduler: Arc::new(OnceLock::new()),
             hil_service: Arc::new(OnceLock::new()),
             step_tracker,
+            variable_service: Arc::new(OnceLock::new()),
+            template_engine: Arc::new(OnceLock::new()),
         }
     }
 
@@ -84,6 +89,18 @@ impl NodeExecutor {
     pub fn set_hil_service(&self, service: Arc<HilService>) -> Result<()> {
         self.hil_service.set(service)
             .map_err(|_| SwissPipeError::Generic("HIL service already initialized".to_string()))
+    }
+
+    /// Set the variable service (used for dependency injection after construction)
+    pub fn set_variable_service(&self, service: Arc<VariableService>) -> Result<()> {
+        self.variable_service.set(service)
+            .map_err(|_| SwissPipeError::Generic("Variable service already initialized".to_string()))
+    }
+
+    /// Set the template engine (used for dependency injection after construction)
+    pub fn set_template_engine(&self, engine: Arc<TemplateEngine>) -> Result<()> {
+        self.template_engine.set(engine)
+            .map_err(|_| SwissPipeError::Generic("Template engine already initialized".to_string()))
     }
 
     /// Execute a single node based on its type
@@ -244,7 +261,7 @@ impl NodeExecutor {
                 self.execute_email_node(config, event, params.execution_id, params.node_id, params.node_name, params.workflow_id).await
             }
             NodeType::Delay { duration, unit } => {
-                self.execute_delay_node(*duration, unit, params.node_name, event, params.workflow_id, params.execution_id, params.node_id).await
+                self.execute_delay_node(*duration, unit, event, params).await
             }
             NodeType::Anthropic { model, max_tokens, temperature, system_prompt, user_prompt, timeout_seconds, failure_action, retry_config } => {
                 let config = AnthropicNodeConfig {
@@ -314,6 +331,27 @@ impl NodeExecutor {
         Ok(transformed_event)
     }
 
+    /// Resolve environment variable templates in a string
+    async fn resolve_template(&self, template: &str) -> Result<String> {
+        // Check if template engine and variable service are available
+        let Some(template_engine) = self.template_engine.get() else {
+            // If not configured, return original string
+            return Ok(template.to_string());
+        };
+        let Some(variable_service) = self.variable_service.get() else {
+            // If not configured, return original string
+            return Ok(template.to_string());
+        };
+
+        // Load all variables as a HashMap
+        let variables = variable_service.load_variables_map().await
+            .map_err(|e| SwissPipeError::Generic(format!("Failed to load variables: {e}")))?;
+
+        // Resolve the template
+        template_engine.resolve(template, &variables)
+            .map_err(|e| SwissPipeError::Generic(format!("Template resolution failed: {e}")))
+    }
+
     /// Execute HTTP request node (supports both single requests and loops)
     async fn execute_http_request_node(
         &self,
@@ -323,16 +361,41 @@ impl NodeExecutor {
         node_id: &str,
     ) -> Result<WorkflowEvent> {
         tracing::debug!("Executing HTTP request node: loop_config_present={}", config.loop_config.is_some());
-        match config.loop_config {
+
+        // Resolve templates in URL
+        let resolved_url = self.resolve_template(config.url).await?;
+
+        // Resolve templates in headers
+        let mut resolved_headers = std::collections::HashMap::new();
+        for (key, value) in config.headers {
+            let resolved_value = self.resolve_template(value).await?;
+            resolved_headers.insert(key.clone(), resolved_value);
+        }
+
+        // Create resolved config
+        let resolved_config = HttpRequestConfig {
+            url: &resolved_url,
+            method: config.method,
+            timeout_seconds: config.timeout_seconds,
+            failure_action: config.failure_action,
+            retry_config: config.retry_config,
+            headers: &resolved_headers,
+            node_name: config.node_name,
+            loop_config: config.loop_config,
+            workflow_id: config.workflow_id,
+            node_id: config.node_id,
+        };
+
+        match resolved_config.loop_config {
             None => {
                 tracing::debug!("Taking single HTTP request path (no loop)");
                 // Standard HTTP request (existing behavior)
-                self.execute_single_http_request(config, event, execution_id).await
+                self.execute_single_http_request(&resolved_config, event, execution_id).await
             }
             Some(loop_config) => {
                 tracing::debug!("Taking HTTP loop path");
                 // HTTP loop request (new functionality)
-                self.execute_http_loop(config, event, loop_config, execution_id, node_id).await
+                self.execute_http_loop(&resolved_config, event, loop_config, execution_id, node_id).await
             }
         }
     }
@@ -453,11 +516,15 @@ impl NodeExecutor {
         event: WorkflowEvent,
         execution_id: &str,
     ) -> Result<WorkflowEvent> {
+        // Resolve templates in URL and authorization header
+        let resolved_url = self.resolve_template(config.url).await?;
+        let resolved_auth_header = self.resolve_template(config.authorization_header).await?;
+
         match config.failure_action {
             FailureAction::Retry => {
                 self.app_executor.execute_openobserve(
-                    config.url,
-                    config.authorization_header,
+                    &resolved_url,
+                    &resolved_auth_header,
                     config.timeout_seconds,
                     config.retry_config,
                     event,
@@ -469,8 +536,8 @@ impl NodeExecutor {
                     ..config.retry_config.clone()
                 };
                 match self.app_executor.execute_openobserve(
-                    config.url,
-                    config.authorization_header,
+                    &resolved_url,
+                    &resolved_auth_header,
                     config.timeout_seconds,
                     &single_attempt_config,
                     event.clone(),
@@ -489,8 +556,8 @@ impl NodeExecutor {
                     ..config.retry_config.clone()
                 };
                 self.app_executor.execute_openobserve(
-                    config.url,
-                    config.authorization_header,
+                    &resolved_url,
+                    &resolved_auth_header,
                     config.timeout_seconds,
                     &single_attempt_config,
                     event,
@@ -514,7 +581,28 @@ impl NodeExecutor {
         if let Some(ref hil_task) = event.hil_task {
             tracing::info!("EMAIL NODE: HIL task data: {:?}", hil_task);
         }
-        match self.email_service.send_email(config, &event, execution_id, node_id).await {
+
+        // Resolve templates in email configuration
+        let resolved_subject = self.resolve_template(&config.subject).await?;
+        let resolved_body_template = self.resolve_template(&config.body_template).await?;
+        let resolved_text_body_template = match &config.text_body_template {
+            Some(text_body) => Some(self.resolve_template(text_body).await?),
+            None => None,
+        };
+
+        // Create resolved email config
+        let resolved_config = EmailConfig {
+            to: config.to.clone(),
+            cc: config.cc.clone(),
+            bcc: config.bcc.clone(),
+            subject: resolved_subject,
+            template_type: config.template_type.clone(),
+            body_template: resolved_body_template,
+            text_body_template: resolved_text_body_template,
+            attachments: config.attachments.clone(),
+        };
+
+        match self.email_service.send_email(&resolved_config, &event, execution_id, node_id).await {
             Ok(result) => {
                 tracing::info!("Email node '{}' executed successfully: {:?}", node_name, result);
                 Ok(event)
@@ -532,11 +620,8 @@ impl NodeExecutor {
         &self,
         duration: u64,
         unit: &crate::workflow::models::DelayUnit,
-        node_name: &str,
         event: WorkflowEvent,
-        workflow_id: &str,
-        execution_id: &str,
-        node_id: &str,
+        params: ExecuteNodeParams<'_>,
     ) -> Result<WorkflowEvent> {
         use crate::workflow::models::DelayUnit;
         use tokio::time::{sleep, Duration};
@@ -551,14 +636,14 @@ impl NodeExecutor {
         // Cap at 1 hour for safety in direct execution
         let capped_delay_ms = delay_ms.min(3_600_000);
         if delay_ms > capped_delay_ms {
-            log_workflow_warn!(workflow_id, execution_id, node_id,
+            log_workflow_warn!(params.workflow_id, params.execution_id, params.node_id,
                 format!("Delay node '{}' requested {}ms but capped to {}ms (1 hour)",
-                    node_name, delay_ms, capped_delay_ms));
+                    params.node_name, delay_ms, capped_delay_ms));
         }
 
-        tracing::info!("Delay node '{}' sleeping for {}ms", node_name, capped_delay_ms);
+        tracing::info!("Delay node '{}' sleeping for {}ms", params.node_name, capped_delay_ms);
         sleep(Duration::from_millis(capped_delay_ms)).await;
-        tracing::debug!("Delay node '{}' completed", node_name);
+        tracing::debug!("Delay node '{}' completed", params.node_name);
 
         Ok(event)
     }
@@ -570,12 +655,19 @@ impl NodeExecutor {
         event: WorkflowEvent,
         execution_id: &str,
     ) -> Result<WorkflowEvent> {
+        // Resolve templates in prompts
+        let resolved_system_prompt = match config.system_prompt {
+            Some(prompt) => Some(self.resolve_template(prompt).await?),
+            None => None,
+        };
+        let resolved_user_prompt = self.resolve_template(config.user_prompt).await?;
+
         let anthropic_config = AnthropicCallConfig {
             model: config.model,
             max_tokens: config.max_tokens,
             temperature: config.temperature,
-            system_prompt: config.system_prompt,
-            user_prompt: config.user_prompt,
+            system_prompt: resolved_system_prompt.as_deref(),
+            user_prompt: &resolved_user_prompt,
             timeout_seconds: config.timeout_seconds,
             retry_config: config.retry_config,
         };

@@ -26,6 +26,13 @@
             >
               Settings
             </router-link>
+            <router-link
+              to="/variables"
+              class="px-3 py-2 text-sm font-medium transition-colors rounded-md"
+              :class="$route.path === '/variables' ? 'text-primary-400 bg-primary-900/20' : 'text-gray-300 hover:text-primary-400 hover:bg-primary-900/10'"
+            >
+              Variables
+            </router-link>
             <a
               href="/api-docs"
               target="_blank"

@@ -403,8 +403,8 @@ impl EmailService {
             Err(e) => {
                 tracing::error!(
                     error = ?e,
-                    execution_id = execution_id.as_ref().map(|s| s.as_str()),
-                    node_id = node_id.as_ref().map(|s| s.as_str()),
+                    execution_id = execution_id.as_deref(),
+                    node_id = node_id.as_deref(),
                     "Failed to insert email queue record"
                 );
                 let _ = txn.rollback().await; // Ignore rollback errors

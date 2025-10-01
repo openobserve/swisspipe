@@ -7,6 +7,13 @@ import type {
   ExecutionStepsResponse
 } from '../types/execution'
 import type { LoopStatus } from '../types/nodes'
+import type {
+  Variable,
+  VariablesListResponse,
+  CreateVariableRequest,
+  UpdateVariableRequest,
+  ValidateVariableNameResponse
+} from '../types/variable'
 
 // AI Code Generation types
 interface GenerateCodeRequest {
@@ -373,6 +380,39 @@ class ApiClient {
 
   async retryLoop(loopId: string): Promise<void> {
     await this.client.post(`/api/admin/v1/loops/${loopId}/retry`)
+  }
+
+  // Environment Variables API
+  async getVariables(): Promise<VariablesListResponse> {
+    const response = await this.client.get<VariablesListResponse>('/api/admin/v1/variables')
+    return response.data
+  }
+
+  async getVariable(id: string): Promise<Variable> {
+    const response = await this.client.get<Variable>(`/api/admin/v1/variables/${id}`)
+    return response.data
+  }
+
+  async createVariable(data: CreateVariableRequest): Promise<Variable> {
+    const response = await this.client.post<Variable>('/api/admin/v1/variables', data)
+    return response.data
+  }
+
+  async updateVariable(id: string, data: UpdateVariableRequest): Promise<Variable> {
+    const response = await this.client.put<Variable>(`/api/admin/v1/variables/${id}`, data)
+    return response.data
+  }
+
+  async deleteVariable(id: string): Promise<void> {
+    await this.client.delete(`/api/admin/v1/variables/${id}`)
+  }
+
+  async validateVariableName(name: string): Promise<ValidateVariableNameResponse> {
+    const response = await this.client.post<ValidateVariableNameResponse>(
+      '/api/admin/v1/variables/validate',
+      { name }
+    )
+    return response.data
   }
 }
 

@@ -41,6 +41,10 @@ jsonwebtoken = "9.0"
 rand = "0.8"
 url = "2.4"
 
+# Encryption dependencies
+aes-gcm = "0.10"
+hex = "0.4"
+
 # Static file embedding
 rust-embed = "8.0"
 mime_guess = "2.0"

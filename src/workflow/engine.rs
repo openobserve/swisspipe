@@ -118,6 +118,20 @@ impl WorkflowEngine {
         Ok(())
     }
 
+    /// Set the variable service for dependency injection
+    pub fn set_variable_service(&self, service: Arc<crate::variables::VariableService>) -> Result<()> {
+        self.node_executor.set_variable_service(service)
+            .map_err(|_| SwissPipeError::Generic("Variable service already initialized".to_string()))?;
+        Ok(())
+    }
+
+    /// Set the template engine for dependency injection
+    pub fn set_template_engine(&self, engine: Arc<crate::variables::TemplateEngine>) -> Result<()> {
+        self.node_executor.set_template_engine(engine)
+            .map_err(|_| SwissPipeError::Generic("Template engine already initialized".to_string()))?;
+        Ok(())
+    }
+
     /// Get direct access to the DAG executor
     pub fn dag_executor(&self) -> &Arc<DagExecutor> {
         &self.dag_executor

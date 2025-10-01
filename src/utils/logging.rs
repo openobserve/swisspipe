@@ -1,7 +1,6 @@
 /// Structured logging utilities for workflow execution
 ///
 /// These macros provide consistent JSON-formatted logging with workflow context
-
 /// Log an error with full workflow context (workflow_id, execution_id, node_id)
 #[macro_export]
 macro_rules! log_workflow_error {

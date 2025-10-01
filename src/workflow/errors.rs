@@ -40,6 +40,15 @@ pub enum SwissPipeError {
 
     #[error("Authentication error: {0}")]
     Auth(String),
+
+    #[error("Not found: {0}")]
+    NotFound(String),
+
+    #[error("Validation error: {0}")]
+    ValidationError(String),
+
+    #[error("Internal error: {0}")]
+    InternalError(String),
 }
 
 #[derive(Debug, Error)]
