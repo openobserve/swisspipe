@@ -38,7 +38,7 @@
     </div>
 
     <!-- Native Endpoints Tab -->
-    <div v-if="activeTab === 'native'" class="space-y-4 overflow-y-scroll h-screen max-h-[600px]">
+    <div v-if="activeTab === 'native'" class="space-y-4 overflow-y-auto max-h-[600px]">
       <!-- SwissPipe Native Endpoints -->
       <div class="bg-slate-800 p-4 rounded-md">
         <h4 class="text-sm font-medium text-gray-300 mb-3">📡 SwissPipe Native Endpoints</h4>
@@ -113,7 +113,7 @@
     </div>
 
     <!-- Segment Endpoints Tab -->
-    <div v-if="activeTab === 'segment'" class="space-y-4 overflow-y-scroll h-screen max-h-[600px]">
+    <div v-if="activeTab === 'segment'" class="space-y-4 overflow-y-auto max-h-[600px]">
       <!-- Segment.com Compatible Endpoints -->
       <div class="bg-purple-900/20 border border-purple-700/50 p-4 rounded-md">
         <h4 class="text-sm font-medium text-purple-300 mb-3">🔗 Segment.com Compatible Endpoints</h4>
@@ -203,7 +203,7 @@
     </div>
 
     <!-- Test Tab -->
-    <div v-if="activeTab === 'test'" class="space-y-4">
+    <div v-if="activeTab === 'test'" class="space-y-4 overflow-y-auto max-h-[600px]">
       <div class="bg-slate-800 p-4 rounded-md">
         <h4 class="text-sm font-medium text-gray-300 mb-3">🧪 Test Workflow</h4>
 
