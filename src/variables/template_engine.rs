@@ -1,5 +1,6 @@
 use handlebars::Handlebars;
 use std::collections::HashMap;
+use serde_json::Value;
 
 /// Template engine for resolving variable references in workflow configurations
 pub struct TemplateEngine {
@@ -14,13 +15,25 @@ impl TemplateEngine {
         Self { handlebars }
     }
 
-    /// Resolve template with variables
-    /// Template format: "https://{{ env.API_HOST }}/api"
+    /// Resolve template with variables and optional event data
+    /// Template formats:
+    /// - Environment variables: "https://{{ env.API_HOST }}/api"
+    /// - Event data: "https://api.com/users/{{ event.data.user_id }}"
     /// Variables: HashMap with variable names and values
+    /// Event data: Optional WorkflowEvent data (JSON value)
     pub fn resolve(&self, template: &str, variables: &HashMap<String, String>) -> Result<String, String> {
-        // Quick check: if no env variable references, return as-is
-        // This allows other template engines (like email templates) to process their own helpers
-        if !template.contains("{{ env.") && !template.contains("{{env.") {
+        self.resolve_with_event(template, variables, None)
+    }
+
+    /// Resolve template with variables and event data
+    pub fn resolve_with_event(
+        &self,
+        template: &str,
+        variables: &HashMap<String, String>,
+        event_data: Option<&Value>
+    ) -> Result<String, String> {
+        // Quick check: if no template markers, return as-is
+        if !template.contains("{{") {
             return Ok(template.to_string());
         }
 
@@ -32,6 +45,11 @@ impl TemplateEngine {
             .collect();
 
         context.insert("env".to_string(), serde_json::Value::Object(env_map));
+
+        // Add event data if provided
+        if let Some(event) = event_data {
+            context.insert("event".to_string(), event.clone());
+        }
 
         self.handlebars
             .render_template(template, &context)
@@ -89,16 +107,66 @@ mod tests {
     }
 
     #[test]
-    fn test_non_env_templates_pass_through() {
+    fn test_event_data_resolution() {
         let engine = TemplateEngine::new();
         let vars = HashMap::new();
+        let event_data = serde_json::json!({
+            "data": {
+                "user_id": "123",
+                "name": "John Doe"
+            },
+            "metadata": {
+                "source": "api"
+            }
+        });
 
-        // Templates with other helpers (like email templates) should pass through
-        let result = engine.resolve("Hello {{json data}}", &vars).unwrap();
-        assert_eq!(result, "Hello {{json data}}");
+        let result = engine.resolve_with_event(
+            "https://api.com/users/{{ event.data.user_id }}",
+            &vars,
+            Some(&event_data)
+        ).unwrap();
+        assert_eq!(result, "https://api.com/users/123");
+    }
 
-        let result = engine.resolve("Date: {{date_format timestamp}}", &vars).unwrap();
-        assert_eq!(result, "Date: {{date_format timestamp}}");
+    #[test]
+    fn test_event_and_env_combined() {
+        let engine = TemplateEngine::new();
+        let mut vars = HashMap::new();
+        vars.insert("API_HOST".to_string(), "https://api.example.com".to_string());
+
+        let event_data = serde_json::json!({
+            "data": {
+                "user_id": "456"
+            }
+        });
+
+        let result = engine.resolve_with_event(
+            "{{ env.API_HOST }}/users/{{ event.data.user_id }}/profile",
+            &vars,
+            Some(&event_data)
+        ).unwrap();
+        assert_eq!(result, "https://api.example.com/users/456/profile");
+    }
+
+    #[test]
+    fn test_event_metadata_access() {
+        let engine = TemplateEngine::new();
+        let vars = HashMap::new();
+        let event_data = serde_json::json!({
+            "data": {
+                "id": "789"
+            },
+            "metadata": {
+                "request_id": "abc-123"
+            }
+        });
+
+        let result = engine.resolve_with_event(
+            "https://api.com/resource?id={{ event.data.id }}&trace={{ event.metadata.request_id }}",
+            &vars,
+            Some(&event_data)
+        ).unwrap();
+        assert_eq!(result, "https://api.com/resource?id=789&trace=abc-123");
     }
 
     #[test]

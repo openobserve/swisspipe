@@ -331,8 +331,8 @@ impl NodeExecutor {
         Ok(transformed_event)
     }
 
-    /// Resolve environment variable templates in a string
-    async fn resolve_template(&self, template: &str) -> Result<String> {
+    /// Resolve environment variable and event data templates in a string
+    async fn resolve_template(&self, template: &str, event: Option<&WorkflowEvent>) -> Result<String> {
         // Check if template engine and variable service are available
         let Some(template_engine) = self.template_engine.get() else {
             // If not configured, return original string
@@ -347,8 +347,18 @@ impl NodeExecutor {
         let variables = variable_service.load_variables_map().await
             .map_err(|e| SwissPipeError::Generic(format!("Failed to load variables: {e}")))?;
 
-        // Resolve the template
-        template_engine.resolve(template, &variables)
+        // Create event data context if event is provided
+        let event_data = event.map(|e| {
+            serde_json::json!({
+                "data": e.data,
+                "metadata": e.metadata,
+                "headers": e.headers,
+                "condition_results": e.condition_results,
+            })
+        });
+
+        // Resolve the template with both environment variables and event data
+        template_engine.resolve_with_event(template, &variables, event_data.as_ref())
             .map_err(|e| SwissPipeError::Generic(format!("Template resolution failed: {e}")))
     }
 
@@ -363,12 +373,12 @@ impl NodeExecutor {
         tracing::debug!("Executing HTTP request node: loop_config_present={}", config.loop_config.is_some());
 
         // Resolve templates in URL and trim whitespace
-        let resolved_url = self.resolve_template(config.url).await?.trim().to_string();
+        let resolved_url = self.resolve_template(config.url, Some(&event)).await?.trim().to_string();
 
         // Resolve templates in headers
         let mut resolved_headers = std::collections::HashMap::new();
         for (key, value) in config.headers {
-            let resolved_value = self.resolve_template(value).await?;
+            let resolved_value = self.resolve_template(value, Some(&event)).await?;
             resolved_headers.insert(key.clone(), resolved_value);
         }
 
@@ -517,8 +527,8 @@ impl NodeExecutor {
         execution_id: &str,
     ) -> Result<WorkflowEvent> {
         // Resolve templates in URL and authorization header
-        let resolved_url = self.resolve_template(config.url).await?;
-        let resolved_auth_header = self.resolve_template(config.authorization_header).await?;
+        let resolved_url = self.resolve_template(config.url, Some(&event)).await?;
+        let resolved_auth_header = self.resolve_template(config.authorization_header, Some(&event)).await?;
 
         match config.failure_action {
             FailureAction::Retry => {
@@ -583,10 +593,10 @@ impl NodeExecutor {
         }
 
         // Resolve templates in email configuration
-        let resolved_subject = self.resolve_template(&config.subject).await?;
-        let resolved_body_template = self.resolve_template(&config.body_template).await?;
+        let resolved_subject = self.resolve_template(&config.subject, Some(&event)).await?;
+        let resolved_body_template = self.resolve_template(&config.body_template, Some(&event)).await?;
         let resolved_text_body_template = match &config.text_body_template {
-            Some(text_body) => Some(self.resolve_template(text_body).await?),
+            Some(text_body) => Some(self.resolve_template(text_body, Some(&event)).await?),
             None => None,
         };
 
@@ -657,10 +667,10 @@ impl NodeExecutor {
     ) -> Result<WorkflowEvent> {
         // Resolve templates in prompts
         let resolved_system_prompt = match config.system_prompt {
-            Some(prompt) => Some(self.resolve_template(prompt).await?),
+            Some(prompt) => Some(self.resolve_template(prompt, Some(&event)).await?),
             None => None,
         };
-        let resolved_user_prompt = self.resolve_template(config.user_prompt).await?;
+        let resolved_user_prompt = self.resolve_template(config.user_prompt, Some(&event)).await?;
 
         let anthropic_config = AnthropicCallConfig {
             model: config.model,
