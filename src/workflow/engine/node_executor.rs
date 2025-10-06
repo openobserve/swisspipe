@@ -593,12 +593,10 @@ impl NodeExecutor {
         }
 
         // Resolve templates in email configuration
+        // Note: Only resolve subject for environment variables.
+        // Body templates are handled by the email service's template engine,
+        // which supports email-specific helpers like {{json event.data}}
         let resolved_subject = self.resolve_template(&config.subject, Some(&event)).await?;
-        let resolved_body_template = self.resolve_template(&config.body_template, Some(&event)).await?;
-        let resolved_text_body_template = match &config.text_body_template {
-            Some(text_body) => Some(self.resolve_template(text_body, Some(&event)).await?),
-            None => None,
-        };
 
         // Create resolved email config
         let resolved_config = EmailConfig {
@@ -607,8 +605,8 @@ impl NodeExecutor {
             bcc: config.bcc.clone(),
             subject: resolved_subject,
             template_type: config.template_type.clone(),
-            body_template: resolved_body_template,
-            text_body_template: resolved_text_body_template,
+            body_template: config.body_template.clone(),  // Pass as-is to email service
+            text_body_template: config.text_body_template.clone(),  // Pass as-is to email service
             attachments: config.attachments.clone(),
         };
 

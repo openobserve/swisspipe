@@ -260,15 +260,17 @@ async fn test_template_undefined_variable_fails() {
     assert!(result.is_err());
 }
 
-/// Test template engine passes through non-env templates
+/// Test template engine behavior with undefined helpers
 #[tokio::test]
 async fn test_template_passes_through_non_env() {
     let engine = TemplateEngine::new();
     let vars = HashMap::new();
 
-    // Email template with json helper should pass through
-    let result = engine.resolve("Hello {{json data}}", &vars).unwrap();
-    assert_eq!(result, "Hello {{json data}}");
+    // Templates with undefined helpers should fail in strict mode
+    // This is correct behavior - email templates should NOT go through the variables template engine
+    let result = engine.resolve("Hello {{json data}}", &vars);
+    assert!(result.is_err(), "Templates with undefined helpers should fail");
+    assert!(result.unwrap_err().contains("Helper not defined"));
 
     // Template without any {{ should pass through
     let result = engine.resolve("https://api.example.com/users", &vars).unwrap();
