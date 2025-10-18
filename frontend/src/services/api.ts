@@ -135,23 +135,15 @@ class ApiClient {
             // User is authenticated via OAuth - use session cookies
             config.withCredentials = true
           } else {
-            // Fallback to Basic Auth for non-OAuth users
+            // Use Basic Auth for non-OAuth users
             const storedCredentials = localStorage.getItem('auth_credentials')
 
             if (storedCredentials) {
               config.headers.Authorization = `Basic ${storedCredentials}`
             } else {
-              // Fallback to environment variables
-              const username = import.meta.env.VITE_API_USERNAME
-              const password = import.meta.env.VITE_API_PASSWORD
-
-              if (username && password) {
-                const token = btoa(`${username}:${password}`)
-                config.headers.Authorization = `Basic ${token}`
-              } else {
-                // If no basic auth, try session-based (cookies will be sent with withCredentials)
-                config.withCredentials = true
-              }
+              // No credentials available - let the request proceed without auth
+              // The backend will return 401 if auth is required
+              config.withCredentials = true
             }
           }
         }
