@@ -69,7 +69,22 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const initializeAuth = async () => {
-    // Check if we have an active OAuth session first (prioritize OAuth over basic auth)
+    // First, check localStorage for existing Basic Auth credentials (faster, no network call)
+    const credentials = localStorage.getItem('auth_credentials')
+    if (credentials) {
+      try {
+        const decoded = atob(credentials)
+        const [username] = decoded.split(':')
+        user.value = { username }
+        console.log('Restored Basic Auth user from localStorage:', username)
+        return
+      } catch {
+        // Invalid credentials in localStorage, remove them
+        localStorage.removeItem('auth_credentials')
+      }
+    }
+
+    // If no basic auth credentials, check for OAuth session
     try {
       const userInfo = await apiClient.getCurrentUser()
       console.log('OAuth user info received:', userInfo)
@@ -86,27 +101,11 @@ export const useAuthStore = defineStore('auth', () => {
         user.value = oauthUser
         // Store OAuth user info for API client to detect
         localStorage.setItem('oauth_user', JSON.stringify(oauthUser))
-        // Clear any basic auth credentials since OAuth takes priority
-        localStorage.removeItem('auth_credentials')
         return
-      } else {
-        console.log('OAuth user info not valid:', userInfo)
       }
     } catch (error) {
-      console.log('OAuth session check failed:', error)
-      // No active OAuth session, try basic auth
-    }
-
-    // Fallback to stored basic auth credentials
-    const credentials = localStorage.getItem('auth_credentials')
-    if (credentials) {
-      try {
-        const decoded = atob(credentials)
-        const [username] = decoded.split(':')
-        user.value = { username }
-      } catch {
-        localStorage.removeItem('auth_credentials')
-      }
+      console.log('No active OAuth session:', error)
+      // No OAuth session found, user needs to log in
     }
   }
 
