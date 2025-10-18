@@ -3,9 +3,6 @@ name: Build and Push Docker Images
 on:
   workflow_dispatch:   # 👈 allows manual trigger
   push:
-    branches:
-      - main
-      - develop
     tags:
       - 'v*'
     paths-ignore:

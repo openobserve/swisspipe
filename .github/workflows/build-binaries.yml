@@ -61,11 +61,23 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Build frontend
+        shell: bash
         run: |
           cd frontend
           npm ci
           npm run build-only
           cd ..
+          # Copy frontend/dist to root dist folder for Rust embedding
+          if [ -d "frontend/dist" ]; then
+            echo "Copying frontend/dist to ./dist"
+            cp -r frontend/dist ./dist
+            echo "Frontend assets copied successfully"
+            ls -la dist/
+          else
+            echo "ERROR: frontend/dist folder not found!"
+            ls -la frontend/
+            exit 1
+          fi
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
