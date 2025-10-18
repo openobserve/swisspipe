@@ -26,11 +26,10 @@ jobs:
             asset_name: swisspipe-linux-x86_64
 
           # Linux ARM64
-          - os: ubicloud-standard-16
+          - os: ubicloud-standard-8-arm
             target: aarch64-unknown-linux-gnu
             artifact_name: swisspipe
             asset_name: swisspipe-linux-arm64
-            cross: true
 
           # macOS x86_64
           - os: macos-latest
@@ -54,23 +53,30 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build-only
+          cd ..
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install dependencies (Linux - native)
-        if: startsWith(matrix.os, 'ubicloud') && matrix.cross != true
+      - name: Install dependencies (Linux)
+        if: startsWith(matrix.os, 'ubicloud')
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
-
-      - name: Install cross-compilation tools (Linux ARM64)
-        if: matrix.cross == true
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config
-          cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -96,15 +102,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-target-
 
-      - name: Build binary (native)
-        if: matrix.cross != true
+      - name: Build binary
         run: |
           cargo build --release --target ${{ matrix.target }} --bin swisspipe
-
-      - name: Build binary (cross)
-        if: matrix.cross == true
-        run: |
-          cross build --release --target ${{ matrix.target }} --bin swisspipe
 
       - name: Strip binary (Linux/macOS)
         if: ${{ !startsWith(matrix.os, 'windows') && !contains(matrix.os, 'windows') }}
