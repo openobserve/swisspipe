@@ -3,7 +3,7 @@
 A high-performance single node workflow engine built with Rust and Axum that processes data through configurable DAG-based workflows.
 
 # Why SwissPipe
-Swisspipe is geared for semi-technical people who have very high performance requirements where many other established workflow engines like n8n, dify etc do not work. With under 30 MB memory and negligible CPU you can have thousands of workflows running. For most use cases 
+Swisspipe is geared for semi-technical people who have very high performance requirements where many other established workflow engines like n8n, dify etc do not work. With under 30 MB memory and negligible CPU you can have thousands of workflows running.
 
 Swisspipe can also replace segment.com for use cases and native segment.com compatible endpoints are available as well that can receive data from segment.com SDKs.
 
