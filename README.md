@@ -1,12 +1,17 @@
 # SwissPipe Workflow Engine
 
-A high-performance workflow engine built with Rust and Axum that processes data through configurable DAG-based workflows.
+A high-performance single node workflow engine built with Rust and Axum that processes data through configurable DAG-based workflows.
+
+# Why SwissPipe
+Swisspipe is geared for semi-technical people who have very high performance requirements where many other established workflow engines like n8n, dify etc do not work. With under 30 MB memory and negligible CPU you can have thousands of workflows running. For most use cases 
+
+Swisspipe can also replace segment.com for use cases and native segment.com compatible endpoints are available as well that can receive data from segment.com SDKs.
 
 ## Features
 
 - **DAG-based Workflows**: Define complex data processing flows using directed acyclic graphs
 - **JavaScript Integration**: Use JavaScript for transformers and conditions via QuickJS
-- **Multiple Node Types**: Support for HTTP requests, email, OpenObserve, delays, and more
+- **Multiple Node Types**: Support for HTTP requests, email, OpenObserve, delays, Conditions, Human in Loop, and more
 - **Async Execution**: Background job processing with worker pools and queue management
 - **Retry Logic**: Configurable exponential backoff for failed operations
 - **Comprehensive APIs**: Complete workflow management and execution monitoring
@@ -15,30 +20,30 @@ A high-performance workflow engine built with Rust and Axum that processes data 
 - **Email System**: SMTP integration with templating and queue management
 - **Delay Scheduling**: Built-in delay nodes with resumption capabilities
 
+## Screenshots
+
+### Sample workflow
+![Sample Workflow](./screenshots/sample_workflow.png)
+
+### Node list
+![Node List](./screenshots/node_list.png)
+
+### Condition node
+
+![Condition node](./screenshots/condition_node.png)
+
+
 ## Quick Start
 
-### Prerequisites
+### Binaries
 
-- Rust 1.70+
-- SQLite (embedded)
+Download binaries from https://github.com/openobserve/swisspipe/releases and run.
 
-### Installation
+### Docker
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd swisspipe
-   ```
+Docker immges are available at: https://gallery.ecr.aws/zinclabs/swisspipe
 
-2. Copy environment configuration:
-   ```bash
-   cp .env.example .env
-   ```
-
-3. Build and run:
-   ```bash
-   cargo run
-   ```
+> docker run -e SP_USERNAME=admin SP_PASSWORD=admin public.ecr.aws/zinclabs/swisspipe:latest
 
 The server will start on `http://localhost:3700`
 
@@ -48,7 +53,9 @@ Environment variables:
 
 - `SP_USERNAME`: Admin username for API access (default: admin)
 - `SP_PASSWORD`: Admin password for API access (default: admin)  
-- `DATABASE_URL`: SQLite database URL (default: sqlite:data/swisspipe.db?mode=rwc)
+- `DATABASE_URL`: SQLite/Postgres database URL (default: sqlite:data/swisspipe.db?mode=rwc). Use of postgres is recommended in production environments. e.g.
+  - DATABASE_URL=sqlite:data/swisspipe.db?mode=rwc
+  - DATABASE_URL=postgres://user:password@db1.hhhgvhlkgg.us-east-2.rds.amazonaws.com:5432/swisspipe
 - `PORT`: Server port (default: 3700)
 
 ## API Endpoints
@@ -102,6 +109,8 @@ All execution endpoints return HTTP 202 (Accepted) with execution details:
 5. **OpenObserve**: Log ingestion to OpenObserve platform
 6. **Email**: Send emails via SMTP with templating support
 7. **Delay**: Schedule workflow execution delays with resumption capability
+8. **Human In Loop**: Approval/Denial of workflow by a human.
+9. **Anthropic**: Make a request to Anthropic's LLM.
 
 ### JavaScript Functions
 
@@ -122,68 +131,6 @@ function condition(event) {
 }
 ```
 
-## Example Usage
-
-### Create a Simple Workflow
-
-```bash
-curl -X POST http://localhost:3700/api/admin/v1/workflows \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Basic YWRtaW46YWRtaW4=" \
-  -d '{
-    "name": "Simple HTTP Request Flow",
-    "description": "Transform data and send to external endpoint",
-    "nodes": [
-      {
-        "id": "transform-node-id", 
-        "name": "transform",
-        "node_type": {
-          "Transformer": {
-            "script": "function transformer(event) { event.data.timestamp = Date.now(); return event; }"
-          }
-        },
-        "position_x": 300,
-        "position_y": 100
-      },
-      {
-        "id": "http-node-id",
-        "name": "webhook",
-        "node_type": {
-          "HttpRequest": {
-            "url": "https://webhook.site/your-unique-url",
-            "method": "Post",
-            "timeout_seconds": 30,
-            "failure_action": "Stop",
-            "retry_config": {
-              "max_attempts": 3,
-              "initial_delay_ms": 100,
-              "max_delay_ms": 5000,
-              "backoff_multiplier": 2.0
-            },
-            "headers": {}
-          }
-        },
-        "position_x": 500,
-        "position_y": 100
-      }
-    ],
-    "edges": [
-      {
-        "from_node_id": "{START_NODE_ID}",
-        "to_node_id": "transform-node-id",
-        "condition_result": null
-      },
-      {
-        "from_node_id": "transform-node-id", 
-        "to_node_id": "http-node-id",
-        "condition_result": null
-      }
-    ]
-  }'
-```
-
-**Note**: The start/trigger node is automatically created by the system. You only need to define your business logic nodes. The start node ID is auto-generated and returned in the response. Use the returned `start_node_id` in your edges to connect from the trigger node to your first business logic node.
-
 ### Trigger the Workflow
 
 ```bash
@@ -194,32 +141,9 @@ curl -X POST http://localhost:3700/api/v1/{workflow-id}/trigger \
 
 ## Architecture
 
-- **Database**: SQLite with SeaORM for data persistence
+- **Database**: SQLite/Postgres with SeaORM for data persistence
 - **JavaScript Runtime**: QuickJS via rquickjs for safe script execution
 - **HTTP Client**: reqwest for external API calls
 - **Web Framework**: Axum for high-performance HTTP server
 - **Authentication**: Basic Auth for management APIs, UUID-based for ingestion
 
-## Development
-
-### Build
-
-```bash
-cargo build
-```
-
-### Run Tests
-
-```bash
-cargo test
-```
-
-### Run with Logs
-
-```bash
-RUST_LOG=info cargo run
-```
-
-## License
-
-[Add your license here]
