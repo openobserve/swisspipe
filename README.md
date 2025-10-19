@@ -43,7 +43,9 @@ Download binaries from https://github.com/openobserve/swisspipe/releases and run
 
 Docker immges are available at: https://gallery.ecr.aws/zinclabs/swisspipe
 
-> docker run -e SP_USERNAME=admin SP_PASSWORD=admin public.ecr.aws/zinclabs/swisspipe:latest
+```shell
+docker run -e SP_USERNAME=admin -e SP_PASSWORD=admin public.ecr.aws/zinclabs/swisspipe:latest
+```
 
 The server will start on `http://localhost:3700`
 
