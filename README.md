@@ -3,15 +3,18 @@
 A high-performance single node workflow engine built with Rust and Axum that processes data through configurable DAG-based workflows.
 
 # Why SwissPipe
-Swisspipe is geared for semi-technical people who have very high performance requirements where many other established workflow engines like n8n, dify etc do not work. With under 30 MB memory and negligible CPU you can have thousands of workflows running.
 
-Swisspipe can also replace segment.com for use cases and native segment.com compatible endpoints are available as well that can receive data from segment.com SDKs.
+If you've hit performance walls with n8n, dify, or similar tools, SwissPipe might be what you need. It runs thousands of workflows on under 30 MB of memory with minimal CPU usage.
+
+It's built for people who understand workflows but need something faster and lighter. You can be up and running in under 2 minutes using Docker or pre-built binaries.
+
+You can also use it as a Segment.com alternative—it has compatible endpoints that work with Segment SDKs.
 
 ## Features
 
 - **DAG-based Workflows**: Define complex data processing flows using directed acyclic graphs
 - **JavaScript Integration**: Use JavaScript for transformers and conditions via QuickJS
-- **Multiple Node Types**: Support for HTTP requests, email, OpenObserve, delays, Conditions, Human in Loop, and more
+- **Multiple Node Types**: Support for HTTP requests, email, OpenObserve, delays, conditions, human in loop, and more
 - **Async Execution**: Background job processing with worker pools and queue management
 - **Retry Logic**: Configurable exponential backoff for failed operations
 - **Comprehensive APIs**: Complete workflow management and execution monitoring
@@ -45,7 +48,7 @@ SP_USERNAME=admin SP_PASSWORD=admin ./swisspipe
 
 ### Docker
 
-Docker immges are available at: https://gallery.ecr.aws/zinclabs/swisspipe
+Docker images are available at: https://gallery.ecr.aws/zinclabs/swisspipe
 
 ```shell
 docker run \
@@ -64,7 +67,7 @@ Environment variables:
 
 - `SP_USERNAME`: Admin username for API access (default: admin)
 - `SP_PASSWORD`: Admin password for API access (default: admin)  
-- `DATABASE_URL`: SQLite/Postgres database URL (default: sqlite:data/swisspipe.db?mode=rwc). Use of postgres is recommended in production environments. e.g.
+- `DATABASE_URL`: SQLite/PostgreSQL database URL (default: sqlite:data/swisspipe.db?mode=rwc). Use of PostgreSQL is recommended in production environments. e.g.
   - DATABASE_URL=sqlite:data/swisspipe.db?mode=rwc
   - DATABASE_URL=postgres://user:password@db1.hhhgvhlkgg.us-east-2.rds.amazonaws.com:5432/swisspipe
 - `PORT`: Server port (default: 3700)
@@ -116,7 +119,7 @@ All execution endpoints return HTTP 202 (Accepted) with execution details:
 1. **Trigger**: Entry point for HTTP requests (GET/POST/PUT methods)
 2. **Condition**: JavaScript-based decision points for flow control
 3. **Transformer**: JavaScript-based data modification and filtering
-4. **HttpRequest**: HTTP requests to external endpoints (replaces Webhook)
+4. **HTTP Request**: HTTP requests to external endpoints (replaces Webhook)
 5. **OpenObserve**: Log ingestion to OpenObserve platform
 6. **Email**: Send emails via SMTP with templating support
 7. **Delay**: Schedule workflow execution delays with resumption capability
@@ -152,7 +155,7 @@ curl -X POST http://localhost:3700/api/v1/{workflow-id}/trigger \
 
 ## Architecture
 
-- **Database**: SQLite/Postgres with SeaORM for data persistence
+- **Database**: SQLite/PostgreSQL with SeaORM for data persistence
 - **JavaScript Runtime**: QuickJS via rquickjs for safe script execution
 - **HTTP Client**: reqwest for external API calls
 - **Web Framework**: Axum for high-performance HTTP server
