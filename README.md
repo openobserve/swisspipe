@@ -4,7 +4,7 @@ A high-performance single node workflow engine built with Rust and Axum that pro
 
 # Why SwissPipe
 
-If you've hit performance walls with n8n, dify, or similar tools, SwissPipe might be what you need. It runs thousands of workflows on under 30 MB of memory with minimal CPU usage.
+If you've hit performance walls with n8n, dify, or similar tools, SwissPipe might be what you need. It runs thousands of workflows in under 30 MB of memory with minimal CPU usage.
 
 It's built for people who understand workflows but need something faster and lighter. You can be up and running in under 2 minutes using Docker or pre-built binaries.
 
