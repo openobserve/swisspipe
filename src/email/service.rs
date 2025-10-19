@@ -21,7 +21,13 @@ pub struct EmailService {
 }
 
 impl EmailService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Result<Self, EmailError> {
+    pub fn new(db: Arc<DatabaseConnection>) -> Result<Option<Self>, EmailError> {
+        // Check if SMTP is configured - if not, return None (email service disabled)
+        if std::env::var("SMTP_HOST").is_err() {
+            tracing::info!("SMTP not configured - email service disabled");
+            return Ok(None);
+        }
+
         let smtp_configs = Self::load_smtp_configs()?;
         let template_engine = TemplateEngine::new()?;
         
@@ -39,13 +45,13 @@ impl EmailService {
         let quota = Quota::per_minute(NonZeroU32::new(rate_limit_per_minute).unwrap())
             .allow_burst(NonZeroU32::new(burst_limit).unwrap());
         let rate_limiter = Arc::new(RateLimiter::direct(quota));
-        
-        Ok(Self {
+
+        Ok(Some(Self {
             smtp_configs,
             template_engine,
             rate_limiter,
             db,
-        })
+        }))
     }
     
     fn load_smtp_configs() -> Result<HashMap<String, SmtpConfig>, EmailError> {

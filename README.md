@@ -39,12 +39,21 @@ Swisspipe can also replace segment.com for use cases and native segment.com comp
 
 Download binaries from https://github.com/openobserve/swisspipe/releases and run.
 
+```shell
+SP_USERNAME=admin SP_PASSWORD=admin ./swisspipe 
+```
+
 ### Docker
 
 Docker immges are available at: https://gallery.ecr.aws/zinclabs/swisspipe
 
 ```shell
-docker run -e SP_USERNAME=admin -e SP_PASSWORD=admin public.ecr.aws/zinclabs/swisspipe:latest
+docker run \
+  -e SP_USERNAME=admin \
+  -e SP_PASSWORD=admin \
+  -p 3700:3700 \
+  -v $(pwd)/data:/app/data \
+  public.ecr.aws/zinclabs/swisspipe:latest
 ```
 
 The server will start on `http://localhost:3700`

@@ -33,7 +33,7 @@ pub struct WorkflowEngine {
     // Keep public fields for backward compatibility with existing code
     pub js_executor: Arc<JavaScriptExecutor>,
     pub app_executor: Arc<AppExecutor>,
-    pub email_service: Arc<EmailService>,
+    pub email_service: Option<Arc<EmailService>>,
     pub anthropic_service: Arc<AnthropicService>,
     pub input_sync_service: Arc<InputSyncService>,
 }
@@ -44,8 +44,9 @@ impl WorkflowEngine {
         // Initialize all services
         let js_executor = Arc::new(JavaScriptExecutor::new()?);
         let app_executor = Arc::new(AppExecutor::new());
-        let email_service = Arc::new(EmailService::new(db.clone())
-            .map_err(|e| SwissPipeError::Generic(e.to_string()))?);
+        let email_service = EmailService::new(db.clone())
+            .map_err(|e| SwissPipeError::Generic(e.to_string()))?
+            .map(Arc::new);
         let anthropic_service = Arc::new(AnthropicService::new());
         let input_sync_service = Arc::new(InputSyncService::new(db.clone()));
 

@@ -45,7 +45,7 @@ use uuid::Uuid;
 pub struct NodeExecutor {
     js_executor: Arc<JavaScriptExecutor>,
     app_executor: Arc<AppExecutor>,
-    email_service: Arc<EmailService>,
+    email_service: Option<Arc<EmailService>>,
     anthropic_service: Arc<AnthropicService>,
     #[allow(dead_code)] // May be used in future for direct database operations
     db: Arc<DatabaseConnection>,
@@ -60,7 +60,7 @@ impl NodeExecutor {
     pub fn new(
         js_executor: Arc<JavaScriptExecutor>,
         app_executor: Arc<AppExecutor>,
-        email_service: Arc<EmailService>,
+        email_service: Option<Arc<EmailService>>,
         anthropic_service: Arc<AnthropicService>,
         db: Arc<DatabaseConnection>,
         step_tracker: Arc<StepTracker>,
@@ -592,6 +592,15 @@ impl NodeExecutor {
             tracing::info!("EMAIL NODE: HIL task data: {:?}", hil_task);
         }
 
+        // Check if email service is available
+        let email_service = self.email_service.as_ref()
+            .ok_or_else(|| {
+                log_workflow_error!(workflow_id, execution_id, node_id,
+                    format!("Email node '{}' cannot execute", node_name),
+                    "SMTP not configured - email service unavailable");
+                SwissPipeError::Generic("Email service not configured. Set SMTP_HOST and SMTP_FROM_EMAIL environment variables.".to_string())
+            })?;
+
         // Resolve templates in email configuration
         // Note: Only resolve subject for environment variables.
         // Body templates are handled by the email service's template engine,
@@ -610,7 +619,7 @@ impl NodeExecutor {
             attachments: config.attachments.clone(),
         };
 
-        match self.email_service.send_email(&resolved_config, &event, execution_id, node_id).await {
+        match email_service.send_email(&resolved_config, &event, execution_id, node_id).await {
             Ok(result) => {
                 tracing::info!("Email node '{}' executed successfully: {:?}", node_name, result);
                 Ok(event)

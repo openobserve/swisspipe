@@ -16,11 +16,14 @@ impl TemplateEngine {
     }
 
     /// Resolve template with variables and optional event data
+    ///
     /// Template formats:
     /// - Environment variables: "https://{{ env.API_HOST }}/api"
     /// - Event data: "https://api.com/users/{{ event.data.user_id }}"
-    /// Variables: HashMap with variable names and values
-    /// Event data: Optional WorkflowEvent data (JSON value)
+    ///
+    /// # Arguments
+    /// - Variables: HashMap with variable names and values
+    /// - Event data: Optional WorkflowEvent data (JSON value)
     pub fn resolve(&self, template: &str, variables: &HashMap<String, String>) -> Result<String, String> {
         self.resolve_with_event(template, variables, None)
     }

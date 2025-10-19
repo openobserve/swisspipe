@@ -43,16 +43,19 @@ impl EncryptionService {
                 Ok(Self::new(&key))
             }
             Err(_) => {
-                // Generate a new key and warn user
-                let mut key = [0u8; 32];
-                OsRng.fill_bytes(&mut key);
+                // Use default key if not set
+                const DEFAULT_KEY: &str = "167a1d8d680d5021324256b7700feefb8a433abfc8805c04937a346dff67530f";
 
-                let key_hex = hex::encode(key);
+                let key_bytes = hex::decode(DEFAULT_KEY)
+                    .expect("Default encryption key should be valid hex");
+
+                let mut key = [0u8; 32];
+                key.copy_from_slice(&key_bytes);
+
                 tracing::warn!(
-                    "SP_ENCRYPTION_KEY not set, generated new key: {}",
-                    key_hex
+                    "SP_ENCRYPTION_KEY not set, using default key (NOT SECURE FOR PRODUCTION)"
                 );
-                tracing::warn!("IMPORTANT: Set SP_ENCRYPTION_KEY={} in your environment to persist encryption across restarts", key_hex);
+                tracing::warn!("IMPORTANT: Set SP_ENCRYPTION_KEY in your environment for production use");
 
                 Ok(Self::new(&key))
             }

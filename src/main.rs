@@ -139,40 +139,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Initialize and start email queue processor
-    let email_service = engine.email_service.clone();
-    let _email_db = db.clone();
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
-        tracing::info!("Email queue processor started");
-        
-        loop {
-            interval.tick().await;
-            
-            match email_service.process_email_queue().await {
-                Ok(processed) => {
-                    if processed > 0 {
-                        tracing::debug!("Processed {} emails from queue", processed);
+    // Initialize and start email queue processor (only if email service is configured)
+    if let Some(email_service) = engine.email_service.clone() {
+        let _email_db = db.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
+            tracing::info!("Email queue processor started");
+
+            loop {
+                interval.tick().await;
+
+                match email_service.process_email_queue().await {
+                    Ok(processed) => {
+                        if processed > 0 {
+                            tracing::debug!("Processed {} emails from queue", processed);
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("Error processing email queue: {}", e);
                     }
                 }
-                Err(e) => {
-                    tracing::error!("Error processing email queue: {}", e);
-                }
-            }
-            
-            // Cleanup expired emails
-            match email_service.cleanup_expired_emails().await {
-                Ok(cleaned) => {
-                    if cleaned > 0 {
-                        tracing::info!("Cleaned up {} expired emails from queue", cleaned);
+
+                // Cleanup expired emails
+                match email_service.cleanup_expired_emails().await {
+                    Ok(cleaned) => {
+                        if cleaned > 0 {
+                            tracing::info!("Cleaned up {} expired emails from queue", cleaned);
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("Error cleaning up expired emails: {}", e);
                     }
                 }
-                Err(e) => {
-                    tracing::error!("Error cleaning up expired emails: {}", e);
-                }
             }
-        }
-    });
+        });
+    } else {
+        tracing::info!("Email service not configured - email queue processor disabled");
+    }
 
     // Initialize and start workflow execution cleanup service
     tracing::info!("Starting workflow execution cleanup service...");
