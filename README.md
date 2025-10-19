@@ -10,6 +10,10 @@ It's built for people who understand workflows but need something faster and lig
 
 You can also use it as a Segment.com alternative—it has compatible endpoints that work with Segment SDKs.
 
+# How we use SwissPipe
+
+We use SwissPipe in production for our marketing automation and analytics pipeline. We send a lot of data to OpenObserve where we can do analytics on the data. We have replaced Segment and Amplitude with SwissPipe + OpenObserve.
+
 ## Features
 
 - **DAG-based Workflows**: Define complex data processing flows using directed acyclic graphs
