@@ -33,7 +33,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
+import { computed, onUnmounted, watch } from 'vue'
 import { Position } from '@vue-flow/core'
 import { useRoute } from 'vue-router'
 import BaseNode from './BaseNode.vue'

@@ -163,7 +163,7 @@ export interface HumanInLoopNode {
     timeout_seconds?: number
     timeout_action?: string
     required_fields?: string[]
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   }
 }
 

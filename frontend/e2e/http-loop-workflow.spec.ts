@@ -260,7 +260,6 @@ test.describe('HTTP Loop Workflow E2E', () => {
 
     // Step 5: Refresh the page to verify persistence
     console.log('Refreshing page to test persistence...');
-    const currentUrl = page.url();
     await page.reload();
     await page.waitForSelector('.vue-flow', { timeout: 10000 });
     console.log('✅ Page reloaded successfully');
@@ -413,7 +412,6 @@ test.describe('HTTP Loop Workflow E2E', () => {
 
   test('should test quick setup templates', async ({ page }) => {
     const workflowHelper = new WorkflowTestHelper(page);
-    const loopHelper = new HttpLoopTestHelper(page);
 
     console.log('Testing quick setup templates...');
 

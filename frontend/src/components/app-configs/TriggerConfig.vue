@@ -423,7 +423,7 @@ const triggerWorkflow = async () => {
 
   try {
     // Validate JSON
-    let payload: any
+    let payload: unknown
     try {
       payload = JSON.parse(testData.value)
     } catch (e) {

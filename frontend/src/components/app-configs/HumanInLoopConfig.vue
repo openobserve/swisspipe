@@ -157,7 +157,6 @@
 import { computed, ref, watch, onMounted } from 'vue'
 import type { HumanInLoopConfig } from '@/types/nodes'
 import { DEFAULT_HUMAN_IN_LOOP_CONFIG } from '@/constants/nodeDefaults'
-import { useWorkflowStore } from '@/stores/workflows'
 import { deepClone } from '@/utils/comparison'
 
 interface Props {
@@ -170,9 +169,6 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
-
-const workflowStore = useWorkflowStore()
-const workflow = computed(() => workflowStore.currentWorkflow)
 
 // Local config to prevent direct mutations
 const localConfig = ref<HumanInLoopConfig>(deepClone(props.config))

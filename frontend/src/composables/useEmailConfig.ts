@@ -2,12 +2,11 @@
  * Email configuration composable - centralized state management and business logic
  */
 
-import { ref, watch, computed, onMounted, type Ref } from 'vue'
+import { ref, watch, computed, type Ref } from 'vue'
 import type { EmailConfig } from '../types/nodes'
 import { emailConfigEqual, deepClone } from '../utils/comparison'
 import { debugLog } from '../utils/debug'
 import { validateEmailConfig, safeSync, type ValidationResult } from '../utils/error-handling'
-import { apiClient } from '../services/api'
 
 interface EmailConfigProps {
   modelValue: EmailConfig
@@ -164,12 +163,6 @@ export function useEmailConfig(props: EmailConfigProps, emit: EmailConfigEmits) 
   // Utility function for array comparison
   function arraysEqual<T>(a: T[], b: T[]): boolean {
     return a.length === b.length && a.every((val, i) => val === b[i])
-  }
-
-  // Function to apply default settings from database
-  async function applyDefaultSettings() {
-    // Default settings are now applied via environment variables on the backend
-    // No need to fetch or apply defaults in the frontend
   }
 
   // Initialize validation

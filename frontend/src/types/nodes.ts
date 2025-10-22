@@ -165,7 +165,7 @@ export interface HumanInLoopConfig {
   timeout_seconds?: number
   timeout_action?: string
   required_fields?: string[]
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 // Legacy support for old App nodes

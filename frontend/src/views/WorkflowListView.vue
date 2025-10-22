@@ -385,7 +385,7 @@ const newWorkflow = ref({
 const importFile = ref<File | null>(null)
 const importWorkflowName = ref('')
 const importError = ref('')
-const workflowPreview = ref<any>(null)
+const workflowPreview = ref<{ name: string; description?: string; nodes: unknown[]; edges: unknown[] } | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 
 // Local filtered workflows computed property (must be defined before table)
@@ -714,7 +714,7 @@ async function importWorkflow() {
     }
 
     // Function to transform frontend node configuration to backend NodeType enum
-    const transformNodeType = (node: any) => {
+    const transformNodeType = (node: { type: string; data?: { config?: unknown } }) => {
       const config = node.data?.config || {}
 
       switch (node.type) {
@@ -839,7 +839,7 @@ async function importWorkflow() {
     }
 
     // Transform nodes to match backend NodeRequest structure
-    const transformedNodes = (workflowData.nodes || []).map((node: any) => ({
+    const transformedNodes = (workflowData.nodes || []).map((node: { id: string; data?: { label?: string }; position?: { x?: number; y?: number } }) => ({
       id: node.id,
       name: node.data?.label || `Node ${node.id}`,
       node_type: transformNodeType(node),
@@ -848,7 +848,7 @@ async function importWorkflow() {
     }))
 
     // Transform edges to match backend EdgeRequest structure
-    const transformedEdges = (workflowData.edges || []).map((edge: any) => ({
+    const transformedEdges = (workflowData.edges || []).map((edge: { source: string; target: string; sourceHandle?: string }) => ({
       from_node_id: edge.source,
       to_node_id: edge.target,
       condition_result: edge.sourceHandle === 'true' ? true : edge.sourceHandle === 'false' ? false : undefined,

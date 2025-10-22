@@ -175,7 +175,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 interface HilTask {
   id: string
@@ -189,8 +189,8 @@ interface HilTask {
   timeout_at?: string
   timeout_action?: string
   required_fields?: string[]
-  metadata?: Record<string, any>
-  response_data?: any
+  metadata?: Record<string, unknown>
+  response_data?: unknown
   response_received_at?: string
   created_at: string
   updated_at: string
@@ -199,7 +199,7 @@ interface HilTask {
 interface Props {
   isVisible: boolean
   task: HilTask | null
-  eventData?: any
+  eventData?: unknown
   webhookUrl?: string
 }
 
@@ -285,7 +285,7 @@ const submitDecision = async (decision: 'approved' | 'denied') => {
 
   try {
     // Prepare response data
-    const responseData: Record<string, any> = {
+    const responseData: Record<string, unknown> = {
       ...requiredFieldValues.value
     }
 
@@ -326,7 +326,7 @@ const submitDecision = async (decision: 'approved' | 'denied') => {
       throw new Error(errorMessage)
     }
 
-    const result = await response.json()
+    await response.json()
 
     emit('submitted', { decision, success: true })
     emit('close')

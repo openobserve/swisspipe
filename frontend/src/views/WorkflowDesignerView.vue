@@ -199,12 +199,8 @@ const {
 // HTTP Loop integration
 const {
   loopStatuses,
-  activeLoops,
   refreshLoopData,
   stopPolling,
-  pauseLoop,
-  stopLoop,
-  retryLoop,
   setExecutionId
 } = useHttpLoop()
 
@@ -387,34 +383,6 @@ function handleAddNode(nodeType: NodeTypeDefinition) {
 function handleLogout() {
   authStore.logout()
   router.push('/login')
-}
-
-// HTTP Loop control handlers
-async function handlePauseLoop(loopId: string) {
-  try {
-    await pauseLoop(loopId)
-  } catch (error) {
-    console.error('Failed to pause loop:', error)
-    // TODO: Show error toast
-  }
-}
-
-async function handleStopLoop(loopId: string) {
-  try {
-    await stopLoop(loopId)
-  } catch (error) {
-    console.error('Failed to stop loop:', error)
-    // TODO: Show error toast
-  }
-}
-
-async function handleRetryLoop(loopId: string) {
-  try {
-    await retryLoop(loopId)
-  } catch (error) {
-    console.error('Failed to retry loop:', error)
-    // TODO: Show error toast
-  }
 }
 
 // Type guard for HTTP request nodes

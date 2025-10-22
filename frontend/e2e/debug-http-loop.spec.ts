@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test } from '@playwright/test';
 
 test.describe('Debug HTTP Loop', () => {
   test('should show HTTP loop configuration when available', async ({ page }) => {
