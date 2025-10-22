@@ -126,7 +126,7 @@ impl JavaScriptExecutor {
             "string.fromcharcode", "fromcharcode", // Character code manipulation
             "eval", "new\\s+function", "function\\s*constructor", // Dynamic code execution
             "\\.constructor\\s*\\(", "__proto__", "prototype\\.constructor", // Prototype pollution
-            "globalthis", "global", "window", "self", // Global object access
+            "globalthis.", "global.", "window.", "self.", // Global object access
             "import", "require", "module", "exports", // Module system
             "while\\s*\\(\\s*true", "for\\s*\\(\\s*;\\s*;", // Infinite loops
         ];
