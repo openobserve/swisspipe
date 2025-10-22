@@ -194,10 +194,14 @@ function initializeEditors() {
         scrollBeyondLastLine: false,
         wordWrap: 'on',
         folding: true,
+        showFoldingControls: 'always',
+        foldingStrategy: 'indentation',
+        foldingHighlight: true,
         lineNumbers: 'on',
         automaticLayout: true,
         fontSize: 13,
-        tabSize: 2
+        tabSize: 2,
+        glyphMargin: true
       })
 
       if (editor) {
@@ -221,10 +225,14 @@ function initializeEditors() {
         scrollBeyondLastLine: false,
         wordWrap: 'on',
         folding: true,
+        showFoldingControls: 'always',
+        foldingStrategy: 'indentation',
+        foldingHighlight: true,
         lineNumbers: 'on',
         automaticLayout: true,
         fontSize: 13,
-        tabSize: 2
+        tabSize: 2,
+        glyphMargin: true
       })
 
       if (editor) {
