@@ -1,4 +1,4 @@
-use handlebars::Handlebars;
+use handlebars::{Handlebars, Helper, HelperResult, Output, RenderContext, RenderError};
 use std::collections::HashMap;
 use serde_json::Value;
 
@@ -11,6 +11,10 @@ impl TemplateEngine {
     /// Create a new template engine
     pub fn new() -> Self {
         let mut handlebars = Handlebars::new();
+
+        // Register the json helper
+        handlebars.register_helper("json", Box::new(json_helper));
+
         handlebars.set_strict_mode(true); // Fail on undefined variables
         Self { handlebars }
     }
@@ -196,4 +200,22 @@ mod tests {
         assert_eq!(result.get("auth").unwrap(), "Bearer secret123");
         assert_eq!(result.get("key").unwrap(), "Key secret123");
     }
+}
+
+// Handlebars helper function for JSON serialization
+fn json_helper(
+    h: &Helper,
+    _: &Handlebars,
+    _: &handlebars::Context,
+    _: &mut RenderContext,
+    out: &mut dyn Output,
+) -> HelperResult {
+    let value = h.param(0)
+        .ok_or_else(|| RenderError::new("json helper requires a parameter"))?;
+
+    let json_str = serde_json::to_string_pretty(value.value())
+        .map_err(|e| RenderError::new(format!("Failed to serialize to JSON: {e}")))?;
+
+    out.write(&json_str)?;
+    Ok(())
 }

@@ -68,6 +68,8 @@ impl AnthropicService {
         handlebars.register_helper("json", Box::new(json_helper));
         handlebars.set_strict_mode(true);
 
+        tracing::info!("AnthropicService initialized with json helper registered");
+
         Self { client, handlebars }
     }
 
@@ -183,6 +185,8 @@ impl AnthropicService {
     }
 
     fn render_template(&self, template: &str, event: &WorkflowEvent) -> Result<String> {
+        tracing::debug!("Rendering template: {}", template);
+
         // Create template context with event data
         let mut context = serde_json::Map::new();
 
@@ -209,9 +213,15 @@ impl AnthropicService {
         let context_value = serde_json::Value::Object(context);
 
         // Render template using handlebars
-        self.handlebars
+        let result = self.handlebars
             .render_template(template, &context_value)
-            .map_err(|e| SwissPipeError::Generic(format!("Template resolution failed: {e}")))
+            .map_err(|e| {
+                tracing::error!("Template rendering error: {}", e);
+                SwissPipeError::Generic(format!("Template resolution failed: {e}"))
+            })?;
+
+        tracing::debug!("Template rendered successfully: {}", result);
+        Ok(result)
     }
 }
 
