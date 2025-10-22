@@ -163,12 +163,17 @@ impl JavaScriptExecutor {
                 "
             );
 
-            tracing::info!("Executing secure JavaScript condition: {}", script.chars().take(100).collect::<String>());
+            tracing::info!("Executing secure JavaScript condition (first 200 chars): {}", script.chars().take(200).collect::<String>());
+            tracing::debug!("Full condition script:\n{}", script);
+            tracing::debug!("Event JSON (first 500 chars): {}", event_json.chars().take(500).collect::<String>());
 
             let result: rquickjs::Result<bool> = ctx.eval(full_script.as_bytes());
             match &result {
                 Ok(val) => tracing::info!("JavaScript condition result: {}", val),
-                Err(e) => tracing::warn!("JavaScript condition error: {}", e),
+                Err(e) => {
+                    tracing::error!("JavaScript condition error: {}", e);
+                    tracing::error!("Failed script (first 500 chars): {}", full_script.chars().take(500).collect::<String>());
+                }
             }
             result
         })?;
@@ -195,12 +200,16 @@ impl JavaScriptExecutor {
                 "
             );
 
-            tracing::info!("Executing secure JavaScript transformer: {}", script.chars().take(100).collect::<String>());
+            tracing::info!("Executing secure JavaScript transformer (first 200 chars): {}", script.chars().take(200).collect::<String>());
+            tracing::debug!("Full transformer script:\n{}", script);
 
             let result: rquickjs::Result<String> = ctx.eval(full_script.as_bytes());
             match &result {
                 Ok(val) => tracing::info!("JavaScript transformer result length: {}", val.len()),
-                Err(e) => tracing::warn!("JavaScript transformer error: {}", e),
+                Err(e) => {
+                    tracing::error!("JavaScript transformer error: {}", e);
+                    tracing::error!("Failed script (first 500 chars): {}", full_script.chars().take(500).collect::<String>());
+                }
             }
             result
         })?;
