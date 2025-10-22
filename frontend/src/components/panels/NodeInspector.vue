@@ -7,7 +7,7 @@
     ></div>
     
     <!-- Modal Content -->
-    <div class="relative max-w-6xl w-full mx-4 h-[80vh] bg-slate-900 rounded-lg shadow-2xl border border-slate-700/50 flex">
+    <div class="relative w-full h-full bg-slate-900 shadow-2xl border-0 flex">
       <!-- Header -->
       <div class="absolute top-0 left-0 right-0 px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
         <div>
@@ -71,7 +71,7 @@
       </div>
       
       <!-- Footer -->
-      <div class="absolute bottom-0 left-0 right-0 px-6 py-4 bg-slate-800/50 border-t border-slate-700/50 rounded-b-lg">
+      <div class="absolute bottom-0 left-0 right-0 px-6 py-4 bg-slate-800/50 border-t border-slate-700/50">
         <div class="flex items-center justify-between text-sm">
           <div class="flex items-center space-x-4 text-gray-400">
             <div class="flex items-center">
