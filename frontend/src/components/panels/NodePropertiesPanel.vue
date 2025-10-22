@@ -1,10 +1,10 @@
 <template>
   <!-- Modal Backdrop -->
   <div v-if="selectedNodeData"
-    class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
     @click.self="handleClose">
     <!-- Modal Content -->
-    <div class="bg-slate-800 rounded-xl border border-slate-700 w-[90vw] h-[90vh] overflow-hidden shadow-2xl">
+    <div class="bg-slate-800 border-0 w-full h-full overflow-hidden shadow-2xl">
       <!-- Modal Header -->
       <div class="flex items-center justify-between p-6 border-b border-slate-700/50">
         <div class="flex items-center space-x-4">
@@ -32,7 +32,7 @@
       </div>
 
       <!-- Modal Body -->
-      <div class="px-6 py-1 h-[calc(90vh-120px)] flex flex-col">
+      <div class="px-6 py-1 h-[calc(100vh-120px)] flex flex-col">
 
         <!-- Node Basic Info -->
         <div class="mb-6">
