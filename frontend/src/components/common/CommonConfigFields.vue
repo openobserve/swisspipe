@@ -1,31 +1,32 @@
 <template>
   <div class="space-y-4">
-    <!-- Timeout Configuration -->
-    <div>
-      <label class="block text-sm font-medium text-gray-300 mb-2">Timeout (seconds)</label>
-      <input
-        :value="config.timeout_seconds"
-        @input="updateTimeout"
-        @blur="$emit('update')"
-        type="number"
-        min="1"
-        max="300"
-        class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-      />
-    </div>
-    
-    <!-- Failure Action Configuration -->
-    <div>
-      <label class="block text-sm font-medium text-gray-300 mb-2">On Failure</label>
-      <select
-        :value="config.failure_action"
-        @change="updateFailureAction"
-        class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-      >
-        <option value="Stop">Stop Workflow</option>
-        <option value="Continue">Continue to Next Node</option>
-        <option value="Retry">Retry This Node</option>
-      </select>
+    <!-- Timeout and Failure Action Configuration -->
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Timeout (seconds)</label>
+        <input
+          :value="config.timeout_seconds"
+          @input="updateTimeout"
+          @blur="$emit('update')"
+          type="number"
+          min="1"
+          max="300"
+          class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+        />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">On Failure</label>
+        <select
+          :value="config.failure_action"
+          @change="updateFailureAction"
+          class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+        >
+          <option value="Stop">Stop Workflow</option>
+          <option value="Continue">Continue to Next Node</option>
+          <option value="Retry">Retry This Node</option>
+        </select>
+      </div>
     </div>
     
     <!-- Retry Configuration -->

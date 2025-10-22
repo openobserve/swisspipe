@@ -1,75 +1,85 @@
 <template>
   <div class="space-y-4 pb-4">
-    <div>
-      <label class="block text-sm font-medium text-gray-300 mb-2">Model</label>
-      <select
-        :value="modelValue.model"
-        @change="updateConfig('model', ($event.target as HTMLSelectElement).value)"
-        @blur="$emit('update')"
-        class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-      >
-        <option value="claude-opus-4-1-20250805">Claude 4.1 Opus</option>
-        <option value="claude-sonnet-4-20250514">Claude 4 Sonnet</option>
-        <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
-        <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
-        <option value="claude-3-opus-20240229">Claude 3 Opus</option>
-        <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
-        <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
-      </select>
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Model</label>
+        <select
+          :value="modelValue.model"
+          @change="updateConfig('model', ($event.target as HTMLSelectElement).value)"
+          @blur="$emit('update')"
+          class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+        >
+          <option value="claude-opus-4-1-20250805">Claude 4.1 Opus</option>
+          <option value="claude-sonnet-4-20250514">Claude 4 Sonnet</option>
+          <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+          <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
+          <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+          <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
+          <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Max Tokens</label>
+        <input
+          :value="modelValue.max_tokens"
+          @input="updateMaxTokens"
+          @blur="$emit('update')"
+          type="number"
+          :min="1"
+          :max="getMaxTokensForModel(modelValue.model)"
+          placeholder="4000"
+          class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+        />
+        <p class="text-xs text-gray-400 mt-1">Max: {{ getMaxTokensForModel(modelValue.model).toLocaleString() }}</p>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Temperature</label>
+        <input
+          :value="modelValue.temperature"
+          @input="updateConfig('temperature', parseFloat(($event.target as HTMLInputElement).value) || 0.7)"
+          @blur="$emit('update')"
+          type="number"
+          min="0"
+          max="1"
+          step="0.1"
+          placeholder="0.7"
+          class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+        />
+      </div>
     </div>
 
-    <div>
-      <label class="block text-sm font-medium text-gray-300 mb-2">Max Tokens</label>
-      <input
-        :value="modelValue.max_tokens"
-        @input="updateMaxTokens"
-        @blur="$emit('update')"
-        type="number"
-        :min="1"
-        :max="getMaxTokensForModel(modelValue.model)"
-        placeholder="4000"
-        class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-      />
-      <p class="text-xs text-gray-400 mt-1">Max tokens for {{ getModelDisplayName(modelValue.model) }}: {{ getMaxTokensForModel(modelValue.model).toLocaleString() }}</p>
-    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div class="flex flex-col border-2 border-blue-500/30 rounded-lg p-3 bg-blue-500/5">
+        <label class="block text-sm font-medium text-gray-300 mb-2">System Prompt (optional)</label>
+        <div class="flex-1 min-h-[360px]">
+          <CodeEditor
+            :model-value="modelValue.system_prompt || ''"
+            @update:model-value="updateConfig('system_prompt', $event || undefined)"
+            @save="$emit('update')"
+            language="markdown"
+            :show-format-button="false"
+            :show-save-button="false"
+            :show-run-button="false"
+          />
+        </div>
+      </div>
 
-    <div>
-      <label class="block text-sm font-medium text-gray-300 mb-2">Temperature</label>
-      <input
-        :value="modelValue.temperature"
-        @input="updateConfig('temperature', parseFloat(($event.target as HTMLInputElement).value) || 0.7)"
-        @blur="$emit('update')"
-        type="number"
-        min="0"
-        max="1"
-        step="0.1"
-        placeholder="0.7"
-        class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-      />
-    </div>
-
-    <div>
-      <label class="block text-sm font-medium text-gray-300 mb-2">System Prompt (optional)</label>
-      <textarea
-        :value="modelValue.system_prompt || ''"
-        @input="updateConfig('system_prompt', ($event.target as HTMLTextAreaElement).value || undefined)"
-        @blur="$emit('update')"
-        rows="3"
-        placeholder="You are a helpful AI assistant..."
-        class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-      />
-    </div>
-
-    <div>
-      <label class="block text-sm font-medium text-gray-300 mb-2">User Prompt</label>
-      <textarea
-        :value="modelValue.user_prompt"
-        @input="updateConfig('user_prompt', ($event.target as HTMLTextAreaElement).value)"
-        @blur="$emit('update')"
-        rows="4"
-        placeholder="Analyze this data: {{ event.data }}"
-        class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-      />
+      <div class="flex flex-col border-2 border-purple-500/30 rounded-lg p-3 bg-purple-500/5">
+        <label class="block text-sm font-medium text-gray-300 mb-2">User Prompt</label>
+        <div class="flex-1 min-h-[360px]">
+          <CodeEditor
+            :model-value="modelValue.user_prompt"
+            @update:model-value="updateConfig('user_prompt', $event)"
+            @save="$emit('update')"
+            language="markdown"
+            :show-format-button="false"
+            :show-save-button="false"
+            :show-run-button="false"
+          />
+        </div>
+      </div>
     </div>
 
     <!-- Common Config Fields (timeout, failure action, retry) -->
@@ -82,6 +92,7 @@
 </template>
 
 <script setup lang="ts">
+import CodeEditor from '../common/CodeEditor.vue'
 import CommonConfigFields from '../common/CommonConfigFields.vue'
 import type { AnthropicConfig } from '../../types/nodes'
 
@@ -118,16 +129,5 @@ function getMaxTokensForModel(model: string): number {
   if (model.includes('claude-3-sonnet')) return 4096
   if (model.includes('claude-3-haiku')) return 4096
   return 8192 // Default for newer models
-}
-
-function getModelDisplayName(model: string): string {
-  if (model.includes('claude-opus-4-1')) return 'Claude 4.1 Opus'
-  if (model.includes('claude-sonnet-4')) return 'Claude 4 Sonnet'
-  if (model.includes('claude-3-5-sonnet')) return 'Claude 3.5 Sonnet'
-  if (model.includes('claude-3-5-haiku')) return 'Claude 3.5 Haiku'
-  if (model.includes('claude-3-opus')) return 'Claude 3 Opus'
-  if (model.includes('claude-3-sonnet')) return 'Claude 3 Sonnet'
-  if (model.includes('claude-3-haiku')) return 'Claude 3 Haiku'
-  return model
 }
 </script>
