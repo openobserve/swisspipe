@@ -3,6 +3,7 @@ use reqwest::Client;
 use crate::workflow::models::{WorkflowEvent, RetryConfig};
 use crate::workflow::errors::{Result, SwissPipeError};
 use std::time::Duration;
+use handlebars::{Handlebars, Helper, HelperResult, Output, RenderContext, RenderError};
 
 #[derive(Debug, Serialize)]
 struct AnthropicRequest {
@@ -49,6 +50,7 @@ pub struct AnthropicCallConfig<'a> {
 
 pub struct AnthropicService {
     client: Client,
+    handlebars: Handlebars<'static>,
 }
 
 impl Default for AnthropicService {
@@ -60,7 +62,13 @@ impl Default for AnthropicService {
 impl AnthropicService {
     pub fn new() -> Self {
         let client = Client::new();
-        Self { client }
+        let mut handlebars = Handlebars::new();
+
+        // Register the json helper
+        handlebars.register_helper("json", Box::new(json_helper));
+        handlebars.set_strict_mode(true);
+
+        Self { client, handlebars }
     }
 
     pub async fn call_anthropic(
@@ -175,26 +183,52 @@ impl AnthropicService {
     }
 
     fn render_template(&self, template: &str, event: &WorkflowEvent) -> Result<String> {
-        // Simple template rendering - replace {{key}} with values from event data
-        let mut result = template.to_string();
+        // Create template context with event data
+        let mut context = serde_json::Map::new();
 
-        // Replace event.data variables
-        if let Some(obj) = event.data.as_object() {
-            for (key, value) in obj {
-                let placeholder = format!("{{{{ event.data.{key} }}}}");
-                let replacement = match value {
-                    serde_json::Value::String(s) => s.clone(),
-                    _ => value.to_string(),
-                };
-                result = result.replace(&placeholder, &replacement);
+        // Add event data (consistent with email templates and other nodes)
+        context.insert("event".to_string(), serde_json::json!({
+            "data": event.data,
+            "metadata": event.metadata,
+            "headers": event.headers,
+            "condition_results": event.condition_results,
+            "hil_task": event.hil_task,
+        }));
+
+        // Flatten data properties to root level for easier access
+        // This allows using {{name}} instead of {{event.data.name}}
+        if let serde_json::Value::Object(ref data_obj) = event.data {
+            for (key, value) in data_obj {
+                // Only add if it doesn't conflict with existing root-level keys
+                if !context.contains_key(key) {
+                    context.insert(key.clone(), value.clone());
+                }
             }
         }
 
-        // Replace full event.data with JSON
-        let data_json = serde_json::to_string(&event.data)
-            .map_err(|e| SwissPipeError::Generic(format!("Failed to serialize event data: {e}")))?;
-        result = result.replace("{{ event.data }}", &data_json);
+        let context_value = serde_json::Value::Object(context);
 
-        Ok(result)
+        // Render template using handlebars
+        self.handlebars
+            .render_template(template, &context_value)
+            .map_err(|e| SwissPipeError::Generic(format!("Template resolution failed: {e}")))
     }
+}
+
+// Handlebars helper function for JSON serialization
+fn json_helper(
+    h: &Helper,
+    _: &Handlebars,
+    _: &handlebars::Context,
+    _: &mut RenderContext,
+    out: &mut dyn Output,
+) -> HelperResult {
+    let value = h.param(0)
+        .ok_or_else(|| RenderError::new("json helper requires a parameter"))?;
+
+    let json_str = serde_json::to_string_pretty(value.value())
+        .map_err(|e| RenderError::new(format!("Failed to serialize to JSON: {e}")))?;
+
+    out.write(&json_str)?;
+    Ok(())
 }

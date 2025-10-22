@@ -103,7 +103,7 @@
                 <span>Duration:</span>
                 <span>{{ formatDuration(execution.duration_ms) }}</span>
               </div>
-              <div v-if="execution.error_message" class="mt-1 text-red-400 truncate">
+              <div v-if="execution.error_message" class="mt-1 text-red-400">
                 {{ execution.error_message }}
               </div>
             </div>
