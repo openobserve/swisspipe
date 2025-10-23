@@ -5,6 +5,7 @@ pub mod hil;
 pub mod ingestion;
 pub mod loops;
 pub mod middleware;
+pub mod schedules;
 pub mod script;
 pub mod segment;
 pub mod settings;
@@ -32,6 +33,7 @@ pub fn create_router() -> Router<AppState> {
         .nest("/api/admin/v1/settings", settings::routes())
         .nest("/api/admin/v1/hil", hil::routes())
         .nest("/api/admin/v1/variables", variables::routes())
+        .nest("/api/admin/v1", schedules::routes())
         .nest("/auth", auth_handlers::routes())
         // Static file routes (lower priority, fallback for SPA)
         .merge(static_files::routes())

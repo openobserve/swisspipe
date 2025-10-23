@@ -9,6 +9,7 @@ pub mod config;
 pub mod database;
 pub mod email;
 pub mod hil;
+pub mod schedule;
 pub mod utils;
 pub mod variables;
 pub mod workflow;
@@ -28,4 +29,5 @@ pub struct AppState {
     pub http_loop_scheduler: Arc<async_execution::HttpLoopScheduler>,
     pub variable_service: Arc<variables::VariableService>,
     pub template_engine: Arc<variables::TemplateEngine>,
+    pub schedule_service: Arc<schedule::ScheduleService>,
 }

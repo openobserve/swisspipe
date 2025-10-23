@@ -8,6 +8,7 @@ pub mod job_queue;
 pub mod email_queue;
 pub mod email_audit_log;
 pub mod scheduled_delays;
+pub mod scheduled_cron_triggers;
 pub mod node_input_sync;
 pub mod sessions;
 pub mod csrf_tokens;

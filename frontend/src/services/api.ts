@@ -14,6 +14,7 @@ import type {
   UpdateVariableRequest,
   ValidateVariableNameResponse
 } from '../types/variable'
+import type { Schedule, ScheduleConfig, CronValidationResponse } from '../types/schedule'
 
 // AI Code Generation types
 interface GenerateCodeRequest {
@@ -403,6 +404,63 @@ class ApiClient {
     const response = await this.client.post<ValidateVariableNameResponse>(
       '/api/admin/v1/variables/validate',
       { name }
+    )
+    return response.data
+  }
+
+  // Schedule API
+  async upsertSchedule(
+    workflowId: string,
+    nodeId: string,
+    config: ScheduleConfig
+  ): Promise<Schedule> {
+    const response = await this.client.put<Schedule>(
+      `/api/admin/v1/workflows/${workflowId}/triggers/${nodeId}/schedule`,
+      config
+    )
+    return response.data
+  }
+
+  async getSchedule(workflowId: string, nodeId: string): Promise<Schedule | null> {
+    try {
+      const response = await this.client.get<Schedule>(
+        `/api/admin/v1/workflows/${workflowId}/triggers/${nodeId}/schedule`
+      )
+      return response.data
+    } catch (error) {
+      const apiError = error as ApiError
+      if (apiError.status === 404) {
+        return null
+      }
+      throw error
+    }
+  }
+
+  async updateScheduleEnabled(
+    workflowId: string,
+    nodeId: string,
+    enabled: boolean
+  ): Promise<void> {
+    await this.client.patch(
+      `/api/admin/v1/workflows/${workflowId}/triggers/${nodeId}/schedule`,
+      { enabled }
+    )
+  }
+
+  async deleteSchedule(workflowId: string, nodeId: string): Promise<void> {
+    await this.client.delete(`/api/admin/v1/workflows/${workflowId}/triggers/${nodeId}/schedule`)
+  }
+
+  async validateCron(
+    cronExpression: string,
+    timezone: string
+  ): Promise<CronValidationResponse> {
+    const response = await this.client.post<CronValidationResponse>(
+      '/api/admin/v1/schedules/validate',
+      {
+        cron_expression: cronExpression,
+        timezone
+      }
     )
     return response.data
   }

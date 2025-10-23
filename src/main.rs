@@ -11,6 +11,7 @@ use swisspipe::{
     workflow::engine::WorkflowEngine,
     async_execution::{ResumptionService, DelayScheduler, CleanupService, HttpLoopScheduler, MpscWorkerPool, MpscJobDistributor},
     hil,
+    schedule::{ScheduleService, CronSchedulerService},
     api,
     auth,
 };
@@ -401,6 +402,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     engine.set_template_engine(template_engine.clone())?;
     tracing::info!("Variable service and template engine injected into workflow engine");
 
+    // Initialize cron scheduler service
+    tracing::info!("Initializing cron scheduler service...");
+    let schedule_service = Arc::new(ScheduleService::new(db.clone())?);
+    let cron_scheduler = Arc::new(CronSchedulerService::new(
+        db.clone(),
+        schedule_service.clone(),
+    )?);
+
+    // Restore scheduled triggers from database
+    // This is critical - if it fails, we should retry or fail startup
+    match cron_scheduler.restore_from_database().await {
+        Ok(count) => {
+            if count > 0 {
+                tracing::info!("Restored {} scheduled triggers from database", count);
+            } else {
+                tracing::info!("No scheduled triggers to restore");
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to restore scheduled triggers: {}", e);
+            tracing::warn!("Cron scheduler will start with no active schedules. They will be picked up on next sync.");
+            // Continue startup - schedules will be restored on next periodic sync (30s)
+        }
+    }
+
+    // Start cron scheduler service
+    let scheduler_for_startup = cron_scheduler.clone();
+    tokio::spawn(async move {
+        if let Err(e) = scheduler_for_startup.start().await {
+            tracing::error!("Cron scheduler service error: {}", e);
+        }
+    });
+    tracing::info!("Cron scheduler service started");
+
     // Store port before moving config into Arc
     let port = config.port;
 
@@ -416,6 +451,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         hil_service,
         variable_service,
         template_engine,
+        schedule_service,
     };
 
     // Build application
@@ -468,6 +504,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_graceful_shutdown(shutdown_signal)
         .await?;
 
+
+    // Shutdown cron scheduler
+    tracing::info!("Shutting down cron scheduler...");
+    if let Err(e) = cron_scheduler.shutdown().await {
+        tracing::error!("Error shutting down cron scheduler: {}", e);
+    }
 
     // Shutdown worker pool
     tracing::info!("Shutting down worker pool...");

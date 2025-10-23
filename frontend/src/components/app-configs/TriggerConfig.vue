@@ -32,6 +32,20 @@
       </button>
       <button
         role="tab"
+        :aria-selected="activeTab === 'schedule'"
+        :tabindex="activeTab === 'schedule' ? 0 : -1"
+        @click="activeTab = 'schedule'"
+        :class="[
+          'px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap',
+          activeTab === 'schedule'
+            ? 'text-primary-400 border-b-2 border-primary-400'
+            : 'text-gray-400 hover:text-gray-300'
+        ]"
+      >
+        Schedule
+      </button>
+      <button
+        role="tab"
         :aria-selected="activeTab === 'test'"
         :tabindex="activeTab === 'test' ? 0 : -1"
         @click="activeTab = 'test'"
@@ -215,6 +229,11 @@
       </div>
     </div>
 
+    <!-- Schedule Tab -->
+    <div v-if="activeTab === 'schedule'" class="overflow-y-auto max-h-[600px] mt-4">
+      <schedule-config :node-id="nodeId" />
+    </div>
+
     <!-- Test Tab -->
     <div v-if="activeTab === 'test'" class="overflow-y-auto max-h-[600px] mt-4">
       <div class="space-y-4 pb-4">
@@ -297,8 +316,10 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { useWorkflowStore } from '../../stores/workflows'
+import { useVueFlow } from '@vue-flow/core'
 import { apiClient } from '../../services/api'
 import CodeEditor from '../common/CodeEditor.vue'
+import ScheduleConfig from './ScheduleConfig.vue'
 
 interface TriggerConfig {
   type: 'trigger'
@@ -317,13 +338,21 @@ interface Emits {
 defineProps<Props>()
 defineEmits<Emits>()
 
+const { getSelectedNodes } = useVueFlow()
+
+// Get current node ID for schedule config
+const nodeId = computed(() => {
+  const selected = getSelectedNodes.value
+  return selected.length > 0 ? selected[0].id : ''
+})
+
 const workflowStore = useWorkflowStore()
 // Initialize with production fallback (where frontend and backend are served together)
 const apiBaseUrl = ref(import.meta.env.DEV ? 'http://localhost:3700' : window.location.origin)
 const isLoadingBaseUrl = ref(true)
 
 // Tab state
-const activeTab = ref<'native' | 'segment' | 'test'>('native')
+const activeTab = ref<'native' | 'segment' | 'schedule' | 'test'>('native')
 
 // Test form state
 const testMethod = ref<'POST' | 'GET' | 'PUT'>('POST')
