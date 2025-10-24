@@ -16,6 +16,7 @@ pub mod settings;
 pub mod http_loop_states;
 pub mod human_in_loop_tasks;
 pub mod environment_variables;
+pub mod workflow_versions;
 
 use sea_orm::{Database, DatabaseConnection, DbErr, ConnectionTrait, DatabaseBackend};
 use sea_orm_migration::MigratorTrait;

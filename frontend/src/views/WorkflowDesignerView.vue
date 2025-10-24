@@ -6,12 +6,13 @@
       :saving="saving"
       @navigate-back="navigateBack"
       @update-workflow-name="updateWorkflowName"
-      @save-workflow="saveWorkflow"
+      @save-workflow="handleSaveClick"
       @show-json-view="showJsonView"
       @reset-workflow="resetWorkflow"
       @toggle-node-library="toggleNodeLibrary"
       @toggle-ai-chat="toggleAiChat"
       @toggle-executions-panel="toggleExecutionsPanel"
+      @toggle-version-history="toggleVersionHistory"
       @logout="handleLogout"
     />
 
@@ -86,7 +87,22 @@
         />
       </div>
 
+      <!-- Version History Panel -->
+      <VersionHistoryPanel
+        v-if="showVersionHistory"
+        :workflow-id="workflowId"
+        @close="closeVersionHistory"
+      />
+
     </div>
+
+    <!-- Commit Message Modal -->
+    <CommitMessageModal
+      :visible="showCommitModal"
+      :saving="saving"
+      @close="closeCommitModal"
+      @confirm="handleCommitConfirm"
+    />
 
     <!-- Validation Errors/Warnings -->
     <ValidationNotifications :validation="nodeStore.validation" />
@@ -129,8 +145,10 @@ import NodeLibraryModal from '../components/panels/NodeLibraryModal.vue'
 import AiChatModal from '../components/workflow/AiChatModal.vue'
 import NodePropertiesPanel from '../components/panels/NodePropertiesPanel.vue'
 import ExecutionSidePanel from '../components/panels/ExecutionSidePanel.vue'
+import VersionHistoryPanel from '../components/panels/VersionHistoryPanel.vue'
 import NodeInspector from '../components/panels/NodeInspector.vue'
 import JsonViewModal from '../components/common/JsonViewModal.vue'
+import CommitMessageModal from '../components/modals/CommitMessageModal.vue'
 import { useWorkflowData } from '../composables/useWorkflowData'
 import { useExecutionTracing } from '../composables/useExecutionTracing'
 import { useVueFlowInteraction } from '../composables/useVueFlowInteraction'
@@ -147,6 +165,10 @@ const authStore = useAuthStore()
 
 // JSON view state
 const showJsonModal = ref(false)
+
+// Version history state
+const showVersionHistory = ref(false)
+const showCommitModal = ref(false)
 
 // Composables
 const {
@@ -383,6 +405,57 @@ function handleAddNode(nodeType: NodeTypeDefinition) {
 function handleLogout() {
   authStore.logout()
   router.push('/login')
+}
+
+// Version history functions
+function toggleVersionHistory() {
+  showVersionHistory.value = !showVersionHistory.value
+}
+
+function closeVersionHistory() {
+  showVersionHistory.value = false
+}
+
+// Commit modal functions
+function handleSaveClick() {
+  showCommitModal.value = true
+}
+
+function closeCommitModal() {
+  showCommitModal.value = false
+}
+
+async function handleCommitConfirm(commitData: { message: string; description: string | null }) {
+  try {
+    // Save workflow with commit message
+    await saveWorkflowWithVersion(commitData.message, commitData.description)
+    showCommitModal.value = false
+  } catch (error) {
+    console.error('Failed to save workflow with version:', error)
+    // Modal stays open on error so user can retry
+  }
+}
+
+async function saveWorkflowWithVersion(commitMessage: string, commitDescription: string | null) {
+  // First, save the workflow (existing logic from useWorkflowData)
+  await saveWorkflow()
+
+  // Then create a version snapshot
+  if (workflowStore.currentWorkflow) {
+    const workflowSnapshot = JSON.stringify({
+      name: workflowName.value || workflowStore.currentWorkflow.name,
+      description: workflowStore.currentWorkflow.description,
+      nodes: workflowStore.currentWorkflow.nodes,
+      edges: workflowStore.currentWorkflow.edges
+    })
+
+    await workflowStore.createWorkflowVersion(
+      workflowStore.currentWorkflow.id,
+      workflowSnapshot,
+      commitMessage,
+      commitDescription
+    )
+  }
 }
 
 // Type guard for HTTP request nodes

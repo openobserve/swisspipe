@@ -11,6 +11,7 @@ pub mod segment;
 pub mod settings;
 pub mod static_files;
 pub mod variables;
+pub mod versions;
 pub mod workflows;
 
 use axum::Router;
@@ -34,6 +35,7 @@ pub fn create_router() -> Router<AppState> {
         .nest("/api/admin/v1/hil", hil::routes())
         .nest("/api/admin/v1/variables", variables::routes())
         .nest("/api/admin/v1", schedules::routes())
+        .nest("/api/admin/v1", versions::routes::create_routes())
         .nest("/auth", auth_handlers::routes())
         // Static file routes (lower priority, fallback for SPA)
         .merge(static_files::routes())

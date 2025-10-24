@@ -184,6 +184,26 @@ export const useWorkflowStore = defineStore('workflows', () => {
     searchTerm.value = term
   }
 
+  async function createWorkflowVersion(
+    workflowId: string,
+    workflowSnapshot: string,
+    commitMessage: string,
+    commitDescription: string | null
+  ) {
+    loading.value = true
+    error.value = null
+    try {
+      await apiClient.createVersion(workflowId, workflowSnapshot, commitMessage, commitDescription)
+    } catch (err) {
+      const apiError = err as ApiError
+      error.value = apiError.message
+      console.error('Failed to create workflow version:', apiError)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     // State
     workflows,
@@ -205,6 +225,7 @@ export const useWorkflowStore = defineStore('workflows', () => {
     enableWorkflow,
     clearError,
     setCurrentWorkflow,
-    updateSearchTerm
+    updateSearchTerm,
+    createWorkflowVersion
   }
 })

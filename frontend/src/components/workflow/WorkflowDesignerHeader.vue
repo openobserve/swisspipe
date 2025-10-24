@@ -59,6 +59,15 @@
           <ClockIcon class="h-4 w-4" />
           <span>Executions</span>
         </button>
+        <button
+          @click="$emit('toggle-version-history')"
+          class="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center space-x-2"
+        >
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>History</span>
+        </button>
         <div class="flex items-center space-x-3 ml-4 border-l border-gray-600 pl-4">
           <span class="text-sm text-gray-300">
             {{ authStore.user?.username }}
@@ -94,6 +103,7 @@ interface Emits {
   (e: 'toggle-node-library'): void
   (e: 'toggle-ai-chat'): void
   (e: 'toggle-executions-panel'): void
+  (e: 'toggle-version-history'): void
   (e: 'logout'): void
 }
 

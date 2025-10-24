@@ -12,6 +12,7 @@ pub mod hil;
 pub mod schedule;
 pub mod utils;
 pub mod variables;
+pub mod versions;
 pub mod workflow;
 
 pub use database::establish_connection;
@@ -30,4 +31,5 @@ pub struct AppState {
     pub variable_service: Arc<variables::VariableService>,
     pub template_engine: Arc<variables::TemplateEngine>,
     pub schedule_service: Arc<schedule::ScheduleService>,
+    pub version_service: Arc<versions::VersionService>,
 }

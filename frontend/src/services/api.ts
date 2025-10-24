@@ -63,6 +63,53 @@ interface WorkflowSearchResult {
   description?: string
 }
 
+// Version History types
+interface Version {
+  id: string
+  workflow_id: string
+  version_number: number
+  commit_message: string
+  commit_description: string | null
+  changed_by: string
+  created_at: number
+  workflow_name: string
+}
+
+interface VersionHistoryResponse {
+  versions: Version[]
+  total: number
+  limit: number
+  offset: number
+}
+
+interface VersionDetailResponse {
+  id: string
+  workflow_id: string
+  version_number: number
+  workflow_snapshot: unknown
+  commit_message: string
+  commit_description: string | null
+  changed_by: string
+  created_at: number
+}
+
+interface CreateVersionRequest {
+  workflow_snapshot: string
+  commit_message: string
+  commit_description?: string | null
+}
+
+interface CreateVersionResponse {
+  id: string
+  workflow_id: string
+  version_number: number
+  commit_message: string
+  commit_description: string | null
+  changed_by: string
+  created_at: number
+  workflow_name: string
+}
+
 // Google OAuth types
 interface LoginResponse {
   success: boolean
@@ -464,10 +511,70 @@ class ApiClient {
     )
     return response.data
   }
+
+  // Version History API
+  async createVersion(
+    workflowId: string,
+    workflowSnapshot: string,
+    commitMessage: string,
+    commitDescription?: string | null
+  ): Promise<CreateVersionResponse> {
+    const response = await this.client.post<CreateVersionResponse>(
+      `/api/admin/v1/workflows/${workflowId}/versions`,
+      {
+        workflow_snapshot: workflowSnapshot,
+        commit_message: commitMessage,
+        commit_description: commitDescription
+      }
+    )
+    return response.data
+  }
+
+  async getVersions(
+    workflowId: string,
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<VersionHistoryResponse> {
+    const response = await this.client.get<VersionHistoryResponse>(
+      `/api/admin/v1/workflows/${workflowId}/versions`,
+      {
+        params: { limit, offset }
+      }
+    )
+    return response.data
+  }
+
+  async getVersionDetail(workflowId: string, versionId: string): Promise<VersionDetailResponse> {
+    const response = await this.client.get<VersionDetailResponse>(
+      `/api/admin/v1/workflows/${workflowId}/versions/${versionId}`
+    )
+    return response.data
+  }
 }
 
 export const apiClient = new ApiClient()
 export default apiClient
 
+// Export convenience functions
+export const getVersions = (workflowId: string, limit?: number, offset?: number) =>
+  apiClient.getVersions(workflowId, limit, offset)
+
+export const createVersion = (
+  workflowId: string,
+  workflowSnapshot: string,
+  commitMessage: string,
+  commitDescription?: string | null
+) => apiClient.createVersion(workflowId, workflowSnapshot, commitMessage, commitDescription)
+
+export const getVersionDetail = (workflowId: string, versionId: string) =>
+  apiClient.getVersionDetail(workflowId, versionId)
+
 // Export types for use in components
-export type { WorkflowSearchResult }
+export type {
+  WorkflowSearchResult,
+  Version,
+  VersionHistoryResponse,
+  VersionDetailResponse,
+  CreateVersionRequest,
+  CreateVersionResponse
+}

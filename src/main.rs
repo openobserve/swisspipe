@@ -402,6 +402,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     engine.set_template_engine(template_engine.clone())?;
     tracing::info!("Variable service and template engine injected into workflow engine");
 
+    // Initialize version service
+    let version_service = Arc::new(swisspipe::versions::VersionService::new(db.clone()));
+    tracing::info!("Version service initialized");
+
     // Initialize cron scheduler service
     tracing::info!("Initializing cron scheduler service...");
     let schedule_service = Arc::new(ScheduleService::new(db.clone())?);
@@ -452,6 +456,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         variable_service,
         template_engine,
         schedule_service,
+        version_service,
     };
 
     // Build application

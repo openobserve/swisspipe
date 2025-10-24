@@ -20,6 +20,7 @@ mod m20250125_000001_create_human_in_loop_tasks_table;
 mod m20250125_000002_add_source_handle_id_to_edges;
 mod m20250130_000001_create_environment_variables_table;
 mod m20250131_000001_create_scheduled_triggers_table;
+mod m20250201_000001_create_workflow_versions_table;
 
 pub struct Migrator;
 
@@ -47,6 +48,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250125_000002_add_source_handle_id_to_edges::Migration),
             Box::new(m20250130_000001_create_environment_variables_table::Migration),
             Box::new(m20250131_000001_create_scheduled_triggers_table::Migration),
+            Box::new(m20250201_000001_create_workflow_versions_table::Migration),
         ]
     }
 }
