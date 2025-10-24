@@ -3,9 +3,11 @@
     <!-- Header -->
     <WorkflowDesignerHeader
       v-model:workflow-name="workflowName"
+      v-model:workflow-description="workflowDescription"
       :saving="saving"
       @navigate-back="navigateBack"
       @update-workflow-name="updateWorkflowName"
+      @update-workflow-description="updateWorkflowDescription"
       @save-workflow="handleSaveClick"
       @show-json-view="showJsonView"
       @reset-workflow="resetWorkflow"
@@ -174,10 +176,12 @@ const showCommitModal = ref(false)
 const {
   workflowId,
   workflowName,
+  workflowDescription,
   saving,
   navigateBack,
   loadWorkflowData,
   updateWorkflowName,
+  updateWorkflowDescription,
   saveWorkflow,
   resetWorkflow
 } = useWorkflowData()
@@ -223,7 +227,10 @@ const {
   loopStatuses,
   refreshLoopData,
   stopPolling,
-  setExecutionId
+  setExecutionId,
+  pauseLoop,
+  stopLoop,
+  retryLoop
 } = useHttpLoop()
 
 // Check if any HTTP nodes have loop configurations and refresh loop data if needed
@@ -270,6 +277,7 @@ onMounted(async () => {
     await workflowStore.fetchWorkflow(workflowId.value)
     if (workflowStore.currentWorkflow) {
       workflowName.value = workflowStore.currentWorkflow.name
+      workflowDescription.value = workflowStore.currentWorkflow.description || ''
       loadWorkflowData()
     }
   } else {
@@ -293,6 +301,7 @@ onUnmounted(() => {
 watch(() => workflowStore.currentWorkflow, (workflow) => {
   if (workflow) {
     workflowName.value = workflow.name
+    workflowDescription.value = workflow.description || ''
     // Check for loop data when workflow loads
     checkAndRefreshLoopData()
   }
@@ -317,15 +326,17 @@ watch(tracingExecution, (newExecution) => {
 watch(() => route.params.id, async (newId, oldId) => {
   if (newId !== oldId) {
     nodeStore.clearWorkflow()
-    
+
     if (newId) {
       await workflowStore.fetchWorkflow(newId as string)
       if (workflowStore.currentWorkflow) {
         workflowName.value = workflowStore.currentWorkflow.name
+        workflowDescription.value = workflowStore.currentWorkflow.description || ''
         loadWorkflowData()
       }
     } else {
       workflowName.value = ''
+      workflowDescription.value = ''
       loadWorkflowData()
     }
   }
@@ -442,9 +453,11 @@ async function saveWorkflowWithVersion(commitMessage: string, commitDescription:
 
   // Then create a version snapshot
   if (workflowStore.currentWorkflow) {
+    const trimmedName = workflowName.value.trim()
+    const trimmedDescription = workflowDescription.value.trim()
     const workflowSnapshot = JSON.stringify({
-      name: workflowName.value || workflowStore.currentWorkflow.name,
-      description: workflowStore.currentWorkflow.description,
+      name: trimmedName === '' ? workflowStore.currentWorkflow.name : trimmedName,
+      description: trimmedDescription === '' ? workflowStore.currentWorkflow.description : trimmedDescription,
       nodes: workflowStore.currentWorkflow.nodes,
       edges: workflowStore.currentWorkflow.edges
     })

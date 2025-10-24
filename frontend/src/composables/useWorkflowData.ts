@@ -3,6 +3,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useWorkflowStore } from '../stores/workflows'
 import { useNodeStore } from '../stores/nodes'
 import type { WorkflowNode } from '../types/nodes'
+import type { Workflow } from '../types/workflow'
 import { debugLog } from '../utils/debug'
 import { useToast } from './useToast'
 import { 
@@ -21,7 +22,43 @@ export function useWorkflowData() {
 
   const workflowId = computed(() => route.params.id as string)
   const workflowName = ref('')
+  const workflowDescription = ref('')
   const saving = ref(false)
+
+  const normalizeName = (name: string) => name.trim()
+  const normalizeDescriptionInput = (description: string) => description.trim()
+
+  const normalizeDescriptionForRequest = (description: string) => {
+    const trimmed = normalizeDescriptionInput(description)
+    return trimmed === '' ? undefined : trimmed
+  }
+
+  const applyWorkflowMetadataUpdate = (update: { name?: string; description?: string | undefined; forceDescriptionUpdate?: boolean }) => {
+    const currentWorkflow = workflowStore.currentWorkflow
+    if (!currentWorkflow) {
+      return
+    }
+
+    const shouldUpdateName = update.name !== undefined
+    const shouldUpdateDescription = update.forceDescriptionUpdate || update.description !== undefined
+
+    const updatedWorkflow: Workflow = {
+      ...currentWorkflow,
+      ...(shouldUpdateName ? { name: update.name as string } : {}),
+      ...(shouldUpdateDescription ? { description: update.description } : {})
+    }
+
+    workflowStore.setCurrentWorkflow(updatedWorkflow)
+
+    const index = workflowStore.workflows.findIndex(w => w.id === updatedWorkflow.id)
+    if (index !== -1) {
+      workflowStore.workflows.splice(index, 1, {
+        ...workflowStore.workflows[index],
+        ...(shouldUpdateName ? { name: updatedWorkflow.name } : {}),
+        ...(shouldUpdateDescription ? { description: updatedWorkflow.description } : {})
+      })
+    }
+  }
 
   function navigateBack() {
     router.push('/workflows')
@@ -81,8 +118,43 @@ export function useWorkflowData() {
   }
 
   async function updateWorkflowName() {
-    if (workflowStore.currentWorkflow && workflowName.value !== workflowStore.currentWorkflow.name) {
-      console.log('Update workflow name:', workflowName.value)
+    const currentWorkflow = workflowStore.currentWorkflow
+    if (!currentWorkflow) {
+      return
+    }
+
+    const trimmedName = normalizeName(workflowName.value)
+    if (!trimmedName) {
+      workflowName.value = currentWorkflow.name
+      return
+    }
+
+    if (trimmedName !== workflowName.value) {
+      workflowName.value = trimmedName
+    }
+
+    if (trimmedName !== currentWorkflow.name) {
+      applyWorkflowMetadataUpdate({ name: trimmedName })
+    }
+  }
+
+  async function updateWorkflowDescription() {
+    const currentWorkflow = workflowStore.currentWorkflow
+    if (!currentWorkflow) {
+      return
+    }
+
+    const trimmedDescription = normalizeDescriptionInput(workflowDescription.value)
+
+    if (trimmedDescription !== workflowDescription.value) {
+      workflowDescription.value = trimmedDescription
+    }
+
+    const normalizedForStore = trimmedDescription === '' ? undefined : trimmedDescription
+    const currentDescription = currentWorkflow.description
+
+    if (normalizedForStore !== currentDescription) {
+      applyWorkflowMetadataUpdate({ description: normalizedForStore, forceDescriptionUpdate: true })
     }
   }
 
@@ -182,9 +254,10 @@ export function useWorkflowData() {
         return result
       })
 
+      const trimmedWorkflowName = normalizeName(workflowName.value)
       const workflowData = {
-        name: workflowName.value || workflowStore.currentWorkflow.name,
-        description: workflowStore.currentWorkflow.description,
+        name: trimmedWorkflowName || workflowStore.currentWorkflow.name,
+        description: normalizeDescriptionForRequest(workflowDescription.value),
         nodes: apiNodes.filter(node => {
           // Filter out trigger nodes since they are auto-created by the backend
           const nodeInStore = nodeStore.nodes.find(n => n.id === node.id)
@@ -211,12 +284,13 @@ export function useWorkflowData() {
   return {
     workflowId,
     workflowName,
+    workflowDescription,
     saving,
     navigateBack,
     loadWorkflowData,
     updateWorkflowName,
+    updateWorkflowDescription,
     saveWorkflow,
     resetWorkflow
   }
 }
-

@@ -8,13 +8,22 @@
         >
           <ArrowLeftIcon class="h-6 w-6" />
         </button>
-        <input
-          :value="workflowName"
-          @input="updateName"
-          @blur="$emit('update-workflow-name')"
-          class="bg-transparent text-xl font-medium text-white focus:outline-none focus:bg-white/5 focus:backdrop-blur-sm px-2 py-1 rounded transition-all duration-200"
-          placeholder="Workflow Name"
-        />
+        <div class="flex flex-col space-y-1">
+          <input
+            :value="workflowName"
+            @input="updateName"
+            @blur="$emit('update-workflow-name')"
+            class="bg-transparent text-xl font-medium text-white focus:outline-none focus:bg-white/5 focus:backdrop-blur-sm px-2 py-1 rounded transition-all duration-200"
+            placeholder="Workflow Name"
+          />
+          <input
+            :value="workflowDescription"
+            @input="updateDescription"
+            @blur="$emit('update-workflow-description')"
+            class="bg-transparent text-sm text-gray-400 focus:outline-none focus:bg-white/5 focus:backdrop-blur-sm px-2 py-1 rounded transition-all duration-200"
+            placeholder="Add a description..."
+          />
+        </div>
       </div>
       <div class="flex items-center space-x-3">
         <button
@@ -90,13 +99,16 @@ import { useAuthStore } from '../../stores/auth'
 
 interface Props {
   workflowName: string
+  workflowDescription?: string
   saving: boolean
 }
 
 interface Emits {
   (e: 'navigate-back'): void
   (e: 'update:workflowName', value: string): void
+  (e: 'update:workflowDescription', value: string): void
   (e: 'update-workflow-name'): void
+  (e: 'update-workflow-description'): void
   (e: 'save-workflow'): void
   (e: 'show-json-view'): void
   (e: 'reset-workflow'): void
@@ -115,5 +127,10 @@ const authStore = useAuthStore()
 function updateName(event: Event) {
   const target = event.target as HTMLInputElement
   emit('update:workflowName', target.value)
+}
+
+function updateDescription(event: Event) {
+  const target = event.target as HTMLInputElement
+  emit('update:workflowDescription', target.value)
 }
 </script>
