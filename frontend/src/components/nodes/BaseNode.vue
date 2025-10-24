@@ -74,16 +74,16 @@ const theme = computed(() => getNodeTheme(props.nodeType))
 
 const nodeClasses = computed(() => {
   const baseClass = theme.value.borderDefault
-  
+
   if (!props.data.isTracing || !props.data.executionStatus) {
     return baseClass
   }
-  
+
   switch (props.data.executionStatus) {
     case 'completed':
       return 'border-green-400 bg-green-900/20'
     case 'failed':
-      return 'border-red-400 bg-red-900/20'
+      return 'border-red-500 border-[3px] bg-red-900/30'
     case 'running':
       return 'border-blue-400 bg-blue-900/20 animate-pulse'
     case 'pending':
@@ -95,14 +95,26 @@ const nodeClasses = computed(() => {
   }
 })
 
-const nodeStyles = computed(() => ({
-  background: theme.value.background,
-  backdropFilter: 'blur(20px)',
-  WebkitBackdropFilter: 'blur(20px)',
-  border: `1px solid ${theme.value.border}`,
-  boxShadow: theme.value.boxShadow,
-  transition: 'all 0.3s ease'
-}))
+const nodeStyles = computed(() => {
+  const baseStyles = {
+    background: theme.value.background,
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    border: `1px solid ${theme.value.border}`,
+    boxShadow: theme.value.boxShadow,
+    transition: 'all 0.3s ease'
+  }
+
+  // Add prominent red glow for failed nodes
+  if (props.data.isTracing && props.data.executionStatus === 'failed') {
+    return {
+      ...baseStyles,
+      boxShadow: '0 0 0 3px rgba(239, 68, 68, 0.3), 0 0 20px rgba(239, 68, 68, 0.4), ' + theme.value.boxShadow
+    }
+  }
+
+  return baseStyles
+})
 
 const statusIndicatorClasses = computed(() => {
   if (!props.data.executionStatus) return ''

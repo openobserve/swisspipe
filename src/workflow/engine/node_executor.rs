@@ -165,8 +165,10 @@ impl NodeExecutor {
             self.execute_hil_node_with_output(params, event).await
         } else {
             // For all other node types, execute normally and wrap in Continue
-            let result_event = self.execute_node(node, event, execution_id).await?;
-            Ok(NodeOutput::Continue(result_event))
+            match self.execute_node(node, event, execution_id).await {
+                Ok(result_event) => Ok(NodeOutput::Continue(result_event)),
+                Err(e) => Err(e),
+            }
         };
 
         // Update step based on result

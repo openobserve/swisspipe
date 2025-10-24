@@ -87,12 +87,15 @@
             <!-- Execution Header -->
             <div class="flex items-center justify-between mb-2">
               <div class="flex items-center space-x-2">
-                <span class="font-mono text-sm text-gray-300">
-                  {{ execution.id.substring(0, 8) }}
+                <span
+                  class="font-mono text-xs text-gray-300 break-all"
+                  :title="execution.id"
+                >
+                  {{ execution.id }}
                 </span>
                 <StatusBadge :status="execution.status" />
               </div>
-              <span class="text-xs text-gray-400">
+              <span class="text-xs text-gray-400 flex-shrink-0 ml-2">
                 {{ formatRelativeTime(execution.started_at) }}
               </span>
             </div>
