@@ -108,7 +108,9 @@ export function useWorkflowData() {
             target: targetNode.id,
             sourceHandle,
             targetHandle: undefined,
-            data: {}
+            data: {
+              condition_result: edge.condition_result
+            }
           }
           nodeStore.addEdge(vueFlowEdge)
         }

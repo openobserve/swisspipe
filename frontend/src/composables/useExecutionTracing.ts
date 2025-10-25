@@ -83,15 +83,97 @@ export function useExecutionTracing() {
 
   function updateEdgeExecutionStyles() {
     const executedNodeIds = new Set(executionSteps.value.map(step => step.node_id))
-    
+
+    // Build a map of condition results by inferring from execution path
+    const conditionResults = new Map<string, boolean>()
+
+    nodeStore.nodes.forEach(node => {
+      if (node.type === 'condition' && executedNodeIds.has(node.id)) {
+        // Find edges from this condition node
+        const trueEdges = nodeStore.edges.filter(e =>
+          e.source === node.id && e.data?.condition_result === true
+        )
+        const falseEdges = nodeStore.edges.filter(e =>
+          e.source === node.id && e.data?.condition_result === false
+        )
+
+        // Check which path was taken based on execution order
+        // Get the execution step for this condition node to find when it executed
+        const conditionStep = executionSteps.value.find(s => s.node_id === node.id)
+        if (!conditionStep) {
+          return
+        }
+
+        // Find which immediate successor executed first after this condition
+        type TargetInfo = {nodeId: string, time: number}
+        let firstTrueTarget: TargetInfo | null = null
+        let firstFalseTarget: TargetInfo | null = null
+
+        trueEdges.forEach(e => {
+          const targetStep = executionSteps.value.find(s => s.node_id === e.target)
+          if (targetStep && targetStep.created_at > conditionStep.created_at) {
+            if (!firstTrueTarget || targetStep.created_at < firstTrueTarget.time) {
+              firstTrueTarget = { nodeId: e.target, time: targetStep.created_at }
+            }
+          }
+        })
+
+        falseEdges.forEach(e => {
+          const targetStep = executionSteps.value.find(s => s.node_id === e.target)
+          if (targetStep && targetStep.created_at > conditionStep.created_at) {
+            if (!firstFalseTarget || targetStep.created_at < firstFalseTarget.time) {
+              firstFalseTarget = { nodeId: e.target, time: targetStep.created_at }
+            }
+          }
+        })
+
+        // Determine which path was taken: the one that executed first after this condition
+        const hasTrue = firstTrueTarget !== null
+        const hasFalse = firstFalseTarget !== null
+
+        if (hasTrue && hasFalse) {
+          // Both paths have successors - use the one that executed first
+          const trueTime = firstTrueTarget!.time
+          const falseTime = firstFalseTarget!.time
+          const trueFirst = trueTime < falseTime
+          conditionResults.set(node.id, trueFirst)
+        } else if (hasTrue) {
+          conditionResults.set(node.id, true)
+        } else if (hasFalse) {
+          conditionResults.set(node.id, false)
+        }
+      }
+    })
+
     nodeStore.edges.forEach((edge: Edge) => {
       const sourceNode = nodeStore.nodes.find(n => n.id === edge.source)
       const targetNode = nodeStore.nodes.find(n => n.id === edge.target)
-      
+
       if (sourceNode && targetNode) {
-        // Use node IDs instead of node names/labels
-        const isExecutionPath = executedNodeIds.has(sourceNode.id) && executedNodeIds.has(targetNode.id)
-        
+        let isExecutionPath = false
+
+        // Check if both nodes executed
+        const bothExecuted = executedNodeIds.has(sourceNode.id) && executedNodeIds.has(targetNode.id)
+
+        if (bothExecuted) {
+          // For condition nodes, check if the edge matches the condition result
+          if (sourceNode.type === 'condition') {
+            const conditionResult = conditionResults.get(sourceNode.id)
+            const edgeConditionResult = edge.data?.condition_result
+
+            // Only highlight if condition result matches edge type
+            if (conditionResult !== undefined && edgeConditionResult !== undefined) {
+              isExecutionPath = conditionResult === edgeConditionResult
+            } else if (edgeConditionResult === undefined) {
+              // Unconditional edge from condition node (shouldn't normally happen)
+              isExecutionPath = true
+            }
+          } else {
+            // Non-condition nodes: highlight if both executed
+            isExecutionPath = true
+          }
+        }
+
         if (isExecutionPath) {
           edge.style = {
             ...edge.style,
@@ -127,7 +209,7 @@ export function useExecutionTracing() {
   }
 
   function animateExecutionPath() {
-    console.log('Animating execution path with steps:', executionSteps.value)
+    // Future: Add animation effects for execution path
   }
 
   function clearExecutionTracing() {
