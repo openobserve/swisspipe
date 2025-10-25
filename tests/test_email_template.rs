@@ -29,6 +29,7 @@ fn create_test_event(data: serde_json::Value) -> WorkflowEvent {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     }
 }
 

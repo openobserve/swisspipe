@@ -521,6 +521,7 @@ impl EmailService {
                 headers: HashMap::new(),
                 condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
             };
             
             // Render email message

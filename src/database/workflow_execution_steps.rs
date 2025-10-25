@@ -18,6 +18,8 @@ pub struct Model {
     pub started_at: Option<i64>, // Unix epoch microseconds
     pub completed_at: Option<i64>, // Unix epoch microseconds
     pub created_at: i64, // Unix epoch microseconds
+    #[sea_orm(column_type = "Text", default_value = "[]")]
+    pub sources: String, // JSON array of NodeSource objects
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

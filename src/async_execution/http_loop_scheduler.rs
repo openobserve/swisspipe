@@ -513,6 +513,7 @@ impl HttpLoopScheduler {
                             headers: std::collections::HashMap::new(),
                             condition_results: std::collections::HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
                         });
                     } else {
                         // Return success event without specific data
@@ -522,6 +523,7 @@ impl HttpLoopScheduler {
                             headers: std::collections::HashMap::new(),
                             condition_results: std::collections::HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
                         });
                     }
                 }
@@ -1146,6 +1148,7 @@ impl HttpLoopScheduler {
                     headers: workflow_event.headers.clone(),
                     condition_results: workflow_event.condition_results.clone(),
         hil_task: None,
+        sources: Vec::new(),
                 })
             }
             Err(_) => {
@@ -1176,6 +1179,7 @@ impl HttpLoopScheduler {
                     headers: HashMap::new(),
                     condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
                 })
             }
         }

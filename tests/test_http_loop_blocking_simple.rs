@@ -117,6 +117,7 @@ async fn test_http_loop_scheduler_blocking_behavior() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
 
     let loop_config = swisspipe::async_execution::http_loop_scheduler::HttpLoopConfig {
@@ -222,6 +223,7 @@ async fn test_http_loop_data_preservation() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
 
     let loop_config = swisspipe::async_execution::http_loop_scheduler::HttpLoopConfig {
@@ -310,6 +312,7 @@ async fn test_http_loop_termination_condition() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
 
     let loop_config = swisspipe::async_execution::http_loop_scheduler::HttpLoopConfig {
@@ -411,6 +414,7 @@ async fn test_concurrent_http_loops() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
 
     let event2 = WorkflowEvent {
@@ -419,6 +423,7 @@ async fn test_concurrent_http_loops() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
 
     let config1 = swisspipe::async_execution::http_loop_scheduler::HttpLoopConfig {

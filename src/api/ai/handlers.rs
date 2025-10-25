@@ -50,6 +50,7 @@ pub async fn generate_code(
         headers: std::collections::HashMap::new(),
         condition_results: std::collections::HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
 
     // Default configuration for code generation
@@ -189,6 +190,7 @@ async fn generate_workflow_with_ai(
         headers: std::collections::HashMap::new(),
         condition_results: std::collections::HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
 
     // Configure retry for AI calls

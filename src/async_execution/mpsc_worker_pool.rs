@@ -386,6 +386,7 @@ impl MpscWorkerPool {
                                     headers: std::collections::HashMap::new(),
                                     condition_results: std::collections::HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
                                 };
 
                                 // Process HIL job using AsyncHilService
@@ -660,6 +661,7 @@ impl MpscWorkerPool {
             headers: std::collections::HashMap::new(),
             condition_results: std::collections::HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
         };
 
         // Add HIL decision to metadata
@@ -1045,6 +1047,7 @@ impl MpscWorkerPool {
                             metadata,
                             condition_results: std::collections::HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
                         }
                     } else {
                         // Legacy format: input_json is the direct user payload, use it as data
@@ -1055,6 +1058,7 @@ impl MpscWorkerPool {
                             metadata: std::collections::HashMap::new(),
                             condition_results: std::collections::HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
                         }
                     }
                 }
@@ -1077,6 +1081,7 @@ impl MpscWorkerPool {
                 metadata: std::collections::HashMap::new(),
                 condition_results: std::collections::HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
             }
         };
 

@@ -232,7 +232,8 @@ impl JavaScriptExecutor {
                     metadata: event.metadata,
                     headers: event.headers,
                     condition_results: event.condition_results,
-        hil_task: None,
+                    hil_task: event.hil_task,
+                    sources: event.sources,
                 })
             }
         }

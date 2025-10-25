@@ -2,6 +2,45 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+/// Source node information - tracks which node produced data in the workflow execution path
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeSource {
+    /// Unique identifier of the source node
+    pub node_id: String,
+
+    /// Human-readable name of the source node
+    pub node_name: String,
+
+    /// Type of node (for context)
+    pub node_type: String,
+
+    /// Complete data input that this node received
+    pub data: serde_json::Value,
+
+    /// Execution sequence number (0-indexed from first non-trigger node)
+    pub sequence: u32,
+
+    /// ISO 8601 timestamp when this node started execution
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+
+    /// Optional metadata about the node execution
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, String>>,
+}
+
+/// Node type names for source tracking (constants to avoid magic strings)
+pub mod node_type_names {
+    pub const TRIGGER: &str = "Trigger";
+    pub const CONDITION: &str = "Condition";
+    pub const TRANSFORMER: &str = "Transformer";
+    pub const HTTP_REQUEST: &str = "HttpRequest";
+    pub const OPEN_OBSERVE: &str = "OpenObserve";
+    pub const EMAIL: &str = "Email";
+    pub const DELAY: &str = "Delay";
+    pub const ANTHROPIC: &str = "Anthropic";
+    pub const HUMAN_IN_LOOP: &str = "HumanInLoop";
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowEvent {
     pub data: serde_json::Value,
@@ -13,6 +52,10 @@ pub struct WorkflowEvent {
     pub condition_results: HashMap<String, bool>, // Store condition results by node ID
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hil_task: Option<serde_json::Value>, // HIL task metadata
+
+    /// Complete history of all upstream node inputs
+    #[serde(default)]
+    pub sources: Vec<NodeSource>,
 }
 
 impl Default for WorkflowEvent {
@@ -23,6 +66,7 @@ impl Default for WorkflowEvent {
             headers: HashMap::new(),
             condition_results: HashMap::new(),
             hil_task: None,
+            sources: Vec::new(),
         }
     }
 }

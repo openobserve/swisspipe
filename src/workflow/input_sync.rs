@@ -260,12 +260,31 @@ impl InputSyncService {
             }
         }
 
+        // Merge sources from all inputs, deduplicating by node_id and keeping the most recent
+        let mut merged_sources_map: std::collections::HashMap<String, crate::workflow::models::NodeSource> = std::collections::HashMap::new();
+        for input in inputs.iter() {
+            for source in &input.sources {
+                // If we already have a source with this node_id, keep the one with later timestamp
+                merged_sources_map.entry(source.node_id.clone())
+                    .and_modify(|existing| {
+                        if source.timestamp > existing.timestamp {
+                            *existing = source.clone();
+                        }
+                    })
+                    .or_insert_with(|| source.clone());
+            }
+        }
+        let mut merged_sources: Vec<_> = merged_sources_map.into_values().collect();
+        // Sort by sequence to maintain execution order
+        merged_sources.sort_by_key(|s| s.sequence);
+
         Ok(WorkflowEvent {
             data: serde_json::Value::Array(input_data_array),
             metadata: merged_metadata,
             headers: merged_headers,
             condition_results: merged_condition_results,
-        hil_task: None,
+            hil_task: None,
+            sources: merged_sources,
         })
     }
 }
@@ -301,9 +320,10 @@ mod tests {
             },
             headers: HashMap::new(),
             condition_results: HashMap::new(),
-        hil_task: None,
+            hil_task: None,
+            sources: Vec::new(),
         };
-        
+
         let event2 = WorkflowEvent {
             data: serde_json::json!({"key2": "value2"}),
             metadata: {
@@ -313,7 +333,8 @@ mod tests {
             },
             headers: HashMap::new(),
             condition_results: HashMap::new(),
-        hil_task: None,
+            hil_task: None,
+            sources: Vec::new(),
         };
         
         let inputs = vec![event1.clone(), event2];

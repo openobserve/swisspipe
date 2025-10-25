@@ -67,6 +67,7 @@ async fn test_input_synchronization_wait_for_all() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
     event1.metadata.insert("source".to_string(), "branch_a".to_string());
     
@@ -89,6 +90,7 @@ async fn test_input_synchronization_wait_for_all() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
     event2.metadata.insert("source".to_string(), "branch_b".to_string());
     
@@ -166,6 +168,7 @@ async fn test_input_synchronization_first_wins() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
     
     let event2 = WorkflowEvent {
@@ -174,6 +177,7 @@ async fn test_input_synchronization_first_wins() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
     
     let event3 = WorkflowEvent {
@@ -182,6 +186,7 @@ async fn test_input_synchronization_first_wins() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
     
     // Add inputs
@@ -229,6 +234,7 @@ async fn test_timeout_based_strategy() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
     
     // Add only one input
@@ -269,6 +275,7 @@ fn test_merge_strategies_logic() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
     
     let event2 = WorkflowEvent {
@@ -281,6 +288,7 @@ fn test_merge_strategies_logic() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
     
     let inputs = vec![event1.clone(), event2];

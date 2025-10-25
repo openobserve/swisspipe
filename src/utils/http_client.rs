@@ -233,6 +233,7 @@ impl AppExecutor {
                     headers: event.headers.clone(),
                     condition_results: event.condition_results.clone(),
         hil_task: None,
+        sources: Vec::new(),
                 })
             }
     }

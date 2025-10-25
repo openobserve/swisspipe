@@ -171,6 +171,7 @@ impl DagExecutor {
                                         headers: HashMap::new(),
                                         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
                                     };
                                     return Ok(blocking_event);
                                 }
@@ -607,6 +608,7 @@ impl DagExecutor {
                 headers: HashMap::new(),
                 condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
             })
         } else {
             let merge_strategy = node.input_merge_strategy

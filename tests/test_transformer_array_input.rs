@@ -16,6 +16,7 @@ async fn test_transformer_with_array_input() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
     
     // Simple JavaScript transformer that processes array input
@@ -64,6 +65,7 @@ async fn test_transformer_with_single_input() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
     
     // Simple transformer that handles both single and array input
@@ -120,6 +122,7 @@ async fn test_transformer_return_data_only() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
     
     // Transformer that returns just data (not complete event)
@@ -164,6 +167,7 @@ async fn test_transformer_array_access_patterns() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
     
     // Test various array access patterns

@@ -28,6 +28,18 @@ impl StepTracker {
         let step_id = Uuid::now_v7().to_string();
         let now = chrono::Utc::now().timestamp_micros();
 
+        // Extract sources from WorkflowEvent if input_data contains a full event
+        let sources_json = if let Some(data) = input_data {
+            // Try to parse as WorkflowEvent to extract sources
+            if let Ok(event) = serde_json::from_value::<crate::workflow::models::WorkflowEvent>(data.clone()) {
+                serde_json::to_string(&event.sources).unwrap_or_else(|_| "[]".to_string())
+            } else {
+                "[]".to_string()
+            }
+        } else {
+            "[]".to_string()
+        };
+
         let new_step = workflow_execution_steps::ActiveModel {
             id: Set(step_id.clone()),
             execution_id: Set(execution_id.to_string()),
@@ -40,6 +52,7 @@ impl StepTracker {
             started_at: Set(None),
             completed_at: Set(None),
             created_at: Set(now),
+            sources: Set(sources_json),
         };
 
         new_step.insert(&*self.db).await
@@ -82,11 +95,23 @@ impl StepTracker {
             .map_err(|e| SwissPipeError::Generic(format!("Failed to fetch step for completion: {e}")))?
             .ok_or_else(|| SwissPipeError::Generic(format!("Execution step not found: {step_id}")))?;
 
+        // Extract sources from output if it's a WorkflowEvent (update sources with output state)
+        let sources_json = if let Some(data) = output_data {
+            if let Ok(event) = serde_json::from_value::<crate::workflow::models::WorkflowEvent>(data.clone()) {
+                serde_json::to_string(&event.sources).unwrap_or_else(|_| step.sources.clone())
+            } else {
+                step.sources.clone() // Keep existing sources if output isn't a full event
+            }
+        } else {
+            step.sources.clone() // Keep existing sources if no output
+        };
+
         let mut active_step: workflow_execution_steps::ActiveModel = step.into();
         active_step.status = Set(StepStatus::Completed.to_string());
         active_step.completed_at = Set(Some(chrono::Utc::now().timestamp_micros()));
         active_step.output_data = Set(output_data.map(|d| serde_json::to_string(d).unwrap_or_else(|_| "{}".to_string())));
         active_step.error_message = Set(None);
+        active_step.sources = Set(sources_json);
 
         active_step.update(&*self.db).await
             .map_err(|e| SwissPipeError::Generic(format!("Failed to complete step: {e}")))?;
@@ -174,6 +199,7 @@ impl StepTracker {
             started_at: Set(Some(now)),
             completed_at: Set(if status == StepStatus::Completed { Some(now) } else { None }),
             created_at: Set(now),
+            sources: Set("[]".to_string()),
         };
 
         new_step.insert(&*self.db).await

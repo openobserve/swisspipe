@@ -79,6 +79,42 @@ impl NodeExecutor {
         }
     }
 
+    /// Helper method to append current node's input data as a source to the event
+    /// This tracks what data each node received, allowing downstream nodes to access historical inputs
+    /// Takes ownership of the event to avoid unnecessary cloning
+    fn append_source(
+        &self,
+        mut event: WorkflowEvent,
+        node_id: &str,
+        node_name: &str,
+        node_type: &str,
+    ) -> WorkflowEvent {
+        use crate::workflow::models::NodeSource;
+
+        // Calculate the next sequence number
+        let sequence = event.sources.iter()
+            .map(|s| s.sequence)
+            .max()
+            .map(|max| max + 1)
+            .unwrap_or(0);
+
+        // Create a new source entry with the current node's INPUT data
+        let source = NodeSource {
+            node_id: node_id.to_string(),
+            node_name: node_name.to_string(),
+            node_type: node_type.to_string(),
+            data: event.data.clone(), // Clone data once for the source
+            sequence,
+            timestamp: chrono::Utc::now(),
+            metadata: None,
+        };
+
+        // Add the source to the event's history
+        event.sources.push(source);
+
+        event
+    }
+
     /// Set the HTTP loop scheduler (used for dependency injection after construction)
     pub fn set_http_loop_scheduler(&self, scheduler: Arc<HttpLoopScheduler>) -> Result<()> {
         self.http_loop_scheduler.set(scheduler)
@@ -229,7 +265,7 @@ impl NodeExecutor {
                 self.execute_condition_node(script, event, params.node_name, params.node_id).await
             }
             NodeType::Transformer { script } => {
-                self.execute_transformer_node(script, event, params.node_name).await
+                self.execute_transformer_node(script, event, params.node_name, params.node_id).await
             }
             NodeType::HttpRequest { url, method, timeout_seconds, failure_action, retry_config, headers, loop_config } => {
                 let config = HttpRequestConfig {
@@ -322,12 +358,20 @@ impl NodeExecutor {
         script: &str,
         event: WorkflowEvent,
         node_name: &str,
+        node_id: &str,
     ) -> Result<WorkflowEvent> {
-        let mut transformed_event = self.js_executor.execute_transformer(script, event.clone()).await
+        use crate::workflow::models::node_type_names;
+
+        // Add source BEFORE transformation (track what the transformer received as input)
+        // Takes ownership to avoid cloning
+        let event_with_source = self.append_source(event, node_id, node_name, node_type_names::TRANSFORMER);
+
+        let mut transformed_event = self.js_executor.execute_transformer(script, event_with_source.clone()).await
             .map_err(SwissPipeError::JavaScript)?;
 
-        // Preserve condition results from the original event
-        transformed_event.condition_results = event.condition_results;
+        // Preserve condition results and sources from the event with source
+        transformed_event.condition_results = event_with_source.condition_results;
+        transformed_event.sources = event_with_source.sources;
 
         tracing::debug!("Transformer node '{}' completed transformation", node_name);
         Ok(transformed_event)
@@ -419,16 +463,25 @@ impl NodeExecutor {
         event: WorkflowEvent,
         execution_id: &str,
     ) -> Result<WorkflowEvent> {
+        use crate::workflow::models::node_type_names;
+
+        // Add source BEFORE making HTTP request (track what the node received as input)
+        // Takes ownership to avoid cloning
+        let event_with_source = self.append_source(event, config.node_id, config.node_name, node_type_names::HTTP_REQUEST);
+
         match config.failure_action {
             FailureAction::Retry => {
-                self.app_executor.execute_http_request(
+                let mut result = self.app_executor.execute_http_request(
                     config.url,
                     config.method,
                     config.timeout_seconds,
                     config.retry_config,
-                    event,
+                    event_with_source.clone(),
                     config.headers,
-                ).await
+                ).await?;
+                // Preserve sources in the result
+                result.sources = event_with_source.sources;
+                Ok(result)
             }
             FailureAction::Continue => {
                 let single_attempt_config = RetryConfig {
@@ -440,14 +493,17 @@ impl NodeExecutor {
                     config.method,
                     config.timeout_seconds,
                     &single_attempt_config,
-                    event.clone(),
+                    event_with_source.clone(),
                     config.headers,
                 ).await {
-                    Ok(result) => Ok(result),
+                    Ok(mut result) => {
+                        result.sources = event_with_source.sources;
+                        Ok(result)
+                    },
                     Err(e) => {
                         log_workflow_warn!(config.workflow_id, execution_id, config.node_id,
                             format!("HTTP request node '{}' failed but continuing: {}", config.node_name, e));
-                        Ok(event)
+                        Ok(event_with_source)
                     }
                 }
             }
@@ -456,14 +512,16 @@ impl NodeExecutor {
                     max_attempts: 1,
                     ..config.retry_config.clone()
                 };
-                self.app_executor.execute_http_request(
+                let mut result = self.app_executor.execute_http_request(
                     config.url,
                     config.method,
                     config.timeout_seconds,
                     &single_attempt_config,
-                    event,
+                    event_with_source.clone(),
                     config.headers,
-                ).await
+                ).await?;
+                result.sources = event_with_source.sources;
+                Ok(result)
             }
         }
     }
@@ -528,19 +586,27 @@ impl NodeExecutor {
         event: WorkflowEvent,
         execution_id: &str,
     ) -> Result<WorkflowEvent> {
+        use crate::workflow::models::node_type_names;
+
+        // Add source BEFORE making OpenObserve request (track what the node received as input)
+        // Takes ownership to avoid cloning
+        let event_with_source = self.append_source(event, config.node_id, config.node_name, node_type_names::OPEN_OBSERVE);
+
         // Resolve templates in URL and authorization header
-        let resolved_url = self.resolve_template(config.url, Some(&event)).await?;
-        let resolved_auth_header = self.resolve_template(config.authorization_header, Some(&event)).await?;
+        let resolved_url = self.resolve_template(config.url, Some(&event_with_source)).await?;
+        let resolved_auth_header = self.resolve_template(config.authorization_header, Some(&event_with_source)).await?;
 
         match config.failure_action {
             FailureAction::Retry => {
-                self.app_executor.execute_openobserve(
+                let mut result = self.app_executor.execute_openobserve(
                     &resolved_url,
                     &resolved_auth_header,
                     config.timeout_seconds,
                     config.retry_config,
-                    event,
-                ).await
+                    event_with_source.clone(),
+                ).await?;
+                result.sources = event_with_source.sources;
+                Ok(result)
             }
             FailureAction::Continue => {
                 let single_attempt_config = RetryConfig {
@@ -552,13 +618,16 @@ impl NodeExecutor {
                     &resolved_auth_header,
                     config.timeout_seconds,
                     &single_attempt_config,
-                    event.clone(),
+                    event_with_source.clone(),
                 ).await {
-                    Ok(result) => Ok(result),
+                    Ok(mut result) => {
+                        result.sources = event_with_source.sources;
+                        Ok(result)
+                    },
                     Err(e) => {
                         log_workflow_warn!(config.workflow_id, execution_id, config.node_id,
                             format!("OpenObserve node '{}' failed but continuing: {}", config.node_name, e));
-                        Ok(event)
+                        Ok(event_with_source)
                     }
                 }
             }
@@ -567,13 +636,15 @@ impl NodeExecutor {
                     max_attempts: 1,
                     ..config.retry_config.clone()
                 };
-                self.app_executor.execute_openobserve(
+                let mut result = self.app_executor.execute_openobserve(
                     &resolved_url,
                     &resolved_auth_header,
                     config.timeout_seconds,
                     &single_attempt_config,
-                    event,
-                ).await
+                    event_with_source.clone(),
+                ).await?;
+                result.sources = event_with_source.sources;
+                Ok(result)
             }
         }
     }
@@ -588,9 +659,15 @@ impl NodeExecutor {
         node_name: &str,
         workflow_id: &str,
     ) -> Result<WorkflowEvent> {
+        use crate::workflow::models::node_type_names;
+
+        // Add source BEFORE sending email (track what the node received as input)
+        // Takes ownership to avoid cloning
+        let event_with_source = self.append_source(event, node_id, node_name, node_type_names::EMAIL);
+
         tracing::debug!("Executing email node '{}' with config: {:?}", node_name, config);
-        tracing::info!("EMAIL NODE: Event received - hil_task present: {:?}", event.hil_task.is_some());
-        if let Some(ref hil_task) = event.hil_task {
+        tracing::info!("EMAIL NODE: Event received - hil_task present: {:?}", event_with_source.hil_task.is_some());
+        if let Some(ref hil_task) = event_with_source.hil_task {
             tracing::info!("EMAIL NODE: HIL task data: {:?}", hil_task);
         }
 
@@ -607,7 +684,7 @@ impl NodeExecutor {
         // Note: Only resolve subject for environment variables.
         // Body templates are handled by the email service's template engine,
         // which supports email-specific helpers like {{json event.data}}
-        let resolved_subject = self.resolve_template(&config.subject, Some(&event)).await?;
+        let resolved_subject = self.resolve_template(&config.subject, Some(&event_with_source)).await?;
 
         // Create resolved email config
         let resolved_config = EmailConfig {
@@ -621,10 +698,10 @@ impl NodeExecutor {
             attachments: config.attachments.clone(),
         };
 
-        match email_service.send_email(&resolved_config, &event, execution_id, node_id).await {
+        match email_service.send_email(&resolved_config, &event_with_source, execution_id, node_id).await {
             Ok(result) => {
                 tracing::info!("Email node '{}' executed successfully: {:?}", node_name, result);
-                Ok(event)
+                Ok(event_with_source)
             }
             Err(e) => {
                 log_workflow_error!(workflow_id, execution_id, node_id,
@@ -674,12 +751,18 @@ impl NodeExecutor {
         event: WorkflowEvent,
         execution_id: &str,
     ) -> Result<WorkflowEvent> {
+        use crate::workflow::models::node_type_names;
+
+        // Add source BEFORE calling Anthropic (track what the node received as input)
+        // Takes ownership to avoid cloning
+        let event_with_source = self.append_source(event, config.node_id, config.node_name, node_type_names::ANTHROPIC);
+
         // Resolve templates in prompts
         let resolved_system_prompt = match config.system_prompt {
-            Some(prompt) => Some(self.resolve_template(prompt, Some(&event)).await?),
+            Some(prompt) => Some(self.resolve_template(prompt, Some(&event_with_source)).await?),
             None => None,
         };
-        let resolved_user_prompt = self.resolve_template(config.user_prompt, Some(&event)).await?;
+        let resolved_user_prompt = self.resolve_template(config.user_prompt, Some(&event_with_source)).await?;
 
         let anthropic_config = AnthropicCallConfig {
             model: config.model,
@@ -693,7 +776,9 @@ impl NodeExecutor {
 
         match config.failure_action {
             FailureAction::Retry => {
-                self.anthropic_service.call_anthropic(&anthropic_config, &event).await
+                let mut result = self.anthropic_service.call_anthropic(&anthropic_config, &event_with_source).await?;
+                result.sources = event_with_source.sources;
+                Ok(result)
             }
             FailureAction::Continue => {
                 let single_attempt_config = AnthropicCallConfig {
@@ -703,12 +788,15 @@ impl NodeExecutor {
                     },
                     ..anthropic_config
                 };
-                match self.anthropic_service.call_anthropic(&single_attempt_config, &event).await {
-                    Ok(result) => Ok(result),
+                match self.anthropic_service.call_anthropic(&single_attempt_config, &event_with_source).await {
+                    Ok(mut result) => {
+                        result.sources = event_with_source.sources;
+                        Ok(result)
+                    },
                     Err(e) => {
                         log_workflow_warn!(config.workflow_id, execution_id, config.node_id,
                             format!("Anthropic node '{}' failed but continuing: {}", config.node_name, e));
-                        Ok(event)
+                        Ok(event_with_source)
                     }
                 }
             }
@@ -720,7 +808,9 @@ impl NodeExecutor {
                     },
                     ..anthropic_config
                 };
-                self.anthropic_service.call_anthropic(&single_attempt_config, &event).await
+                let mut result = self.anthropic_service.call_anthropic(&single_attempt_config, &event_with_source).await?;
+                result.sources = event_with_source.sources;
+                Ok(result)
             }
         }
     }

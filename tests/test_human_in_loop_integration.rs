@@ -139,6 +139,7 @@ async fn test_hil_task_creation_and_database_persistence() {
         headers: HashMap::new(),
         condition_results: HashMap::new(),
         hil_task: None,
+        sources: Vec::new(),
     };
     event.metadata.insert("execution_id".to_string(), Uuid::new_v4().to_string());
 
