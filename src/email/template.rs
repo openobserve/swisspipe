@@ -77,16 +77,22 @@ impl TemplateEngine {
         } else {
             vec![]
         };
-        
+        let reply_to = if let Some(ref reply_to_addr) = email_config.reply_to {
+            Some(self.render_email_address(reply_to_addr, &context)?)
+        } else {
+            None
+        };
+
         // Process attachments
         let attachments = if let Some(ref attachment_configs) = email_config.attachments {
             self.render_attachments(attachment_configs, &context)?
         } else {
             vec![]
         };
-        
+
         Ok(EmailMessage {
             from,
+            reply_to,
             to,
             cc,
             bcc,

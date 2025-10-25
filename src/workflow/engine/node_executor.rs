@@ -691,6 +691,7 @@ impl NodeExecutor {
             to: config.to.clone(),
             cc: config.cc.clone(),
             bcc: config.bcc.clone(),
+            reply_to: config.reply_to.clone(),
             subject: resolved_subject,
             template_type: config.template_type.clone(),
             body_template: config.body_template.clone(),  // Pass as-is to email service

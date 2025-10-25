@@ -63,6 +63,8 @@ pub struct EmailConfig {
     pub cc: Option<Vec<EmailAddress>>,
     #[validate]
     pub bcc: Option<Vec<EmailAddress>>,
+    #[validate]
+    pub reply_to: Option<EmailAddress>,
     pub subject: String,
     pub template_type: String, // "html" or "text"
     pub body_template: String,
@@ -76,6 +78,7 @@ impl Default for EmailConfig {
             to: vec![],
             cc: None,
             bcc: None,
+            reply_to: None,
             subject: "SwissPipe Workflow Notification".to_string(),
             template_type: "html".to_string(),
             body_template: "<p>Workflow completed successfully.</p>".to_string(),
@@ -88,6 +91,7 @@ impl Default for EmailConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmailMessage {
     pub from: EmailAddress,
+    pub reply_to: Option<EmailAddress>,
     pub to: Vec<EmailAddress>,
     pub cc: Vec<EmailAddress>,
     pub bcc: Vec<EmailAddress>,

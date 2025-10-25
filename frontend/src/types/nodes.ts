@@ -128,6 +128,7 @@ export interface EmailConfig {
   to: EmailAddress[]
   cc?: EmailAddress[]
   bcc?: EmailAddress[]
+  reply_to?: EmailAddress
   subject: string
   template_type: 'html' | 'text'
   body_template: string

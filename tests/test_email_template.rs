@@ -52,6 +52,7 @@ fn test_json_helper_in_html_template() {
         }],
         cc: None,
         bcc: None,
+        reply_to: None,
         subject: "Test Subject".to_string(),
         template_type: "html".to_string(),
         body_template: r#"<!DOCTYPE html><html>
@@ -110,6 +111,7 @@ fn test_json_helper_with_nested_data() {
         }],
         cc: None,
         bcc: None,
+        reply_to: None,
         subject: "Nested Data Test".to_string(),
         template_type: "html".to_string(),
         body_template: r#"<!DOCTYPE html><html>
@@ -164,6 +166,7 @@ fn test_json_helper_with_array_data() {
         }],
         cc: None,
         bcc: None,
+        reply_to: None,
         subject: "Array Data Test".to_string(),
         template_type: "html".to_string(),
         body_template: r#"<!DOCTYPE html><html>
@@ -213,6 +216,7 @@ fn test_json_helper_in_text_template() {
         }],
         cc: None,
         bcc: None,
+        reply_to: None,
         subject: "Text Template Test".to_string(),
         template_type: "text".to_string(),
         body_template: "Event Data:\n{{json event.data}}".to_string(),
@@ -258,6 +262,7 @@ fn test_json_helper_with_metadata() {
         }],
         cc: None,
         bcc: None,
+        reply_to: None,
         subject: "Metadata Test".to_string(),
         template_type: "html".to_string(),
         body_template: r#"<!DOCTYPE html><html>
@@ -308,6 +313,7 @@ fn test_json_helper_with_special_characters() {
         }],
         cc: None,
         bcc: None,
+        reply_to: None,
         subject: "Special Characters Test".to_string(),
         template_type: "html".to_string(),
         body_template: r#"<!DOCTYPE html><html>
@@ -360,6 +366,7 @@ fn test_combined_json_and_regular_variables() {
         }],
         cc: None,
         bcc: None,
+        reply_to: None,
         subject: "Combined Variables Test".to_string(),
         template_type: "html".to_string(),
         body_template: r#"<!DOCTYPE html><html>
@@ -407,6 +414,7 @@ fn test_json_helper_empty_data() {
         }],
         cc: None,
         bcc: None,
+        reply_to: None,
         subject: "Empty Data Test".to_string(),
         template_type: "html".to_string(),
         body_template: r#"<!DOCTYPE html><html>
@@ -435,4 +443,58 @@ fn test_json_helper_empty_data() {
 
     // Empty JSON object should be rendered as {}
     assert!(html_body.contains("{}"), "HTML should contain empty JSON object");
+}
+
+#[test]
+fn test_reply_to_with_template_variables() {
+    let engine = TemplateEngine::new().expect("Failed to create template engine");
+
+    let event_data = json!({
+        "customer_email": "customer@example.com",
+        "customer_name": "John Doe"
+    });
+
+    let event = create_test_event(event_data);
+
+    let email_config = EmailConfig {
+        to: vec![EmailAddress {
+            email: "support@example.com".to_string(),
+            name: None,
+        }],
+        cc: None,
+        bcc: None,
+        reply_to: Some(EmailAddress {
+            email: "{{customer_email}}".to_string(),
+            name: Some("{{customer_name}}".to_string()),
+        }),
+        subject: "Reply-To Template Test".to_string(),
+        template_type: "html".to_string(),
+        body_template: r#"<!DOCTYPE html><html>
+<body>
+<h1>Testing Reply-To</h1>
+<p>Customer: {{customer_name}}</p>
+</body>
+</html>"#.to_string(),
+        text_body_template: None,
+        attachments: None,
+    };
+
+    let smtp_config = create_test_smtp_config();
+
+    let result = engine.render_email(
+        &email_config,
+        &event,
+        "test-execution-id",
+        "test-node-id",
+        &smtp_config,
+    );
+
+    assert!(result.is_ok(), "Email rendering with reply_to templates should succeed");
+    let email = result.unwrap();
+
+    // Verify reply_to was rendered correctly
+    assert!(email.reply_to.is_some(), "Reply-to should be present");
+    let reply_to = email.reply_to.unwrap();
+    assert_eq!(reply_to.email, "customer@example.com", "Reply-to email should be rendered from template");
+    assert_eq!(reply_to.name, Some("John Doe".to_string()), "Reply-to name should be rendered from template");
 }

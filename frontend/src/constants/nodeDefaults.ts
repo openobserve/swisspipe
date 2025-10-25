@@ -12,6 +12,7 @@ export const DEFAULT_EMAIL_CONFIG = {
   }],
   cc: [],
   bcc: [],
+  reply_to: undefined,
   subject: 'Workflow {{ event.name }} completed',
   template_type: 'html' as const,
   body_template: '<!DOCTYPE html><html><body><h1>Workflow Results</h1><p>Status: {{ event.status }}</p><p>Data: {{ event.data  }}</p></body></html>',

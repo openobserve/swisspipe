@@ -116,6 +116,29 @@ export function emailConfigEqual(config1: unknown, config2: unknown): boolean {
       }
     }
   }
-  
+
+  // Compare reply_to field (single EmailAddress object)
+  const replyTo1 = obj1['reply_to']
+  const replyTo2 = obj2['reply_to']
+
+  // Both undefined/null
+  if (!replyTo1 && !replyTo2) {
+    return true
+  }
+
+  // One is undefined/null, other is not
+  if (!replyTo1 || !replyTo2) {
+    return false
+  }
+
+  // Both exist - compare as objects
+  if (typeof replyTo1 === 'object' && typeof replyTo2 === 'object') {
+    if (!shallowEqual(replyTo1 as Record<string, unknown>, replyTo2 as Record<string, unknown>)) {
+      return false
+    }
+  } else if (replyTo1 !== replyTo2) {
+    return false
+  }
+
   return true
 }

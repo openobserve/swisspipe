@@ -27,6 +27,27 @@
           <label class="block text-sm font-medium text-gray-300 mb-2">BCC Recipients (Optional)</label>
           <EmailRecipientList v-model="bccRecipients" />
         </div>
+
+        <!-- Reply-To -->
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">Reply-To (Optional)</label>
+          <div class="space-y-2">
+            <div class="flex items-center space-x-2">
+              <input
+                v-model="replyToEmail"
+                type="email"
+                placeholder="reply@example.com"
+                class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                v-model="replyToName"
+                type="text"
+                placeholder="Name (optional)"
+                class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -122,7 +143,9 @@ const {
   localConfig,
   toRecipients,
   ccRecipients,
-  bccRecipients
+  bccRecipients,
+  replyToEmail,
+  replyToName
 } = useEmailConfig(props, emit)
 </script>
 

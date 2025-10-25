@@ -242,23 +242,29 @@ impl EmailService {
     fn build_lettre_message(&self, email_message: &EmailMessage) -> Result<Message, EmailError> {
         let from_mailbox = self.email_address_to_mailbox(&email_message.from)?;
         let mut builder = Message::builder().from(from_mailbox);
-        
+
+        // Add Reply-To header if specified
+        if let Some(ref reply_to_addr) = email_message.reply_to {
+            let reply_to_mailbox = self.email_address_to_mailbox(reply_to_addr)?;
+            builder = builder.reply_to(reply_to_mailbox);
+        }
+
         // Add recipients
         for to_addr in &email_message.to {
             let mailbox = self.email_address_to_mailbox(to_addr)?;
             builder = builder.to(mailbox);
         }
-        
+
         for cc_addr in &email_message.cc {
             let mailbox = self.email_address_to_mailbox(cc_addr)?;
             builder = builder.cc(mailbox);
         }
-        
+
         for bcc_addr in &email_message.bcc {
             let mailbox = self.email_address_to_mailbox(bcc_addr)?;
             builder = builder.bcc(mailbox);
         }
-        
+
         builder = builder.subject(&email_message.subject);
         
         // Build message body

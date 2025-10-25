@@ -28,7 +28,8 @@ export function useEmailConfig(props: EmailConfigProps, emit: EmailConfigEmits) 
       return {
         ...cloned,
         cc: cloned.cc || [],
-        bcc: cloned.bcc || []
+        bcc: cloned.bcc || [],
+        reply_to: cloned.reply_to
       }
     },
     'EmailConfig initialization',
@@ -36,7 +37,8 @@ export function useEmailConfig(props: EmailConfigProps, emit: EmailConfigEmits) 
       ...deepClone(props.modelValue),
       cc: [],
       bcc: [],
-      to: props.modelValue.to || []
+      to: props.modelValue.to || [],
+      reply_to: props.modelValue.reply_to
     }
   ))
 
@@ -60,6 +62,36 @@ export function useEmailConfig(props: EmailConfigProps, emit: EmailConfigEmits) 
     set: (value) => { localConfig.value.bcc = value }
   })
 
+  // Computed properties for reply_to email and name
+  const replyToEmail = computed({
+    get: () => localConfig.value.reply_to?.email || '',
+    set: (value) => {
+      if (value) {
+        localConfig.value.reply_to = {
+          email: value,
+          name: localConfig.value.reply_to?.name
+        }
+      } else {
+        localConfig.value.reply_to = undefined
+      }
+    }
+  })
+
+  const replyToName = computed({
+    get: () => localConfig.value.reply_to?.name || '',
+    set: (value) => {
+      if (localConfig.value.reply_to) {
+        localConfig.value.reply_to = {
+          email: localConfig.value.reply_to.email,
+          name: value || undefined
+        }
+      } else if (value) {
+        // If name is set but reply_to doesn't exist, we don't create it
+        // Name alone without email doesn't make sense
+      }
+    }
+  })
+
   // Efficient prop changes watcher - no JSON.stringify!
   watch(
     () => props.modelValue,
@@ -80,7 +112,8 @@ export function useEmailConfig(props: EmailConfigProps, emit: EmailConfigEmits) 
           return {
             ...cloned,
             cc: cloned.cc || [],
-            bcc: cloned.bcc || []
+            bcc: cloned.bcc || [],
+            reply_to: cloned.reply_to
           }
         },
         'EmailConfig props sync',
@@ -146,12 +179,13 @@ export function useEmailConfig(props: EmailConfigProps, emit: EmailConfigEmits) 
     { deep: true }
   )
 
-  // Watch for input field changes (subject, body templates)
+  // Watch for input field changes (subject, body templates, reply_to)
   watch(
     () => [
       localConfig.value.subject,
       localConfig.value.body_template,
-      localConfig.value.text_body_template
+      localConfig.value.text_body_template,
+      localConfig.value.reply_to
     ],
     () => {
       debugLog.component('EmailConfig', 'input fields changed')
@@ -179,10 +213,12 @@ export function useEmailConfig(props: EmailConfigProps, emit: EmailConfigEmits) 
     toRecipients,
     ccRecipients,
     bccRecipients,
+    replyToEmail,
+    replyToName,
     validationErrors: readonly(validationErrors),
     isValid,
     hasErrors,
-    
+
     // Methods
     emitUpdate,
     validateConfig

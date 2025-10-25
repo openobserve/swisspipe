@@ -121,6 +121,7 @@ export interface EmailNode {
       to: { email: string; name?: string }[]
       cc?: { email: string; name?: string }[]
       bcc?: { email: string; name?: string }[]
+      reply_to?: { email: string; name?: string }
       subject: string
       template_type: 'html' | 'text'
       body_template: string
