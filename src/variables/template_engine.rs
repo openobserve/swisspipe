@@ -65,12 +65,11 @@ impl TemplateEngine {
                 // Check if error might be due to bracket syntax
                 if err_msg.contains("Failed to parse template") && template.contains('[') {
                     format!(
-                        "Template resolution failed: {}. \
-                        Note: Use dot notation for arrays (e.g., 'items.0.id') instead of brackets (e.g., 'items[0].id')",
-                        err_msg
+                        "Template resolution failed: {err_msg}. \
+                        Note: Use dot notation for arrays (e.g., 'items.0.id') instead of brackets (e.g., 'items[0].id')"
                     )
                 } else {
-                    format!("Template resolution failed: {}", err_msg)
+                    format!("Template resolution failed: {err_msg}")
                 }
             })
     }

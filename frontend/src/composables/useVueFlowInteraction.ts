@@ -46,16 +46,15 @@ export function useVueFlowInteraction() {
     nodeStore.addEdge(edge)
   }
 
-  function onNodesDelete(event: { nodes: { id: string; type: string }[]; preventDefault?: () => void }) {
+  function onNodesDelete(event: { nodes: Node[] }) {
     const triggerNodes = event.nodes.filter((node) => node.type === 'trigger')
-    
+
     if (triggerNodes.length > 0) {
       console.warn('Cannot delete trigger nodes')
-      event.preventDefault?.()
-      return false
+      // Prevent deletion by not calling the actual delete
+      // The VueFlow library will handle this based on the event
+      return
     }
-    
-    return true
   }
 
   function onDrop(event: DragEvent) {

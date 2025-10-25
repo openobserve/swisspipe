@@ -715,7 +715,7 @@ async function importWorkflow() {
 
     // Function to transform frontend node configuration to backend NodeType enum
     const transformNodeType = (node: { type: string; data?: { config?: unknown } }) => {
-      const config = node.data?.config || {}
+      const config = (node.data?.config || {}) as Record<string, any>
 
       switch (node.type) {
         case 'trigger':
@@ -839,7 +839,7 @@ async function importWorkflow() {
     }
 
     // Transform nodes to match backend NodeRequest structure
-    const transformedNodes = (workflowData.nodes || []).map((node: { id: string; data?: { label?: string }; position?: { x?: number; y?: number } }) => ({
+    const transformedNodes = (workflowData.nodes || []).map((node: any) => ({
       id: node.id,
       name: node.data?.label || `Node ${node.id}`,
       node_type: transformNodeType(node),
@@ -848,7 +848,7 @@ async function importWorkflow() {
     }))
 
     // Transform edges to match backend EdgeRequest structure
-    const transformedEdges = (workflowData.edges || []).map((edge: { source: string; target: string; sourceHandle?: string }) => ({
+    const transformedEdges = (workflowData.edges || []).map((edge: any) => ({
       from_node_id: edge.source,
       to_node_id: edge.target,
       condition_result: edge.sourceHandle === 'true' ? true : edge.sourceHandle === 'false' ? false : undefined,
@@ -861,7 +861,7 @@ async function importWorkflow() {
       description: workflowData.description || undefined,
       nodes: transformedNodes,
       edges: transformedEdges
-    }
+    } as any
 
     const workflow = await workflowStore.createWorkflow(workflowPayload)
 
