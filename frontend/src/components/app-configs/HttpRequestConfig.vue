@@ -23,6 +23,7 @@
         <option value="Get">GET</option>
         <option value="Post">POST</option>
         <option value="Put">PUT</option>
+        <option value="Patch">PATCH</option>
         <option value="Delete">DELETE</option>
       </select>
     </div>
