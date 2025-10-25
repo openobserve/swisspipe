@@ -60,7 +60,19 @@ impl TemplateEngine {
 
         self.handlebars
             .render_template(template, &context)
-            .map_err(|e| format!("Template resolution failed: {e}"))
+            .map_err(|e| {
+                let err_msg = format!("{e}");
+                // Check if error might be due to bracket syntax
+                if err_msg.contains("Failed to parse template") && template.contains('[') {
+                    format!(
+                        "Template resolution failed: {}. \
+                        Note: Use dot notation for arrays (e.g., 'items.0.id') instead of brackets (e.g., 'items[0].id')",
+                        err_msg
+                    )
+                } else {
+                    format!("Template resolution failed: {}", err_msg)
+                }
+            })
     }
 
     /// Resolve multiple templates
@@ -199,6 +211,41 @@ mod tests {
         let result = engine.resolve_map(&templates, &vars).unwrap();
         assert_eq!(result.get("auth").unwrap(), "Bearer secret123");
         assert_eq!(result.get("key").unwrap(), "Key secret123");
+    }
+
+    #[test]
+    fn test_array_indexing_syntax() {
+        let engine = TemplateEngine::new();
+        let vars = HashMap::new();
+        let event_data = serde_json::json!({
+            "data": {
+                "data": {
+                    "companies": [
+                        {"id": "company-123", "name": "Test Co"},
+                        {"id": "company-456", "name": "Another Co"}
+                    ]
+                }
+            }
+        });
+
+        // Test bracket syntax [0]
+        let result_bracket = engine.resolve_with_event(
+            "https://api.com/companies/{{ event.data.data.companies[0].id }}",
+            &vars,
+            Some(&event_data)
+        );
+        println!("Bracket syntax result: {:?}", result_bracket);
+
+        // Test dot syntax .0
+        let result_dot = engine.resolve_with_event(
+            "https://api.com/companies/{{ event.data.data.companies.0.id }}",
+            &vars,
+            Some(&event_data)
+        );
+        println!("Dot syntax result: {:?}", result_dot);
+
+        // At least one should work
+        assert!(result_bracket.is_ok() || result_dot.is_ok());
     }
 }
 

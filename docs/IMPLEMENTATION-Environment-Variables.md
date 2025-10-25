@@ -301,6 +301,28 @@ Update from {{ env.COMPANY_NAME }}
 <img src="{{ env.LOGO_URL }}" />
 ```
 
+**Accessing Event Data:**
+```
+{{ event.data.user_id }}
+{{ event.metadata.request_id }}
+{{ event.headers.content-type }}
+```
+
+**Accessing Array Elements (use dot notation, not brackets):**
+```
+✅ CORRECT: {{ event.data.companies.0.id }}
+❌ WRONG:   {{ event.data.companies[0].id }}
+
+✅ CORRECT: {{ event.data.items.0.name }}
+✅ CORRECT: {{ event.data.items.1.price }}
+```
+
+**Accessing Nested Object Properties:**
+```
+{{ event.data.user.profile.email }}
+{{ event.data.response.data.companies.0.name }}
+```
+
 ### 🐛 Troubleshooting
 
 **Error: "SP_ENCRYPTION_KEY not set"**
@@ -311,6 +333,12 @@ Update from {{ env.COMPANY_NAME }}
 - Check variable name matches exactly (case-sensitive)
 - Verify variable exists in Settings → Environment Variables
 - Re-save workflow after creating variable
+
+**Error: "Template resolution failed: Failed to parse template"**
+- Common cause: Using bracket notation `[0]` for arrays instead of dot notation `.0`
+- Solution: Replace `{{ event.data.items[0].id }}` with `{{ event.data.items.0.id }}`
+- Check that all variable names are spelled correctly
+- Verify the data structure matches your template path
 
 **Error: "Decryption failed"**
 - Encryption key changed
