@@ -182,8 +182,12 @@ function initializeEditor() {
     links: true,
     colorDecorators: true,
     codeLens: false,  // Keep this disabled to avoid clutter
+    // Code folding settings
     folding: true,
+    foldingStrategy: 'auto',  // Use automatic folding based on indentation and syntax
     foldingHighlight: true,
+    showFoldingControls: 'always',  // Always show folding controls in the gutter
+    unfoldOnClickAfterEndOfLine: true,  // Click after line end to unfold
     showUnused: true,
     showDeprecated: true
   })
@@ -277,6 +281,35 @@ function initializeEditor() {
     label: 'Format Document',
     keybindings: [monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF],
     run: () => formatCode()
+  })
+
+  // Add folding keyboard shortcuts (these are default but making them explicit)
+  editor.addAction({
+    id: 'fold',
+    label: 'Fold',
+    keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.BracketLeft],
+    run: (ed) => ed.trigger('', 'editor.fold', {})
+  })
+
+  editor.addAction({
+    id: 'unfold',
+    label: 'Unfold',
+    keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.BracketRight],
+    run: (ed) => ed.trigger('', 'editor.unfold', {})
+  })
+
+  editor.addAction({
+    id: 'foldAll',
+    label: 'Fold All',
+    keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, monaco.KeyMod.CtrlCmd | monaco.KeyCode.Digit0],
+    run: (ed) => ed.trigger('', 'editor.foldAll', {})
+  })
+
+  editor.addAction({
+    id: 'unfoldAll',
+    label: 'Unfold All',
+    keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyJ],
+    run: (ed) => ed.trigger('', 'editor.unfoldAll', {})
   })
 }
 
