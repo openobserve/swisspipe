@@ -2,6 +2,7 @@
   <BaseNode
     node-type="openobserve"
     :data="data"
+    :node-id="nodeId"
     subtitle="Log Ingestion"
     :handles="[
       { type: 'target', position: Position.Top },
@@ -26,6 +27,7 @@ interface Props {
     executionDuration?: number
     executionError?: string
   }
+  nodeId: string
 }
 
 defineProps<Props>()

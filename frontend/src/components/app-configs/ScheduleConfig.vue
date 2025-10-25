@@ -325,7 +325,7 @@ const validateCronExpression = async () => {
       nextExecutions: result.next_executions,
       error: result.valid ? '' : result.next_executions[0] || 'Invalid cron expression'
     }
-  } catch (error) {
+  } catch {
     cronValidation.value = {
       checked: true,
       valid: false,

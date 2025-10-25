@@ -45,14 +45,6 @@
         >
           Reset
         </button>
-        <button
-          @click="$emit('toggle-node-library')"
-          class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center space-x-2"
-          title="Node Library"
-        >
-          <Squares2X2Icon class="h-4 w-4" />
-          <span>Node Library</span>
-        </button>
         <!-- <button
           @click="$emit('toggle-ai-chat')"
           class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center space-x-2"
@@ -94,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowLeftIcon, ClockIcon, Squares2X2Icon } from '@heroicons/vue/24/outline'
+import { ArrowLeftIcon, ClockIcon } from '@heroicons/vue/24/outline'
 import { useAuthStore } from '../../stores/auth'
 
 interface Props {

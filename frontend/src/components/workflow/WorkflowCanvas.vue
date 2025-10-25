@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex-1 relative"
+    class="absolute inset-0"
     @drop="$emit('drop', $event)"
     @dragover.prevent
     @dragenter.prevent
@@ -26,14 +26,14 @@
       <Controls />
       
       <!-- Custom Node Types -->
-      <template #node-trigger="{ data }">
-        <TriggerNode :data="data" />
+      <template #node-trigger="nodeProps">
+        <TriggerNode :data="nodeProps.data" :node-id="nodeProps.id" />
       </template>
-      <template #node-condition="{ data }">
-        <ConditionNode :data="data" />
+      <template #node-condition="nodeProps">
+        <ConditionNode :data="nodeProps.data" :node-id="nodeProps.id" />
       </template>
-      <template #node-transformer="{ data }">
-        <TransformerNode :data="data" />
+      <template #node-transformer="nodeProps">
+        <TransformerNode :data="nodeProps.data" :node-id="nodeProps.id" />
       </template>
       <template #node-http-request="nodeProps">
         <HttpRequestNode
@@ -44,29 +44,30 @@
           @retry-loop="$emit('retry-loop', $event)"
         />
       </template>
-      <template #node-openobserve="{ data }">
-        <OpenObserveNode :data="data" />
+      <template #node-openobserve="nodeProps">
+        <OpenObserveNode :data="nodeProps.data" :node-id="nodeProps.id" />
       </template>
-      <template #node-app="{ data }">
-        <AppNode :data="data" />
+      <template #node-app="nodeProps">
+        <AppNode :data="nodeProps.data" :node-id="nodeProps.id" />
       </template>
-      <template #node-email="{ data }">
-        <EmailNode :data="data" />
+      <template #node-email="nodeProps">
+        <EmailNode :data="nodeProps.data" :node-id="nodeProps.id" />
       </template>
-      <template #node-delay="{ data }">
-        <DelayNode :data="data" />
+      <template #node-delay="nodeProps">
+        <DelayNode :data="nodeProps.data" :node-id="nodeProps.id" />
       </template>
-      <template #node-anthropic="{ data }">
-        <AnthropicNode :data="data" />
+      <template #node-anthropic="nodeProps">
+        <AnthropicNode :data="nodeProps.data" :node-id="nodeProps.id" />
       </template>
-      <template #node-human-in-loop="{ data }">
-        <HumanInLoopNode :data="data" />
+      <template #node-human-in-loop="nodeProps">
+        <HumanInLoopNode :data="nodeProps.data" :node-id="nodeProps.id" />
       </template>
     </VueFlow>
   </div>
 </template>
 
 <script setup lang="ts">
+import { provide } from 'vue'
 import { VueFlow } from '@vue-flow/core'
 import type { Node, Edge, Connection, NodeMouseEvent, EdgeMouseEvent } from '@vue-flow/core'
 import { Controls } from '@vue-flow/controls'
@@ -85,6 +86,7 @@ import HumanInLoopNode from '../nodes/HumanInLoopNode.vue'
 interface Props {
   nodes: Node[]
   edges: Edge[]
+  onHandleClick?: (nodeId: string, sourceHandle: string | undefined, event: MouseEvent) => void
 }
 
 interface Emits {
@@ -102,8 +104,13 @@ interface Emits {
   (e: 'retry-loop', loopId: string): void
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 defineEmits<Emits>()
+
+// Provide the handle click function to child node components
+if (props.onHandleClick) {
+  provide('onHandleClick', props.onHandleClick)
+}
 </script>
 
 <style scoped>

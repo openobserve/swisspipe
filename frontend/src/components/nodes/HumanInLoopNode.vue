@@ -22,8 +22,10 @@
         :style="{
           background: '#10b981',
           left: '25%',
-          transform: 'translateX(-50%)'
+          transform: 'translateX(-50%)',
+          cursor: 'pointer'
         }"
+        @click="onHandleClick($event, 'approved')"
       />
 
       <!-- Denied handle (center) -->
@@ -34,8 +36,10 @@
         :style="{
           background: '#ef4444',
           left: '50%',
-          transform: 'translateX(-50%)'
+          transform: 'translateX(-50%)',
+          cursor: 'pointer'
         }"
+        @click="onHandleClick($event, 'denied')"
       />
 
       <!-- Notification handle (right) -->
@@ -46,8 +50,10 @@
         :style="{
           background: '#3b82f6',
           left: '75%',
-          transform: 'translateX(-50%)'
+          transform: 'translateX(-50%)',
+          cursor: 'pointer'
         }"
+        @click="onHandleClick($event, 'notification')"
       />
 
       <!-- Handle labels -->
@@ -87,6 +93,7 @@
 </template>
 
 <script setup lang="ts">
+import { inject } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
 import BaseNode from './BaseNode.vue'
 import type { HumanInLoopConfig } from '../../types/nodes'
@@ -102,9 +109,34 @@ interface Props {
     executionDuration?: number
     executionError?: string
   }
+  nodeId: string
 }
 
 const props = defineProps<Props>()
+
+// Inject the handle click handler from the parent
+const onHandleClickInjected = inject<(nodeId: string, sourceHandle: string | undefined, event: MouseEvent) => void>('onHandleClick')
+
+function onHandleClick(event: MouseEvent, handleId: string) {
+  console.log('🟣 HumanInLoopNode handle clicked:', handleId, props.nodeId)
+
+  // Stop event from bubbling to node click
+  event.stopPropagation()
+  event.preventDefault()
+
+  if (!onHandleClickInjected) {
+    console.error('❌ onHandleClickInjected is not available')
+    return
+  }
+
+  if (!props.nodeId) {
+    console.error('❌ nodeId prop is not available')
+    return
+  }
+
+  console.log('✅ Calling injected handler')
+  onHandleClickInjected(props.nodeId, handleId, event)
+}
 
 function getHilSummary(): string {
   const config = props.data.config

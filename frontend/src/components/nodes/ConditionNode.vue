@@ -19,32 +19,72 @@
         type="target"
         :position="Position.Top"
       />
-      <Handle
-        id="true"
-        type="source"
-        :position="Position.Bottom"
-        :style="{ left: '30%' }"
-      />
-      <Handle
-        id="false"
-        type="source"
-        :position="Position.Bottom"
-        :style="{ left: '70%' }"
-      />
+      <!-- True handle with click wrapper -->
+      <div
+        class="absolute bottom-0"
+        :style="{ left: '30%', transform: 'translateX(-50%)' }"
+        @click="onHandleClick($event, 'true')"
+      >
+        <Handle
+          id="true"
+          type="source"
+          :position="Position.Bottom"
+          :style="{ position: 'relative', left: '0', cursor: 'pointer' }"
+        />
+      </div>
+      <!-- False handle with click wrapper -->
+      <div
+        class="absolute bottom-0"
+        :style="{ left: '70%', transform: 'translateX(-50%)' }"
+        @click="onHandleClick($event, 'false')"
+      >
+        <Handle
+          id="false"
+          type="source"
+          :position="Position.Bottom"
+          :style="{ position: 'relative', left: '0', cursor: 'pointer' }"
+        />
+      </div>
     </template>
   </BaseNode>
 </template>
 
 <script setup lang="ts">
+import { inject } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
 import BaseNode from './BaseNode.vue'
 import type { WorkflowNodeData, ConditionConfig } from '../../types/nodes'
 
 interface Props {
   data: WorkflowNodeData
+  nodeId: string
 }
 
 const props = defineProps<Props>()
+
+// Inject the handle click handler from the parent
+const onHandleClickInjected = inject<(nodeId: string, sourceHandle: string | undefined, event: MouseEvent) => void>('onHandleClick')
+
+function onHandleClick(event: MouseEvent, handleId: string) {
+  console.log('🔵 ConditionNode handle clicked:', handleId, props.nodeId)
+
+  // Stop event from bubbling to node click
+  event.stopPropagation()
+  event.preventDefault()
+
+  if (!onHandleClickInjected) {
+    console.error('❌ onHandleClickInjected is not available')
+    return
+  }
+
+  if (!props.nodeId) {
+    console.error('❌ nodeId prop is not available')
+    return
+  }
+
+  console.log('✅ Calling injected handler')
+  onHandleClickInjected(props.nodeId, handleId, event)
+}
 
 function getConditionType() {
   const config = props.data.config as ConditionConfig

@@ -1,5 +1,5 @@
 <template>
-  <div 
+  <div
     :class="[`node-${nodeType}`, 'px-4 py-3 rounded-lg shadow-2xl min-w-[180px] border-2', nodeClasses]"
     :style="nodeStyles"
   >
@@ -30,6 +30,8 @@
         :type="handle.type"
         :position="handle.position"
         :id="handle.id"
+        :style="handle.type === 'source' ? { cursor: 'pointer' } : undefined"
+        @click="handle.type === 'source' ? onHandleClick($event, handle.id) : undefined"
       />
     </slot>
   </div>
@@ -37,7 +39,7 @@
 
 <script setup lang="ts">
 import { Handle, Position } from '@vue-flow/core'
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { formatDuration } from '../../utils/formatting'
 import { getNodeTheme, type NodeType } from '../../constants/nodeThemes'
 
@@ -59,6 +61,7 @@ interface Props {
     executionDuration?: number
     executionError?: string
   }
+  nodeId?: string
   handles?: NodeHandle[]
   defaultLabel?: string
   subtitle?: string
@@ -69,6 +72,30 @@ const props = withDefaults(defineProps<Props>(), {
   defaultLabel: 'Node',
   subtitle: ''
 })
+
+// Inject the handle click handler from the parent
+const onHandleClickInjected = inject<(nodeId: string, sourceHandle: string | undefined, event: MouseEvent) => void>('onHandleClick')
+
+function onHandleClick(event: MouseEvent, handleId?: string) {
+  console.log('🟤 BaseNode handle clicked:', handleId, props.nodeId)
+
+  // Stop event from bubbling to node click
+  event.stopPropagation()
+  event.preventDefault()
+
+  if (!onHandleClickInjected) {
+    console.error('❌ onHandleClickInjected is not available')
+    return
+  }
+
+  if (!props.nodeId) {
+    console.error('❌ nodeId prop is not available')
+    return
+  }
+
+  console.log('✅ Calling injected handler')
+  onHandleClickInjected(props.nodeId, handleId, event)
+}
 
 const theme = computed(() => getNodeTheme(props.nodeType))
 

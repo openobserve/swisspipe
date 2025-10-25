@@ -2,6 +2,7 @@
   <BaseNode
     node-type="anthropic"
     :data="data"
+    :node-id="nodeId"
     :subtitle="getAnthropicSummary()"
     default-label="Anthropic"
   >
@@ -12,11 +13,13 @@
         :position="Position.Top"
         :style="{ background: '#ddd' }"
       />
-      <Handle
-        type="source"
-        :position="Position.Bottom"
-        :style="{ background: '#ddd' }"
-      />
+      <div @click="onHandleClick($event)">
+        <Handle
+          type="source"
+          :position="Position.Bottom"
+          :style="{ background: '#ddd', cursor: 'pointer' }"
+        />
+      </div>
 
       <!-- Sparkles icon -->
       <div class="absolute top-2 right-2 text-amber-500">
@@ -29,6 +32,7 @@
 </template>
 
 <script setup lang="ts">
+import { inject } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
 import BaseNode from './BaseNode.vue'
 import type { AnthropicConfig } from '../../types/nodes'
@@ -44,9 +48,33 @@ interface Props {
     executionDuration?: number
     executionError?: string
   }
+  nodeId: string
 }
 
 const props = defineProps<Props>()
+
+// Inject the handle click handler from the parent
+const onHandleClickInjected = inject<(nodeId: string, sourceHandle: string | undefined, event: MouseEvent) => void>('onHandleClick')
+
+function onHandleClick(event: MouseEvent) {
+  console.log('✨ AnthropicNode handle clicked:', props.nodeId)
+
+  event.stopPropagation()
+  event.preventDefault()
+
+  if (!onHandleClickInjected) {
+    console.error('❌ onHandleClickInjected is not available')
+    return
+  }
+
+  if (!props.nodeId) {
+    console.error('❌ nodeId prop is not available')
+    return
+  }
+
+  console.log('✅ Calling injected handler')
+  onHandleClickInjected(props.nodeId, undefined, event)
+}
 
 function getAnthropicSummary(): string {
   const config = props.data.config

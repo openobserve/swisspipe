@@ -2,6 +2,7 @@
   <BaseNode
     node-type="http-request"
     :data="data"
+    :node-id="nodeId"
     subtitle="HTTP Request"
     :handles="[
       { type: 'target', position: Position.Top },

@@ -2,6 +2,7 @@
   <BaseNode
     node-type="delay"
     :data="data"
+    :node-id="nodeId"
     :subtitle="getDelaySummary()"
     default-label="Delay"
   >
@@ -12,12 +13,14 @@
         :position="Position.Top"
         :style="{ background: '#ddd' }"
       />
-      <Handle
-        type="source"
-        :position="Position.Bottom"
-        :style="{ background: '#ddd' }"
-      />
-      
+      <div @click="onHandleClick($event)">
+        <Handle
+          type="source"
+          :position="Position.Bottom"
+          :style="{ background: '#ddd', cursor: 'pointer' }"
+        />
+      </div>
+
       <!-- Clock icon -->
       <div class="absolute top-2 right-2 text-gray-400">
         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -29,6 +32,7 @@
 </template>
 
 <script setup lang="ts">
+import { inject } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
 import BaseNode from './BaseNode.vue'
 import type { DelayConfig } from '../../types/nodes'
@@ -44,16 +48,40 @@ interface Props {
     executionDuration?: number
     executionError?: string
   }
+  nodeId: string
 }
 
 const props = defineProps<Props>()
+
+// Inject the handle click handler from the parent
+const onHandleClickInjected = inject<(nodeId: string, sourceHandle: string | undefined, event: MouseEvent) => void>('onHandleClick')
+
+function onHandleClick(event: MouseEvent) {
+  console.log('⏱️ DelayNode handle clicked:', props.nodeId)
+
+  event.stopPropagation()
+  event.preventDefault()
+
+  if (!onHandleClickInjected) {
+    console.error('❌ onHandleClickInjected is not available')
+    return
+  }
+
+  if (!props.nodeId) {
+    console.error('❌ nodeId prop is not available')
+    return
+  }
+
+  console.log('✅ Calling injected handler')
+  onHandleClickInjected(props.nodeId, undefined, event)
+}
 
 function getDelaySummary(): string {
   const config = props.data.config
   if (!config.duration || !config.unit) {
     return 'Not configured'
   }
-  
+
   const unitDisplay = config.unit.toLowerCase()
   return `${config.duration} ${unitDisplay}`
 }

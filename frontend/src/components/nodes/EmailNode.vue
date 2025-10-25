@@ -2,6 +2,7 @@
   <BaseNode
     node-type="email"
     :data="data"
+    :node-id="nodeId"
     :subtitle="getEmailSummary()"
     default-label="Email"
   >
@@ -12,17 +13,20 @@
         :position="Position.Top"
         :style="{ background: '#ddd' }"
       />
-      <Handle
-        type="source"
-        :position="Position.Bottom"
-        :style="{ background: '#ddd' }"
-      />
-      
+      <div @click="onHandleClick($event)">
+        <Handle
+          type="source"
+          :position="Position.Bottom"
+          :style="{ background: '#ddd', cursor: 'pointer' }"
+        />
+      </div>
+
     </template>
   </BaseNode>
 </template>
 
 <script setup lang="ts">
+import { inject } from 'vue'
 import { Handle, Position } from '@vue-flow/core'
 import BaseNode from './BaseNode.vue'
 import type { EmailConfig } from '../../types/nodes'
@@ -38,19 +42,43 @@ interface Props {
     executionDuration?: number
     executionError?: string
   }
+  nodeId: string
 }
 
 const props = defineProps<Props>()
 
+// Inject the handle click handler from the parent
+const onHandleClickInjected = inject<(nodeId: string, sourceHandle: string | undefined, event: MouseEvent) => void>('onHandleClick')
+
+function onHandleClick(event: MouseEvent) {
+  console.log('📧 EmailNode handle clicked:', props.nodeId)
+
+  event.stopPropagation()
+  event.preventDefault()
+
+  if (!onHandleClickInjected) {
+    console.error('❌ onHandleClickInjected is not available')
+    return
+  }
+
+  if (!props.nodeId) {
+    console.error('❌ nodeId prop is not available')
+    return
+  }
+
+  console.log('✅ Calling injected handler')
+  onHandleClickInjected(props.nodeId, undefined, event)
+}
+
 function getEmailSummary() {
   const config = props.data.config
   if (!config) return 'Email'
-  
+
   const recipientCount = config.to?.length || 0
   const ccCount = config.cc?.length || 0
   const bccCount = config.bcc?.length || 0
   const totalRecipients = recipientCount + ccCount + bccCount
-  
+
   const parts = []
   if (totalRecipients > 0) {
     parts.push(`${totalRecipients} recipient${totalRecipients > 1 ? 's' : ''}`)
@@ -58,7 +86,7 @@ function getEmailSummary() {
   if (config.template_type) {
     parts.push(config.template_type.toUpperCase())
   }
-  
+
   return parts.join(' • ') || 'Email'
 }
 

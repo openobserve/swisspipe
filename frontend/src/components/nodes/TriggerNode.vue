@@ -2,6 +2,7 @@
   <BaseNode
     node-type="trigger"
     :data="data"
+    :node-id="nodeId"
     :handles="[{ type: 'source', position: Position.Bottom }]"
     default-label="Trigger"
   />
@@ -22,6 +23,7 @@ interface Props {
     executionDuration?: number
     executionError?: string
   }
+  nodeId: string
 }
 
 defineProps<Props>()

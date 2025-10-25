@@ -61,20 +61,33 @@
       </Transition>
 
       <!-- Canvas Area -->
-      <WorkflowCanvas
-        v-model:nodes="nodeStore.nodes"
-        v-model:edges="nodeStore.edges"
-        @node-click="handleNodeClick"
-        @edge-click="onEdgeClick"
-        @pane-click="onPaneClick"
-        @connect="onConnect"
-        @nodes-initialized="onNodesInitialized"
-        @nodes-delete="onNodesDelete"
-        @drop="onDrop"
-        @pause-loop="pauseLoop"
-        @stop-loop="stopLoop"
-        @retry-loop="retryLoop"
-      />
+      <div class="relative flex-1 overflow-hidden">
+        <WorkflowCanvas
+          v-model:nodes="nodeStore.nodes"
+          v-model:edges="nodeStore.edges"
+          :on-handle-click="onHandleClick"
+          @node-click="handleNodeClick"
+          @edge-click="onEdgeClick"
+          @pane-click="onPaneClick"
+          @connect="onConnect"
+          @nodes-initialized="onNodesInitialized"
+          @nodes-delete="onNodesDelete"
+          @drop="onDrop"
+          @pause-loop="pauseLoop"
+          @stop-loop="stopLoop"
+          @retry-loop="retryLoop"
+        />
+
+        <!-- Node Toolbar (Handle-Click Based) -->
+        <NodeHoverToolbar
+          :visible="toolbarState.visible"
+          :node-id="toolbarState.nodeId || ''"
+          :position="toolbarState.position"
+          :node-types="nodeStore.nodeTypes"
+          @create-node="handleToolbarCreateNode"
+          @dismiss="hideToolbar"
+        />
+      </div>
 
 
       <!-- Executions Panel (slide out when executions button clicked) -->
@@ -151,11 +164,14 @@ import VersionHistoryPanel from '../components/panels/VersionHistoryPanel.vue'
 import NodeInspector from '../components/panels/NodeInspector.vue'
 import JsonViewModal from '../components/common/JsonViewModal.vue'
 import CommitMessageModal from '../components/modals/CommitMessageModal.vue'
+import NodeHoverToolbar from '../components/workflow/NodeHoverToolbar.vue'
 import { useWorkflowData } from '../composables/useWorkflowData'
 import { useExecutionTracing } from '../composables/useExecutionTracing'
 import { useVueFlowInteraction } from '../composables/useVueFlowInteraction'
 import { usePanelState } from '../composables/usePanelState'
 import { useHttpLoop } from '../composables/useHttpLoop'
+import { useNodeToolbar } from '../composables/useNodeToolbar'
+import { useNodeCreation } from '../composables/useNodeCreation'
 import ToastContainer from '../components/common/ToastContainer.vue'
 import type { NodeTypeDefinition, WorkflowNodeData, WorkflowNode, HttpRequestConfig } from '../types/nodes'
 
@@ -214,12 +230,27 @@ function closeAiChat() {
 const {
   onNodeClick,
   onEdgeClick,
-  onPaneClick,
+  onPaneClick: onPaneClickBase,
   onConnect,
   onNodesDelete,
   onDrop,
   handleKeyDown
 } = useVueFlowInteraction()
+
+// Node toolbar (handle-click based)
+const {
+  toolbarState,
+  hideToolbar,
+  onHandleClick
+} = useNodeToolbar()
+
+// Wrap onPaneClick to also hide the toolbar
+function onPaneClick() {
+  onPaneClickBase()
+  hideToolbar()
+}
+
+const { addConnectedNodeToWorkflow } = useNodeCreation()
 
 
 // HTTP Loop integration
@@ -374,25 +405,25 @@ function closeNodeLibrary() {
 function handleAddNode(nodeType: NodeTypeDefinition) {
   // Find the bottom-most node position
   let bottomMostY = 100 // Default starting position if no nodes exist
-  
+
   if (nodeStore.nodes.length > 0) {
     // Find the node with the highest Y position (bottom-most)
     bottomMostY = Math.max(...nodeStore.nodes.map(node => node.position.y))
     // Add node height (~70px) + 100px gap below the bottom-most node
     bottomMostY += 70 + 100 // Node height + requested 100px gap
   }
-  
+
   const newPosition = {
     x: 400, // Center horizontally
     y: bottomMostY
   }
-  
+
   // Create a unique ID for the node
   const nodeId = uuidv4()
-  
+
   // Generate 12-digit random number for unique naming
   const randomSuffix = Math.floor(Math.random() * 1000000000000).toString().padStart(12, '0')
-  
+
   // Create the node data
   const newNode = {
     id: nodeId,
@@ -405,12 +436,34 @@ function handleAddNode(nodeType: NodeTypeDefinition) {
       status: 'ready' as const
     }
   }
-  
+
   // Add the node to the store
   nodeStore.addNode(newNode)
-  
+
   // Close the modal
   closeNodeLibrary()
+}
+
+function handleToolbarCreateNode(nodeType: NodeTypeDefinition) {
+  console.log('📝 Creating node:', {
+    nodeType: nodeType.label,
+    sourceNodeId: toolbarState.value.nodeId,
+    sourceHandle: toolbarState.value.sourceHandle
+  })
+
+  if (!toolbarState.value.nodeId) {
+    console.error('❌ No source node ID')
+    return
+  }
+
+  // Create and add the connected node with the specific source handle
+  const success = addConnectedNodeToWorkflow(
+    toolbarState.value.nodeId,
+    nodeType,
+    toolbarState.value.sourceHandle
+  )
+
+  console.log('✅ Node creation result:', success)
 }
 
 function handleLogout() {

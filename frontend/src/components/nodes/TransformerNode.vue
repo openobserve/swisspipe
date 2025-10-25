@@ -2,6 +2,7 @@
   <BaseNode
     node-type="transformer"
     :data="data"
+    :node-id="nodeId"
     :subtitle="getTransformerType()"
     :handles="[
       { type: 'target', position: Position.Top },
@@ -18,6 +19,7 @@ import type { WorkflowNodeData, TransformerConfig } from '../../types/nodes'
 
 interface Props {
   data: WorkflowNodeData
+  nodeId: string
 }
 
 const props = defineProps<Props>()

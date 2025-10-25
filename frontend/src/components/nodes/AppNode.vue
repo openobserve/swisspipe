@@ -2,6 +2,7 @@
   <BaseNode
     node-type="app"
     :data="data"
+    :node-id="nodeId"
     :subtitle="getAppType()"
     :handles="[
       { type: 'target', position: Position.Top },
@@ -18,6 +19,7 @@ import type { WorkflowNodeData, AppConfig } from '../../types/nodes'
 
 interface Props {
   data: WorkflowNodeData
+  nodeId: string
 }
 
 const props = defineProps<Props>()
