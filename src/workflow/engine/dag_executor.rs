@@ -156,7 +156,7 @@ impl DagExecutor {
                                 // After HIL MultiPath, check if workflow should be marked as blocked for human input
                                 // If no non-HIL nodes are pending and notification path has been executed,
                                 // the workflow is blocked waiting for human response
-                                if self.is_workflow_blocked_for_human_input(workflow, &completed_nodes, &executed_hil_handles, &mut pending_executions, execution_id).await? {
+                                if self.is_workflow_blocked_for_human_input(workflow, &completed_nodes, &executed_hil_handles, &mut pending_executions, execution_id, &node_outputs).await? {
                                     tracing::info!("Workflow blocked for human input after HIL node '{}' - exiting execution loop", node_id);
 
                                     // Return a special event indicating the workflow is pending human input
@@ -285,6 +285,7 @@ impl DagExecutor {
                 &node_predecessors,
                 execution_context.completed_nodes,
                 execution_context.executed_hil_handles,
+                execution_context.node_outputs,
             )?;
 
             if all_predecessors_ready {
@@ -454,7 +455,13 @@ impl DagExecutor {
         Ok(successors)
     }
 
-    /// Check if all predecessors are ready, considering HIL handle routing
+    /// Check if all predecessors are ready, considering HIL handle routing and conditional edges
+    ///
+    /// A node is ready when all REQUIRED predecessors are completed. A predecessor is required if:
+    /// 1. It has an unconditional edge to this node AND it has been executed (is in completed_nodes)
+    /// 2. It has a conditional edge where the condition path was taken
+    ///
+    /// Predecessors that haven't executed and won't execute (due to conditional paths) are skipped.
     fn check_predecessors_ready(
         &self,
         workflow: &Workflow,
@@ -462,8 +469,73 @@ impl DagExecutor {
         predecessors: &[String],
         completed_nodes: &HashSet<String>,
         executed_hil_handles: &HashMap<String, HashSet<String>>,
+        node_outputs: &HashMap<String, WorkflowEvent>,
     ) -> Result<bool> {
         for pred_id in predecessors {
+            // Check if this edge is conditional and if the condition path should be followed
+            let should_wait_for_pred = if let Some(edge) = workflow.edges.iter().find(|e|
+                e.from_node_id == *pred_id && e.to_node_id == node_id
+            ) {
+                if let Some(expected_result) = edge.condition_result {
+                    // This is a conditional edge - check if the condition was evaluated
+                    if let Some(pred_output) = node_outputs.get(pred_id) {
+                        // Predecessor has completed - check if condition matches
+                        let actual_result = pred_output.condition_results
+                            .get(pred_id)
+                            .copied()
+                            .unwrap_or(false);
+
+                        let path_taken = actual_result == expected_result;
+                        tracing::debug!(
+                            "Node '{}' conditional predecessor '{}': expected={}, actual={}, path_taken={}",
+                            node_id, pred_id, expected_result, actual_result, path_taken
+                        );
+
+                        // Only wait for this predecessor if its conditional path was taken
+                        path_taken
+                    } else {
+                        // Predecessor hasn't completed yet - need to wait
+                        tracing::debug!(
+                            "Node '{}' waiting for conditional predecessor '{}' to complete",
+                            node_id, pred_id
+                        );
+                        true
+                    }
+                } else {
+                    // Unconditional edge - only wait if predecessor has actually executed
+                    // This handles cases where unconditional edges come from nodes on conditional paths
+                    // that weren't taken
+                    if completed_nodes.contains(pred_id) || node_outputs.contains_key(pred_id) {
+                        // Predecessor has executed or is in progress
+                        tracing::debug!(
+                            "Node '{}' waiting for unconditional predecessor '{}' (already executed)",
+                            node_id, pred_id
+                        );
+                        true
+                    } else {
+                        // Predecessor hasn't executed - it might be on a conditional path that wasn't taken
+                        // Don't wait for it
+                        tracing::debug!(
+                            "Node '{}' skipping unconditional predecessor '{}' (not executed, likely on untaken conditional path)",
+                            node_id, pred_id
+                        );
+                        false
+                    }
+                }
+            } else {
+                // No edge found (shouldn't happen) - wait for predecessor to be safe
+                true
+            };
+
+            if !should_wait_for_pred {
+                // This path was not taken or predecessor is unreachable - skip this predecessor
+                tracing::debug!(
+                    "Node '{}' skipping predecessor '{}' - path not taken or unreachable",
+                    node_id, pred_id
+                );
+                continue;
+            }
+
             // Check if predecessor is completed
             if !completed_nodes.contains(pred_id) {
                 tracing::debug!("Node '{}' not ready - predecessor '{}' not completed", node_id, pred_id);
@@ -493,7 +565,7 @@ impl DagExecutor {
             }
         }
 
-        tracing::debug!("Node '{}' all predecessors ready", node_id);
+        tracing::debug!("Node '{}' all required predecessors ready", node_id);
         Ok(true)
     }
 
@@ -697,6 +769,7 @@ impl DagExecutor {
         executed_hil_handles: &HashMap<String, HashSet<String>>,
         pending_executions: &mut tokio::task::JoinSet<Result<(String, NodeOutput)>>,
         execution_id: &str,
+        node_outputs: &HashMap<String, WorkflowEvent>,
     ) -> Result<bool> {
         // Wait for any notification path executions to complete first
         // This ensures we don't return blocked status while notification is still running
@@ -776,6 +849,7 @@ impl DagExecutor {
                         &node_predecessors,
                         completed_nodes,
                         executed_hil_handles,
+                        node_outputs,
                     )? {
                         runnable_nodes += 1;
                         tracing::debug!("Node '{}' is still runnable", node.name);
