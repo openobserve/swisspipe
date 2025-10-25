@@ -21,6 +21,8 @@
       :min-zoom="0.2"
       :max-zoom="4"
       :delete-key-code="null"
+      :connection-mode="'loose'"
+      :connect-on-click="false"
     >
       <Background pattern-color="#a7abb0" :gap="20" />
       <Controls />
