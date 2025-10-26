@@ -493,13 +493,22 @@ impl DagExecutor {
 
                         // Only wait for this predecessor if its conditional path was taken
                         path_taken
-                    } else {
-                        // Predecessor hasn't completed yet - need to wait
+                    } else if completed_nodes.contains(pred_id) {
+                        // Predecessor completed but no output (edge case) - don't wait
                         tracing::debug!(
-                            "Node '{}' waiting for conditional predecessor '{}' to complete",
+                            "Node '{}' skipping conditional predecessor '{}' - completed but no output",
                             node_id, pred_id
                         );
-                        true
+                        false
+                    } else {
+                        // Predecessor hasn't executed - it's on an untaken conditional path
+                        // Don't wait for predecessors that will never execute
+                        // This maintains WaitForAll semantics: wait for all REACHABLE predecessors
+                        tracing::debug!(
+                            "Node '{}' skipping conditional predecessor '{}' - not executed (unreachable path)",
+                            node_id, pred_id
+                        );
+                        false
                     }
                 } else {
                     // Unconditional edge - only wait if predecessor has actually executed
