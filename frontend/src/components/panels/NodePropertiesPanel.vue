@@ -67,6 +67,11 @@
           </div>
         </div>
 
+        <!-- Input Merge Strategy (for non-trigger nodes) -->
+        <div v-if="selectedNodeData.type !== 'trigger'" class="mb-6 pb-6 border-b border-slate-700/50">
+          <InputMergeStrategy v-model="inputMergeStrategy" />
+        </div>
+
         <!-- Node-specific Configuration -->
         <div class="flex-1 min-h-0">
           <!-- Trigger Node Configuration -->
@@ -169,6 +174,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { XMarkIcon } from '@heroicons/vue/24/outline'
 import { useNodeStore } from '../../stores/nodes'
 import CommonConfigFields from '../common/CommonConfigFields.vue'
+import InputMergeStrategy from '../common/InputMergeStrategy.vue'
 import TriggerConfig from '../app-configs/TriggerConfig.vue'
 import ConditionConfig from '../app-configs/ConditionConfig.vue'
 import TransformerConfig from '../app-configs/TransformerConfig.vue'
@@ -190,7 +196,8 @@ import type {
   EmailConfig as EmailConfigType,
   DelayConfig as DelayConfigType,
   AnthropicConfig as AnthropicConfigType,
-  HumanInLoopConfig as HumanInLoopConfigType
+  HumanInLoopConfig as HumanInLoopConfigType,
+  InputMergeStrategy as InputMergeStrategyType
 } from '../../types/nodes'
 
 const nodeStore = useNodeStore()
@@ -252,6 +259,14 @@ const commonConfig = computed({
   get: () => localNodeData.value.config as { timeout_seconds?: number; failure_action?: string; retry_config?: { max_attempts?: number } },
   set: (value) => {
     localNodeData.value.config = { ...localNodeData.value.config, ...value } as typeof localNodeData.value.config
+  }
+})
+
+const inputMergeStrategy = computed({
+  get: () => localNodeData.value.input_merge_strategy || { WaitForAll: null },
+  set: (value: InputMergeStrategyType) => {
+    localNodeData.value.input_merge_strategy = value
+    updateNodeData()
   }
 })
 

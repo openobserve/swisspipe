@@ -181,7 +181,7 @@ export interface RetryConfig {
   backoff_multiplier: number
 }
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
+export type HttpMethod = 'Get' | 'Post' | 'Put' | 'Delete' | 'Patch' | 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
 export interface WorkflowExecution {
   id: string

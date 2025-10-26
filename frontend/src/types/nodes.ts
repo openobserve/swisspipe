@@ -11,6 +11,7 @@ export interface WorkflowNodeData {
   label: string
   description?: string
   config: NodeConfig
+  input_merge_strategy?: InputMergeStrategy
   status?: NodeStatus
   isTracing?: boolean
   tracingExecutionId?: string
@@ -216,4 +217,17 @@ export interface ValidationState {
   isValid: boolean
   errors: string[]
   warnings: string[]
+}
+
+// Input Merge Strategy types matching Rust backend
+export type InputMergeStrategy =
+  | { WaitForAll: null }
+  | { FirstWins: null }
+  | { TimeoutBased: number }
+
+export interface InputMergeStrategyOption {
+  type: 'WaitForAll' | 'FirstWins' | 'TimeoutBased'
+  label: string
+  description: string
+  timeout?: number
 }

@@ -360,7 +360,7 @@ import { useWorkflowStore } from '../stores/workflows'
 import { useExecutionStore } from '../stores/executions'
 import HeaderComponent from '../components/HeaderComponent.vue'
 import AIWorkflowChat from '../components/AIWorkflowChat.vue'
-import type { Workflow } from '../types/workflow'
+import type { Workflow, CreateWorkflowRequest, NodeType, RetryConfig } from '../types/workflow'
 import { formatDate } from '../utils/formatting'
 
 const router = useRouter()
@@ -714,119 +714,119 @@ async function importWorkflow() {
     }
 
     // Function to transform frontend node configuration to backend NodeType enum
-    const transformNodeType = (node: { type: string; data?: { config?: unknown } }) => {
-      const config = (node.data?.config || {}) as Record<string, any>
+    const transformNodeType = (node: { type: string; data?: { config?: unknown } }): NodeType => {
+      const config = (node.data?.config || {}) as Record<string, unknown>
 
       switch (node.type) {
         case 'trigger':
           return {
             Trigger: {
-              methods: config.methods || ['Get', 'Post', 'Put']
+              methods: (config.methods as string[]) || ['Get', 'Post', 'Put']
             }
-          }
+          } as NodeType
 
         case 'condition':
           return {
             Condition: {
-              script: config.script || 'function condition(event) { return true; }'
+              script: (config.script as string) || 'function condition(event) { return true; }'
             }
-          }
+          } as NodeType
 
         case 'transformer':
           return {
             Transformer: {
-              script: config.script || 'function transformer(event) { return event; }'
+              script: (config.script as string) || 'function transformer(event) { return event; }'
             }
-          }
+          } as NodeType
 
         case 'http-request':
           return {
             HttpRequest: {
-              url: config.url || 'https://example.com',
-              method: config.method || 'Post',
-              timeout_seconds: config.timeout_seconds || 30,
-              failure_action: config.failure_action || 'Stop',
-              headers: config.headers || {},
-              retry_config: config.retry_config || {
+              url: (config.url as string) || 'https://example.com',
+              method: (config.method as string) || 'Post',
+              timeout_seconds: (config.timeout_seconds as number) || 30,
+              failure_action: (config.failure_action as string) || 'Stop',
+              headers: (config.headers as Record<string, string>) || {},
+              retry_config: (config.retry_config as RetryConfig) || {
                 max_attempts: 3,
                 initial_delay_ms: 100,
                 max_delay_ms: 5000,
                 backoff_multiplier: 2
               },
-              loop_config: config.loop_config || null
+              loop_config: (config.loop_config as Record<string, unknown>) || undefined
             }
-          }
+          } as NodeType
 
         case 'email':
           return {
             Email: {
               config: {
-                to: config.to || [],
-                cc: config.cc || null,
-                bcc: config.bcc || null,
-                subject: config.subject || 'SwissPipe Workflow Notification',
-                template_type: config.template_type || 'html',
-                body_template: config.body_template || '<p>Workflow completed successfully.</p>',
-                text_body_template: config.text_body_template || null,
-                attachments: config.attachments || null
+                to: (config.to as Array<{ email: string; name?: string }>) || [],
+                cc: (config.cc as Array<{ email: string; name?: string }>) || undefined,
+                bcc: (config.bcc as Array<{ email: string; name?: string }>) || undefined,
+                subject: (config.subject as string) || 'SwissPipe Workflow Notification',
+                template_type: (config.template_type as 'html' | 'text') || 'html',
+                body_template: (config.body_template as string) || '<p>Workflow completed successfully.</p>',
+                text_body_template: (config.text_body_template as string) || undefined,
+                attachments: (config.attachments as Array<{ filename: string; content_type: string; data: string }>) || undefined
               }
             }
-          }
+          } as NodeType
 
         case 'delay':
           return {
             Delay: {
-              duration: config.duration || 1,
-              unit: config.unit || 'Seconds'
+              duration: (config.duration as number) || 1,
+              unit: (config.unit as string) || 'Seconds'
             }
-          }
+          } as NodeType
 
         case 'openobserve':
           return {
             OpenObserve: {
-              url: config.url || config.endpoint || 'https://api.openobserve.ai',
-              authorization_header: config.authorization_header || '',
-              timeout_seconds: config.timeout_seconds || 30,
-              failure_action: config.failure_action || 'Stop',
-              retry_config: config.retry_config || {
+              url: (config.url as string) || (config.endpoint as string) || 'https://api.openobserve.ai',
+              authorization_header: (config.authorization_header as string) || '',
+              timeout_seconds: (config.timeout_seconds as number) || 30,
+              failure_action: (config.failure_action as string) || 'Stop',
+              retry_config: (config.retry_config as RetryConfig) || {
                 max_attempts: 3,
                 initial_delay_ms: 100,
                 max_delay_ms: 5000,
                 backoff_multiplier: 2
               }
             }
-          }
+          } as NodeType
 
         case 'human-in-loop':
           return {
             HumanInLoop: {
-              title: config.title || 'Human Action Required',
-              description: config.description || 'Please review and take action',
-              timeout_seconds: config.timeout_seconds || config.timeout_minutes ? (config.timeout_minutes * 60) : null,
-              timeout_action: config.timeout_action || null,
-              required_fields: config.required_fields || null,
-              metadata: config.metadata || null
+              title: (config.title as string) || 'Human Action Required',
+              description: (config.description as string) || 'Please review and take action',
+              timeout_seconds: (config.timeout_seconds as number) || ((config.timeout_minutes as number) ? ((config.timeout_minutes as number) * 60) : undefined),
+              timeout_action: (config.timeout_action as string) || undefined,
+              required_fields: (config.required_fields as string[]) || undefined,
+              metadata: (config.metadata as Record<string, unknown>) || undefined
             }
-          }
+          } as NodeType
 
         case 'anthropic':
           return {
             Anthropic: {
-              model: config.model || 'claude-3-sonnet-20240229',
-              max_tokens: config.max_tokens || 1000,
-              temperature: config.temperature || 0.7,
-              system_prompt: config.system_prompt || null,
-              user_prompt: config.user_prompt || 'Process this data',
-              timeout_seconds: config.timeout_seconds || 60,
-              failure_action: config.failure_action || 'Stop',
-              retry_config: config.retry_config || {
+              model: (config.model as string) || 'claude-3-sonnet-20240229',
+              max_tokens: (config.max_tokens as number) || 1000,
+              temperature: (config.temperature as number) || 0.7,
+              system_prompt: (config.system_prompt as string) || undefined,
+              user_prompt: (config.user_prompt as string) || 'Process this data',
+              timeout_seconds: (config.timeout_seconds as number) || 60,
+              failure_action: (config.failure_action as string) || 'Stop',
+              retry_config: (config.retry_config as RetryConfig) || {
                 max_attempts: 3,
                 initial_delay_ms: 100,
                 max_delay_ms: 5000,
                 backoff_multiplier: 2
               }
             }
-          }
+          } as NodeType
 
         default:
           // Fallback - return a simple trigger
@@ -834,12 +834,16 @@ async function importWorkflow() {
             Trigger: {
               methods: ['Get', 'Post', 'Put']
             }
-          }
+          } as NodeType
       }
     }
 
+    // Define type for imported workflow data
+    type ImportNode = { id: string; data?: { label?: string; config?: unknown }; position?: { x?: number; y?: number }; type: string }
+    type ImportEdge = { source: string; target: string; sourceHandle?: string }
+
     // Transform nodes to match backend NodeRequest structure
-    const transformedNodes = (workflowData.nodes || []).map((node: any) => ({
+    const transformedNodes = ((workflowData.nodes || []) as ImportNode[]).map((node) => ({
       id: node.id,
       name: node.data?.label || `Node ${node.id}`,
       node_type: transformNodeType(node),
@@ -848,7 +852,7 @@ async function importWorkflow() {
     }))
 
     // Transform edges to match backend EdgeRequest structure
-    const transformedEdges = (workflowData.edges || []).map((edge: any) => ({
+    const transformedEdges = ((workflowData.edges || []) as ImportEdge[]).map((edge) => ({
       from_node_id: edge.source,
       to_node_id: edge.target,
       condition_result: edge.sourceHandle === 'true' ? true : edge.sourceHandle === 'false' ? false : undefined,
@@ -856,12 +860,12 @@ async function importWorkflow() {
     }))
 
     // Ensure the workflow has required fields
-    const workflowPayload = {
+    const workflowPayload: CreateWorkflowRequest = {
       name: workflowData.name,
       description: workflowData.description || undefined,
       nodes: transformedNodes,
       edges: transformedEdges
-    } as any
+    }
 
     const workflow = await workflowStore.createWorkflow(workflowPayload)
 
