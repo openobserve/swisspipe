@@ -15,7 +15,7 @@
         aria-describedby="merge-strategy-description"
         class="w-full bg-slate-700 border border-slate-600 text-gray-100 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
       >
-        <option value="WaitForAll">Wait for All Inputs</option>
+        <option value="WaitForAll">Wait for All REACHABLE Predecessors</option>
         <option value="FirstWins">First Input Wins</option>
         <option value="TimeoutBased">Timeout Based</option>
       </select>
@@ -88,7 +88,7 @@ const MIN_TIMEOUT = 1
 const MAX_TIMEOUT = 86400 // 24 hours in seconds
 
 const STRATEGY_DESCRIPTIONS: Record<string, string> = {
-  WaitForAll: 'Wait for all expected inputs from predecessor nodes before executing (default for multiple inputs)',
+  WaitForAll: 'Wait for all reachable predecessor nodes to complete before executing. Skips predecessors on untaken conditional paths (default for multiple inputs)',
   FirstWins: 'Execute immediately on first input, ignore subsequent inputs (default for single input)',
   TimeoutBased: 'Wait up to the specified timeout for inputs, then execute with whatever was received'
 }
