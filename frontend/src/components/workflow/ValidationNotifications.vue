@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="!validation.isValid || validation.warnings.length"
-    class="fixed bottom-4 right-4 max-w-md"
+    class="fixed top-20 left-4 max-w-md z-40"
   >
     <!-- Validation Errors -->
     <div
@@ -15,7 +15,7 @@
         </li>
       </ul>
     </div>
-    
+
     <!-- Validation Warnings -->
     <div
       v-if="validation.warnings.length"
