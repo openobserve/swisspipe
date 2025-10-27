@@ -307,4 +307,52 @@ impl ExecutionService {
         let executions = query.all(self.db.as_ref()).await?;
         Ok(executions)
     }
+
+    /// Get total count of recent executions with filters
+    pub async fn count_recent_executions_filtered(
+        &self,
+        status: Option<&str>,
+        workflow_name: Option<&str>,
+    ) -> Result<u64> {
+        let mut query = workflow_executions::Entity::find()
+            .find_also_related(entities::Entity);
+
+        // Add status filter if provided
+        if let Some(status_filter) = status {
+            query = query.filter(workflow_executions::Column::Status.eq(status_filter));
+        }
+
+        // Add workflow name filter if provided
+        if let Some(name_filter) = workflow_name {
+            query = query.filter(entities::Column::Name.contains(name_filter));
+        }
+
+        let count = query.count(self.db.as_ref()).await?;
+        Ok(count)
+    }
+
+    /// Get total count of executions by workflow with filters
+    pub async fn count_executions_by_workflow_filtered(
+        &self,
+        workflow_id: &str,
+        status: Option<&str>,
+        workflow_name: Option<&str>,
+    ) -> Result<u64> {
+        let mut query = workflow_executions::Entity::find()
+            .find_also_related(entities::Entity)
+            .filter(workflow_executions::Column::WorkflowId.eq(workflow_id));
+
+        // Add status filter if provided
+        if let Some(status_filter) = status {
+            query = query.filter(workflow_executions::Column::Status.eq(status_filter));
+        }
+
+        // Add workflow name filter if provided
+        if let Some(name_filter) = workflow_name {
+            query = query.filter(entities::Column::Name.contains(name_filter));
+        }
+
+        let count = query.count(self.db.as_ref()).await?;
+        Ok(count)
+    }
 }

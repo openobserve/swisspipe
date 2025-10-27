@@ -170,6 +170,68 @@
             </tbody>
           </table>
         </div>
+
+        <!-- Pagination Controls -->
+        <div v-if="!executionStore.loading && executionStore.filteredExecutions.length > 0" class="glass-medium mt-4 px-6 py-4 flex items-center justify-between">
+          <div class="flex items-center space-x-4">
+            <span class="text-sm text-gray-400">
+              Showing {{ ((executionStore.currentPage - 1) * executionStore.pageSize) + 1 }} to
+              {{ Math.min(executionStore.currentPage * executionStore.pageSize, executionStore.totalCount) }}
+              of {{ executionStore.totalCount }} executions
+            </span>
+            <select
+              v-model.number="executionStore.pageSize"
+              @change="executionStore.setPageSize(executionStore.pageSize)"
+              class="glass border border-slate-600/50 text-gray-100 px-3 py-1 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+            >
+              <option :value="25">25 per page</option>
+              <option :value="50">50 per page</option>
+              <option :value="100">100 per page</option>
+              <option :value="200">200 per page</option>
+            </select>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <button
+              @click="executionStore.previousPage()"
+              :disabled="!executionStore.hasPreviousPage"
+              class="px-3 py-1 rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :class="executionStore.hasPreviousPage
+                ? 'bg-primary-600 hover:bg-primary-700 text-white'
+                : 'bg-gray-700 text-gray-500'"
+            >
+              Previous
+            </button>
+
+            <div class="flex items-center space-x-1">
+              <button
+                v-for="page in visiblePages"
+                :key="page"
+                @click="page !== '...' && executionStore.goToPage(Number(page))"
+                :disabled="page === '...'"
+                class="px-3 py-1 rounded-md text-sm font-medium transition-colors"
+                :class="page === executionStore.currentPage
+                  ? 'bg-primary-600 text-white'
+                  : page === '...'
+                    ? 'bg-transparent text-gray-500 cursor-default'
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'"
+              >
+                {{ page }}
+              </button>
+            </div>
+
+            <button
+              @click="executionStore.nextPage()"
+              :disabled="!executionStore.hasNextPage"
+              class="px-3 py-1 rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :class="executionStore.hasNextPage
+                ? 'bg-primary-600 hover:bg-primary-700 text-white'
+                : 'bg-gray-700 text-gray-500'"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
     </main>
 
@@ -179,7 +241,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, computed } from 'vue'
 import {
   MagnifyingGlassIcon,
   EyeIcon,
@@ -195,6 +257,36 @@ const executionStore = useExecutionStore()
 
 onMounted(() => {
   executionStore.fetchExecutions()
+})
+
+// Compute visible page numbers for pagination
+const visiblePages = computed(() => {
+  const current = executionStore.currentPage
+  const total = executionStore.totalPages
+  const pages: (number | string)[] = []
+
+  if (total <= 7) {
+    // Show all pages if 7 or fewer
+    for (let i = 1; i <= total; i++) {
+      pages.push(i)
+    }
+  } else {
+    // Always show first page
+    pages.push(1)
+
+    if (current <= 3) {
+      // Near the start
+      pages.push(2, 3, 4, '...', total)
+    } else if (current >= total - 2) {
+      // Near the end
+      pages.push('...', total - 3, total - 2, total - 1, total)
+    } else {
+      // In the middle
+      pages.push('...', current - 1, current, current + 1, '...', total)
+    }
+  }
+
+  return pages
 })
 
 function getStatusColorClass(status: ExecutionStatus): string {

@@ -115,25 +115,47 @@
       </div>
 
       <!-- Pagination -->
-      <div v-if="totalPages > 1" class="px-4 py-3 border-t border-slate-700/50">
-        <div class="flex items-center justify-between text-sm">
-          <button
-            @click="previousPage"
-            :disabled="currentPage === 1"
-            class="px-3 py-1 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-800 disabled:text-gray-500 text-white rounded transition-colors"
-          >
-            Previous
-          </button>
-          <span class="text-gray-400">
-            Page {{ currentPage }} of {{ totalPages }}
+      <div v-if="executions.length > 0" class="border-t border-slate-700/50">
+        <!-- Pagination Info -->
+        <div class="px-4 py-2 text-xs text-gray-400 flex items-center justify-between">
+          <span>
+            Showing {{ ((currentPage - 1) * pageSizeValue) + 1 }} to
+            {{ Math.min(currentPage * pageSizeValue, totalExecutions) }}
+            of {{ totalExecutions }} executions
           </span>
-          <button
-            @click="nextPage"
-            :disabled="currentPage === totalPages"
-            class="px-3 py-1 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-800 disabled:text-gray-500 text-white rounded transition-colors"
+          <select
+            v-model.number="pageSizeValue"
+            @change="onPageSizeChange"
+            class="bg-slate-700 border border-slate-600 text-gray-200 text-xs rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            Next
-          </button>
+            <option :value="10">10 per page</option>
+            <option :value="20">20 per page</option>
+            <option :value="50">50 per page</option>
+            <option :value="100">100 per page</option>
+          </select>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div v-if="totalPages > 1" class="px-4 py-2 border-t border-slate-700/50">
+          <div class="flex items-center justify-between text-sm">
+            <button
+              @click="previousPage"
+              :disabled="currentPage === 1"
+              class="px-3 py-1 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-800 disabled:text-gray-500 text-white rounded transition-colors"
+            >
+              Previous
+            </button>
+            <span class="text-gray-400">
+              Page {{ currentPage }} of {{ totalPages }}
+            </span>
+            <button
+              @click="nextPage"
+              :disabled="currentPage === totalPages"
+              class="px-3 py-1 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-800 disabled:text-gray-500 text-white rounded transition-colors"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -177,13 +199,13 @@ const error = ref<string | null>(null)
 const selectedExecutionId = ref<string | null>(null)
 const currentPage = ref(1)
 const totalExecutions = ref(0)
-const pageSize = 20
+const pageSizeValue = ref(20)
 const autoRefresh = ref(true)
 const statusFilter = ref<string>('')
 const refreshing = ref(false)
 
 // Computed
-const totalPages = computed(() => Math.ceil(totalExecutions.value / pageSize))
+const totalPages = computed(() => Math.ceil(totalExecutions.value / pageSizeValue.value))
 
 // Auto-refresh interval
 let refreshInterval: number | null = null
@@ -201,16 +223,26 @@ onUnmounted(() => {
 
 async function fetchExecutions() {
   if (!props.workflowId) return
-  
+
   loading.value = true
   error.value = null
-  
+
   try {
-    const offset = (currentPage.value - 1) * pageSize
+    const offset = (currentPage.value - 1) * pageSizeValue.value
     const status = statusFilter.value || undefined
-    const data = await apiClient.getExecutionsByWorkflow(props.workflowId, pageSize, offset, status)
+    const data = await apiClient.getExecutionsByWorkflow(props.workflowId, pageSizeValue.value, offset, status)
     executions.value = data.executions || []
-    totalExecutions.value = data.count || 0
+    // Use total_count if available, otherwise fall back to estimating from current results
+    if (data.total_count !== undefined) {
+      totalExecutions.value = data.total_count
+    } else {
+      // Fallback: estimate based on current page results
+      if (data.executions.length < pageSizeValue.value) {
+        totalExecutions.value = offset + data.executions.length
+      } else {
+        totalExecutions.value = offset + data.executions.length + 1
+      }
+    }
   } catch (err: unknown) {
     error.value = (err instanceof Error ? err.message : String(err)) || 'Unknown error occurred'
     console.error('Failed to fetch executions:', err)
@@ -276,6 +308,11 @@ function onStatusFilterChange() {
 function clearFilter() {
   statusFilter.value = ''
   currentPage.value = 1
+  fetchExecutions()
+}
+
+function onPageSizeChange() {
+  currentPage.value = 1 // Reset to first page when page size changes
   fetchExecutions()
 }
 

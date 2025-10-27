@@ -36,6 +36,7 @@ export interface ExecutionStep {
 export interface ExecutionListResponse {
   executions: WorkflowExecution[]
   count: number
+  total_count?: number
 }
 
 export interface ExecutionStepsResponse {

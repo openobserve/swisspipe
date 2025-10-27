@@ -221,6 +221,40 @@ pub async fn get_all_executions(
 
     let workflow_id_clone = params.workflow_id.clone();
     let status_clone = params.status.clone();
+
+    // Get total count in parallel with executions
+    let total_count = if let Some(ref workflow_id) = params.workflow_id {
+        execution_service
+            .count_executions_by_workflow_filtered(
+                workflow_id,
+                params.status.as_deref(),
+                params.workflow_name.as_deref(),
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    error = %e,
+                    workflow_id = workflow_id,
+                    "Failed to count executions by workflow"
+                );
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+    } else {
+        execution_service
+            .count_recent_executions_filtered(
+                params.status.as_deref(),
+                params.workflow_name.as_deref(),
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    error = %e,
+                    "Failed to count recent executions"
+                );
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+    };
+
     let executions = if let Some(ref workflow_id) = params.workflow_id {
         // Filter by specific workflow ID with workflow names
         execution_service
@@ -302,6 +336,7 @@ pub async fn get_all_executions(
     Ok(Json(serde_json::json!({
         "executions": executions_json,
         "count": executions_json.len(),
+        "total_count": total_count,
         "workflow_id": workflow_id_clone,
         "status": status_clone
     })))

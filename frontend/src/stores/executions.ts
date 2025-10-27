@@ -18,6 +18,11 @@ export const useExecutionStore = defineStore('executions', () => {
   const executionSteps = ref<ExecutionStep[]>([])
   const showSidePanel = ref(false)
 
+  // Pagination state
+  const currentPage = ref(1)
+  const pageSize = ref(50)
+  const totalCount = ref(0)
+
   // Computed - now just returns executions since filtering is done server-side
   const filteredExecutions = computed(() => {
     let filtered = executions.value
@@ -38,19 +43,67 @@ export const useExecutionStore = defineStore('executions', () => {
 
   const executionCount = computed(() => filteredExecutions.value.length)
 
+  // Computed pagination properties
+  const totalPages = computed(() => Math.ceil(totalCount.value / pageSize.value))
+  const hasNextPage = computed(() => currentPage.value < totalPages.value)
+  const hasPreviousPage = computed(() => currentPage.value > 1)
+
   // Actions
   async function fetchExecutions() {
     loading.value = true
     error.value = null
     try {
-      const response = await apiClient.getExecutions(50, workflowNameFilter.value || undefined) // Get last 50 executions with workflow name filter
+      const offset = (currentPage.value - 1) * pageSize.value
+      const response = await apiClient.getExecutions(
+        pageSize.value,
+        workflowNameFilter.value || undefined,
+        offset
+      )
       executions.value = response.executions
+      // Use total_count from backend if available
+      if (response.total_count !== undefined) {
+        totalCount.value = response.total_count
+      } else {
+        // Fallback: estimate based on current page results
+        if (response.executions.length < pageSize.value) {
+          totalCount.value = offset + response.executions.length
+        } else {
+          totalCount.value = offset + response.executions.length + 1
+        }
+      }
     } catch (err: unknown) {
       error.value = (err as Error).message || 'Failed to fetch executions'
       console.error('Error fetching executions:', err)
     } finally {
       loading.value = false
     }
+  }
+
+  function nextPage() {
+    if (hasNextPage.value) {
+      currentPage.value++
+      fetchExecutions()
+    }
+  }
+
+  function previousPage() {
+    if (hasPreviousPage.value) {
+      currentPage.value--
+      fetchExecutions()
+    }
+  }
+
+  function goToPage(page: number) {
+    if (page >= 1 && page <= totalPages.value) {
+      currentPage.value = page
+      fetchExecutions()
+    }
+  }
+
+  function setPageSize(size: number) {
+    pageSize.value = size
+    currentPage.value = 1
+    fetchExecutions()
   }
 
   async function fetchExecution(executionId: string) {
@@ -190,6 +243,7 @@ export const useExecutionStore = defineStore('executions', () => {
   // Watch for workflow name filter changes and trigger server-side filtering
   watch(workflowNameFilter, (newValue, oldValue) => {
     if (newValue !== oldValue) {
+      currentPage.value = 1 // Reset to first page when filter changes
       debouncedFetchExecutions()
     }
   })
@@ -204,11 +258,19 @@ export const useExecutionStore = defineStore('executions', () => {
     selectedExecution,
     executionSteps,
     showSidePanel,
-    
+
+    // Pagination state
+    currentPage,
+    pageSize,
+    totalCount,
+
     // Computed
     filteredExecutions,
     executionCount,
-    
+    totalPages,
+    hasNextPage,
+    hasPreviousPage,
+
     // Actions
     fetchExecutions,
     fetchExecution,
@@ -218,6 +280,12 @@ export const useExecutionStore = defineStore('executions', () => {
     closeSidePanel,
     getStatusColor,
     formatTimestamp,
-    formatDuration
+    formatDuration,
+
+    // Pagination actions
+    nextPage,
+    previousPage,
+    goToPage,
+    setPageSize
   }
 })
