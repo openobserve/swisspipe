@@ -29,7 +29,7 @@
     "@vue-flow/minimap": "^1.5.4",
     "@vue-flow/node-toolbar": "^1.1.1",
     "autoprefixer": "^10.4.21",
-    "axios": "^1.11.0",
+    "axios": "^1.20.0",
     "monaco-editor": "^0.52.2",
     "pinia": "^3.0.3",
     "uuid": "^13.0.0",
